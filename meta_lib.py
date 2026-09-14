@@ -1,33 +1,51 @@
 """Shared Meta Marketing API helpers used by both the CLI script (duplicate_ad.py)
 and the local web dashboard (webapp/app.py)."""
 import json
+import time
 
 import requests
 
 GRAPH = "https://graph.facebook.com/v21.0"
+
+# Ad-account/app-level throttling codes Meta expects callers to back off and
+# retry rather than treat as a hard failure (e.g. code 17 "User request limit
+# reached", subcode 2446079 "Ad Account Has Too Many API Calls").
+RATE_LIMIT_CODES = {4, 17, 32, 613}
+RATE_LIMIT_RETRY_DELAYS = (30, 60, 120)  # seconds; gives up after these are exhausted
 
 
 class MetaApiError(RuntimeError):
     pass
 
 
+def _format_error(method, path, err):
+    parts = [str(err.get("message", err))]
+    for key in ("error_user_title", "error_user_msg"):
+        if err.get(key) and err[key] not in parts:
+            parts.append(err[key])
+    detail = " — ".join(parts)
+    tags = [f"{k}={err[k]}" for k in ("code", "error_subcode", "fbtrace_id") if err.get(k) is not None]
+    if tags:
+        detail += " (" + ", ".join(tags) + ")"
+    return f"{method} {path} failed: {detail}"
+
+
 def api(method, path, token, **params):
     params["access_token"] = token
-    r = requests.request(method, f"{GRAPH}/{path}", params=params if method == "GET" else None,
-                          data=None if method == "GET" else params)
-    data = r.json()
-    if "error" in data:
+    delays = (0,) + RATE_LIMIT_RETRY_DELAYS
+    for attempt, delay in enumerate(delays):
+        if delay:
+            time.sleep(delay)
+        r = requests.request(method, f"{GRAPH}/{path}", params=params if method == "GET" else None,
+                              data=None if method == "GET" else params)
+        data = r.json()
+        if "error" not in data:
+            return data
         err = data["error"]
-        parts = [str(err.get("message", err))]
-        for key in ("error_user_title", "error_user_msg"):
-            if err.get(key) and err[key] not in parts:
-                parts.append(err[key])
-        detail = " — ".join(parts)
-        tags = [f"{k}={err[k]}" for k in ("code", "error_subcode", "fbtrace_id") if err.get(k) is not None]
-        if tags:
-            detail += " (" + ", ".join(tags) + ")"
-        raise MetaApiError(f"{method} {path} failed: {detail}")
-    return data
+        is_rate_limited = err.get("code") in RATE_LIMIT_CODES
+        if is_rate_limited and attempt < len(delays) - 1:
+            continue
+        raise MetaApiError(_format_error(method, path, err))
 
 
 def find_campaign_by_name(token, account_id, name):
