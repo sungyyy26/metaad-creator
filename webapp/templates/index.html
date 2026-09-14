@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>광고 복제 데스크 (로컬)</title>
+<style>
+  :root{
+    --bg:#F3F4F7; --surface:#FFFFFF; --surface-2:#F8F8FA;
+    --border:#E1E3E9; --border-strong:#CBCED6;
+    --text:#1A1D24; --text-muted:#666C7A; --text-faint:#9096A2;
+    --accent:#E8456A; --accent-contrast:#FFFFFF; --accent-soft:#FDE7EC; --accent-soft-border:#F6C3D0;
+    --status-done-bg:#DFF3E6; --status-done-fg:#1F7A45;
+    --status-error-bg:#FBE3E3; --status-error-fg:#A3201E;
+    --status-processing-bg:#E1EAFE; --status-processing-fg:#24478C;
+    --shadow: 0 1px 2px rgba(20,22,30,0.04), 0 8px 24px -12px rgba(20,22,30,0.12);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
+  #app{max-width:960px;margin:0 auto;padding:32px 20px 80px;}
+  .eyebrow{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);}
+  h1{font-size:24px;margin:4px 0 6px;}
+  .subtitle{color:var(--text-muted);font-size:13.5px;margin:0 0 26px;}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);padding:22px 24px;margin-bottom:22px;}
+  .panel h2{font-size:16px;margin:0 0 4px;}
+  .panel .hint{color:var(--text-muted);font-size:13px;margin:0 0 16px;}
+  fieldset{border:0;margin:0 0 18px;padding:0;}
+  legend{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint);border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:12px;width:100%;}
+  .field{margin-bottom:12px;}
+  .field label{display:block;font-size:13.5px;font-weight:600;margin-bottom:4px;}
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  @media (max-width:560px){.field-row{grid-template-columns:1fr;}}
+  input[type=text],input[type=number],input[type=url],textarea,select{
+    width:100%;font:inherit;font-size:14px;color:var(--text);background:var(--surface-2);
+    border:1px solid var(--border-strong);border-radius:8px;padding:9px 11px;
+  }
+  textarea{min-height:70px;resize:vertical;}
+  .budget-wrap{position:relative;}
+  .budget-wrap .prefix{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text-muted);}
+  .budget-wrap input{padding-left:22px;}
+  .radio-group{display:flex;gap:14px;}
+  .radio-group label{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:500;}
+  button.primary{
+    font-weight:700;font-size:14px;background:var(--accent);color:var(--accent-contrast);
+    border:none;border-radius:9px;padding:12px 20px;cursor:pointer;
+  }
+  button.primary:hover{filter:brightness(1.05);}
+  .banner{border-radius:10px;padding:12px 16px;margin-bottom:18px;font-size:13.5px;font-weight:600;}
+  .banner.ok{background:var(--status-done-bg);color:var(--status-done-fg);}
+  .banner.err{background:var(--status-error-bg);color:var(--status-error-fg);}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{border-bottom:1px solid var(--border);padding:8px 6px;text-align:left;vertical-align:top;}
+  th{color:var(--text-faint);font-weight:700;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;}
+  .pill{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:999px;white-space:nowrap;}
+  .pill.done{background:var(--status-done-bg);color:var(--status-done-fg);}
+  .pill.error{background:var(--status-error-bg);color:var(--status-error-fg);}
+  .pill.processing{background:var(--status-processing-bg);color:var(--status-processing-fg);}
+  a{color:var(--accent);font-weight:600;text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  .mono{font-family:ui-monospace,monospace;}
+  .empty{color:var(--text-faint);text-align:center;padding:24px;}
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="eyebrow">Boosters · 메타 광고 · 로컬 실행</div>
+  <h1>광고 복제 데스크</h1>
+  <p class="subtitle">기존 광고 세트를 알려주시면 타겟팅을 복제하고, 소재를 매칭해 새 광고 세트와 광고를 즉시 생성합니다. 이 페이지는 내 컴퓨터에서만 열리고, 제출 즉시 Meta API를 직접 호출합니다 (승인 대기열 없음).</p>
+
+  {% if message %}
+    <div class="banner {{ 'ok' if message[0] == 'ok' else 'err' }}">{{ message[1] }}</div>
+  {% endif %}
+
+  <div class="panel">
+    <h2>새 광고 요청</h2>
+    <p class="hint">달라지는 부분만 입력하세요 — 나머지는 복제할 광고 세트에서 그대로 가져옵니다.</p>
+    <form method="post" action="/submit">
+      <fieldset>
+        <legend>소스</legend>
+        <div class="field">
+          <label>캠페인 ID *</label>
+          <input type="text" name="campaign_id" required placeholder="예: 120210000000000000">
+        </div>
+        <div class="field">
+          <label>복제할 광고 세트 이름 *</label>
+          <input type="text" name="source_adset_name" required placeholder="캠페인 내 광고 세트 이름 그대로">
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>광고 세트 &amp; 예산</legend>
+        <div class="field-row">
+          <div class="field">
+            <label>새 광고 세트 이름 *</label>
+            <input type="text" name="new_adset_name" required>
+          </div>
+          <div class="field">
+            <label>새 광고 이름 *</label>
+            <input type="text" name="new_ad_name" required>
+          </div>
+        </div>
+        <div class="field">
+          <label>일일 예산 (USD) *</label>
+          <div class="budget-wrap"><span class="prefix">$</span>
+            <input type="number" name="daily_budget" min="1" step="1" required>
+          </div>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>광고</legend>
+        <div class="field">
+          <label>웹사이트 URL *</label>
+          <input type="url" name="website_url" required placeholder="https://…">
+        </div>
+        <div class="field">
+          <label>소재 (라이브러리 파일명 일부) *</label>
+          <input type="text" name="creative_name" required>
+        </div>
+        <div class="field">
+          <label>헤드라인 *</label>
+          <input type="text" name="headline" required>
+        </div>
+        <div class="field">
+          <label>기본 텍스트 *</label>
+          <textarea name="primary_text" required></textarea>
+        </div>
+      </fieldset>
+      <fieldset>
+        <legend>고급 설정</legend>
+        <div class="field">
+          <label>광고 계정</label>
+          <select name="account_id">
+            {% for id, label in accounts.items() %}
+              <option value="{{ id }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label>생성 후 상태</label>
+          <div class="radio-group">
+            <label><input type="radio" name="after_status" value="PAUSED" checked> 일시중지 (추천)</label>
+            <label><input type="radio" name="after_status" value="ACTIVE"> 즉시 활성화</label>
+          </div>
+        </div>
+      </fieldset>
+      <button type="submit" class="primary">지금 생성하기</button>
+    </form>
+  </div>
+
+  <div class="panel">
+    <h2>요청 기록</h2>
+    <p class="hint">이 컴퓨터에서 제출한 요청들 (webapp/requests.json에 저장됨).</p>
+    {% if items %}
+    <table>
+      <thead><tr><th>상태</th><th>제출 시각</th><th>광고 세트</th><th>광고</th><th>예산</th><th>결과</th></tr></thead>
+      <tbody>
+        {% for it in items %}
+        <tr>
+          <td><span class="pill {{ it.status }}">{{ {'done':'완료','error':'오류','processing':'처리중'}.get(it.status, it.status) }}</span></td>
+          <td>{{ it.submittedAt }}</td>
+          <td>{{ it.adSetName }}</td>
+          <td>{{ it.adName }}</td>
+          <td class="mono">${{ it.budget }}/일</td>
+          <td>
+            {% if it.status == 'done' and it.result %}
+              <a href="{{ it.result.ads_manager_url }}" target="_blank" rel="noopener">Ads Manager →</a>
+            {% elif it.status == 'error' %}
+              {{ it.error }}
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <div class="empty">아직 제출된 요청이 없습니다.</div>
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>
