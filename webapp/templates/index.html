@@ -13,6 +13,7 @@
     --status-done-bg:#e3f7e9; --status-done-fg:#1a7f42;
     --status-error-bg:#fdecec; --status-error-fg:#c53030;
     --status-processing-bg:#eef4ff; --status-processing-fg:#2f5fce;
+    --status-incomplete-bg:#fdf1da; --status-incomplete-fg:#96650a;
     --radius-lg:20px; --radius-md:12px; --radius-sm:8px;
     --shadow: 0 2px 10px rgba(0,0,0,0.04), 0 12px 32px -16px rgba(0,0,0,0.12);
   }
@@ -25,6 +26,7 @@
       --status-done-bg:#0f2e1c; --status-done-fg:#4ade80;
       --status-error-bg:#3a1414; --status-error-fg:#f87171;
       --status-processing-bg:#0f1f3d; --status-processing-fg:#7fb1ff;
+      --status-incomplete-bg:#3d2e0a; --status-incomplete-fg:#f2b84c;
       --shadow: 0 2px 10px rgba(0,0,0,0.3), 0 12px 32px -16px rgba(0,0,0,0.6);
     }
   }
@@ -91,6 +93,7 @@
   .pill.done{background:var(--status-done-bg);color:var(--status-done-fg);}
   .pill.error{background:var(--status-error-bg);color:var(--status-error-fg);}
   .pill.processing{background:var(--status-processing-bg);color:var(--status-processing-fg);}
+  .pill.incomplete{background:var(--status-incomplete-bg);color:var(--status-incomplete-fg);}
   a{color:var(--accent);font-weight:600;text-decoration:none;}
   a:hover{text-decoration:underline;}
   .mono{font-family:ui-monospace,monospace;}
@@ -189,6 +192,32 @@
             </div>
           </div>
         </fieldset>
+        <fieldset>
+          <legend>Shopify 브릿지 페이지 (선택)</legend>
+          <p class="hint" style="margin-top:-8px;">복제할 상품의 핸들을 비워두면 브릿지 페이지를 만들지 않습니다. 새 페이지의 URL 핸들은 위의 "새 광고 이름"과 자동으로 동일하게 설정됩니다.</p>
+          <div class="field">
+            <label>복제할 상품의 핸들</label>
+            <input type="text" name="shopify_source_handle" placeholder="예: vitamin-illuminating-serum — 상품 URL의 /products/ 뒤 부분 (제목 아님)">
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>제목 재지정</label>
+              <input type="text" name="shopify_title_override" placeholder="비워두면 원본 제목 그대로">
+            </div>
+            <div class="field">
+              <label>태그 재지정</label>
+              <input type="text" name="shopify_tags_override" placeholder="쉼표로 구분, 비워두면 원본 태그 그대로">
+            </div>
+          </div>
+          <div class="field">
+            <label>테마 템플릿 재지정</label>
+            <input type="text" name="shopify_template_override" placeholder="비워두면 원본 템플릿 그대로">
+          </div>
+          <div class="field">
+            <label>아마존 어트리뷰션 링크 재지정</label>
+            <input type="text" name="shopify_amazon_override" placeholder="비워두면 원본 링크 그대로">
+          </div>
+        </fieldset>
         <button type="submit" class="primary">지금 생성하기</button>
       </form>
     </div>
@@ -204,7 +233,7 @@
       </details>
       <form method="post" action="/submit_bulk">
         <div class="field">
-          <textarea class="bulk-textarea" name="bulk_text" placeholder="120210000000000000	n-srm_ao_da_260619_handwrnk	n-srm_ao_da_260912_handwrnk-winner_2hb	260912_..._2hb	100	https://eqqualberryglobal.com/products/...	handwrnk	헤드라인	기본 텍스트			"></textarea>
+          <textarea class="bulk-textarea" name="bulk_text" placeholder="120210000000000000	n-srm_ao_da_260619_handwrnk	n-srm_ao_da_260912_handwrnk-winner_2hb	260912_..._2hb	100	https://eqqualberryglobal.com/products/...	handwrnk	헤드라인	기본 텍스트					vitamin-illuminating-serum"></textarea>
         </div>
         <button type="submit" class="primary">전체 행 실행</button>
       </form>
@@ -220,14 +249,20 @@
       <tbody>
         {% for it in items %}
         <tr>
-          <td><span class="pill {{ it.status }}">{{ {'done':'완료','error':'오류','processing':'처리중'}.get(it.status, it.status) }}</span></td>
+          <td><span class="pill {{ it.status }}">{{ {'done':'완료','error':'오류','processing':'처리중','incomplete':'미완료'}.get(it.status, it.status) }}</span></td>
           <td>{{ it.submittedAt }}</td>
           <td>{{ it.adSetName }}</td>
           <td>{{ it.adName }}</td>
           <td class="mono">${{ it.budget }}/일</td>
           <td>
-            {% if it.status == 'done' and it.result %}
+            {% if it.result %}
               <a href="{{ it.result.ads_manager_url }}" target="_blank" rel="noopener">Ads Manager →</a>
+            {% endif %}
+            {% if it.resultShopifyUrl %}
+              <br><a href="{{ it.resultShopifyUrl }}" target="_blank" rel="noopener">Shopify 상품 →</a>
+            {% endif %}
+            {% if it.status == 'incomplete' and it.shopifyError %}
+              <br><span style="color:var(--status-incomplete-fg);">Shopify: {{ it.shopifyError }}</span>
             {% elif it.status == 'error' %}
               {{ it.error }}
             {% endif %}
