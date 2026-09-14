@@ -104,6 +104,10 @@ def duplicate_ad(token, *, account_id, campaign_id, source_adset_name, new_adset
         targeting=json.dumps(source_adset["targeting"]),
         status="PAUSED",
     )
+    if source_adset.get("promoted_object"):
+        adset_payload["promoted_object"] = json.dumps(source_adset["promoted_object"])
+    if source_adset.get("destination_type"):
+        adset_payload["destination_type"] = source_adset["destination_type"]
     if start_iso:
         adset_payload["start_time"] = start_iso
     if end_iso:

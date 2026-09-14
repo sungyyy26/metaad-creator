@@ -98,7 +98,7 @@
   a:hover{text-decoration:underline;}
   .mono{font-family:ui-monospace,monospace;}
   .empty{color:var(--text-faint);text-align:center;padding:28px;}
-  .delete-btn{border:1px solid var(--border-strong);background:var(--surface-2);color:var(--text-muted);font-size:11.5px;font-weight:600;border-radius:8px;padding:5px 10px;cursor:pointer;white-space:nowrap;}
+  .delete-btn{border:1px solid var(--border-strong);background:var(--surface-2);color:var(--text-muted);font-size:13px;font-weight:700;line-height:1;border-radius:7px;width:24px;height:24px;padding:0;cursor:pointer;}
   .delete-btn:hover{background:var(--status-error-bg);color:var(--status-error-fg);border-color:var(--status-error-bg);}
 </style>
 </head>
@@ -271,8 +271,8 @@
             {% endif %}
           </td>
           <td>
-            <form method="post" action="/delete/{{ it.id }}" onsubmit="return confirm('이 요청 기록을 삭제할까요? (실제로 생성된 광고/Shopify 페이지는 삭제되지 않습니다)');">
-              <button type="submit" class="delete-btn">삭제</button>
+            <form method="post" action="/delete/{{ it.id }}">
+              <button type="submit" class="delete-btn" title="기록 삭제 (실제 광고는 삭제되지 않음)">×</button>
             </form>
           </td>
         </tr>
