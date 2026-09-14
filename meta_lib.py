@@ -21,6 +21,23 @@ def api(method, path, token, **params):
     return data
 
 
+def find_campaign_by_name(token, account_id, name):
+    data = api("GET", f"act_{account_id}/campaigns", token, fields="id,name", limit=500)
+    for campaign in data.get("data", []):
+        if campaign["name"] == name:
+            return campaign["id"]
+    raise MetaApiError(f"'{name}' 이름의 캠페인을 act_{account_id} 계정에서 찾지 못했습니다.")
+
+
+def resolve_campaign_id(token, account_id, campaign_id_or_name):
+    """The Graph API only accepts numeric object IDs, but ad ops usually thinks
+    in campaign names — so if this doesn't look like an ID, look it up by name
+    within the given ad account."""
+    if campaign_id_or_name.isdigit():
+        return campaign_id_or_name
+    return find_campaign_by_name(token, account_id, campaign_id_or_name)
+
+
 def find_adset_by_name(token, campaign_id, name):
     data = api("GET", f"{campaign_id}/adsets", token,
                fields="id,name,targeting,optimization_goal,billing_event,"
@@ -59,6 +76,7 @@ def duplicate_ad(token, *, account_id, campaign_id, source_adset_name, new_adset
                   primary_text, start_iso=None, end_iso=None, status="PAUSED"):
     """Clone source_adset_name's targeting into a new ad set, then create a new ad
     with a new creative inside it. Returns dict with the created object IDs."""
+    campaign_id = resolve_campaign_id(token, account_id, campaign_id)
     source_adset = find_adset_by_name(token, campaign_id, source_adset_name)
     template_ad = find_template_ad(token, source_adset["id"])
     story_spec = template_ad["creative"]["object_story_spec"]
