@@ -271,9 +271,7 @@
             {% endif %}
           </td>
           <td>
-            <form method="post" action="/delete/{{ it.id }}">
-              <button type="submit" class="delete-btn" title="기록 삭제 (실제 광고는 삭제되지 않음)">×</button>
-            </form>
+            <button type="button" class="delete-btn" data-delete-id="{{ it.id }}" title="기록 삭제 (실제 광고는 삭제되지 않음)">×</button>
           </td>
         </tr>
         {% endfor %}
@@ -292,6 +290,21 @@
       var target = btn.getAttribute("data-tab");
       document.getElementById("tab-manual").hidden = target !== "manual";
       document.getElementById("tab-bulk").hidden = target !== "bulk";
+    });
+  });
+
+  document.querySelectorAll(".delete-btn[data-delete-id]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var id = btn.getAttribute("data-delete-id");
+      btn.disabled = true;
+      fetch("/delete/" + id, { method: "POST" }).then(function (r) {
+        if (r.ok) {
+          var row = btn.closest("tr");
+          if (row) row.remove();
+        } else {
+          btn.disabled = false;
+        }
+      }).catch(function () { btn.disabled = false; });
     });
   });
 </script>

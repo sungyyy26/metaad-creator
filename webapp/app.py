@@ -18,7 +18,7 @@ import threading
 import uuid
 from datetime import datetime
 
-from flask import Flask, redirect, render_template, request
+from flask import Flask, render_template, request
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import meta_lib  # noqa: E402
@@ -275,8 +275,11 @@ def submit_bulk():
 
 @app.route("/delete/<req_id>", methods=["POST"])
 def delete(req_id):
+    """Called via fetch() from the page's JS, not a form post — the row is
+    removed from requests.json and the caller deletes the <tr> itself, so the
+    page never navigates away (keeping whichever tab/scroll position it was on)."""
     remove_request(req_id)
-    return redirect("/")
+    return {"ok": True}
 
 
 if __name__ == "__main__":
