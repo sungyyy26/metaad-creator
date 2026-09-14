@@ -18,13 +18,14 @@ import threading
 import uuid
 from datetime import datetime
 
-from flask import Flask, render_template, request
+from flask import Flask, redirect, render_template, request, session
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import meta_lib  # noqa: E402
 import shopify_lib  # noqa: E402
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", os.urandom(24))
 DB_PATH = os.path.join(os.path.dirname(__file__), "requests.json")
 LOCK = threading.Lock()
 
@@ -146,8 +147,9 @@ def run_shopify_bridge(entry, *, new_ad_name, source_handle, title_override=None
 @app.route("/")
 def index():
     items = list(reversed(load_requests()))
+    message = session.pop("flash_message", None)
     return render_template("index.html", accounts=ACCOUNTS, items=items,
-                            message=None, bulk_columns=BULK_COLUMNS)
+                            message=message, bulk_columns=BULK_COLUMNS)
 
 
 @app.route("/submit", methods=["POST"])
@@ -196,9 +198,8 @@ def submit():
         else:
             message = {"kind": "ok", "text": f"생성 완료: 광고 세트 {entry['result']['ad_set_id']} / 광고 {entry['result']['ad_id']}"}
 
-    items = list(reversed(load_requests()))
-    return render_template("index.html", accounts=ACCOUNTS, items=items,
-                            message=message, bulk_columns=BULK_COLUMNS)
+    session["flash_message"] = message
+    return redirect("/")
 
 
 @app.route("/submit_bulk", methods=["POST"])
@@ -268,9 +269,8 @@ def submit_bulk():
         summary = f"대량 업로드 완료 — 성공 {success}건 / 미완료(Shopify) {incomplete}건 / 실패 {fail}건"
         message = {"kind": "ok" if (fail == 0 and incomplete == 0) else "err", "text": summary, "details": details}
 
-    items = list(reversed(load_requests()))
-    return render_template("index.html", accounts=ACCOUNTS, items=items,
-                            message=message, bulk_columns=BULK_COLUMNS)
+    session["flash_message"] = message
+    return redirect("/")
 
 
 @app.route("/delete/<req_id>", methods=["POST"])

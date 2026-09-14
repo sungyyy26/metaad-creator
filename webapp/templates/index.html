@@ -81,7 +81,9 @@
   }
   button.primary:hover{background:var(--accent-hover);}
 
-  .banner{border-radius:var(--radius-md);padding:14px 18px;margin-bottom:20px;font-size:13.5px;font-weight:600;}
+  .banner{position:relative;border-radius:var(--radius-md);padding:14px 40px 14px 18px;margin-bottom:20px;font-size:13.5px;font-weight:600;}
+  .banner-close{position:absolute;top:10px;right:12px;border:none;background:transparent;color:inherit;font-size:16px;font-weight:700;line-height:1;cursor:pointer;opacity:0.6;padding:2px 4px;}
+  .banner-close:hover{opacity:1;}
   .banner.ok{background:var(--status-done-bg);color:var(--status-done-fg);}
   .banner.err{background:var(--status-error-bg);color:var(--status-error-fg);}
   .banner ul{margin:8px 0 0;padding-left:18px;font-weight:500;font-size:12.5px;}
@@ -109,7 +111,8 @@
   <p class="subtitle">기존 광고 세트를 알려주시면 타겟팅을 복제하고, 소재를 매칭해 새 광고 세트와 광고를 즉시 생성합니다. 이 페이지는 내 컴퓨터에서만 열리고, 제출 즉시 Meta API를 직접 호출합니다 (승인 대기열 없음).</p>
 
   {% if message %}
-    <div class="banner {{ message.kind }}">
+    <div class="banner {{ message.kind }}" id="flash-banner">
+      <button type="button" class="banner-close" id="flash-banner-close" aria-label="닫기">×</button>
       {{ message.text }}
       {% if message.details %}
         <ul>{% for d in message.details %}<li>{{ d }}</li>{% endfor %}</ul>
@@ -307,6 +310,13 @@
       }).catch(function () { btn.disabled = false; });
     });
   });
+
+  var bannerClose = document.getElementById("flash-banner-close");
+  if (bannerClose) {
+    bannerClose.addEventListener("click", function () {
+      document.getElementById("flash-banner").remove();
+    });
+  }
 </script>
 </body>
 </html>
