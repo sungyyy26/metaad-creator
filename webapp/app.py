@@ -18,7 +18,7 @@ import threading
 import uuid
 from datetime import datetime
 
-from flask import Flask, render_template, request
+from flask import Flask, redirect, render_template, request
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import meta_lib  # noqa: E402
@@ -61,6 +61,12 @@ def upsert(entry):
         items = load_requests()
         items = [it for it in items if it["id"] != entry["id"]]
         items.append(entry)
+        save_requests(items)
+
+
+def remove_request(req_id):
+    with LOCK:
+        items = [it for it in load_requests() if it["id"] != req_id]
         save_requests(items)
 
 
@@ -265,6 +271,12 @@ def submit_bulk():
     items = list(reversed(load_requests()))
     return render_template("index.html", accounts=ACCOUNTS, items=items,
                             message=message, bulk_columns=BULK_COLUMNS)
+
+
+@app.route("/delete/<req_id>", methods=["POST"])
+def delete(req_id):
+    remove_request(req_id)
+    return redirect("/")
 
 
 if __name__ == "__main__":

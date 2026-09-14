@@ -17,7 +17,16 @@ def api(method, path, token, **params):
                           data=None if method == "GET" else params)
     data = r.json()
     if "error" in data:
-        raise MetaApiError(f"{method} {path} failed: {data['error'].get('message', data['error'])}")
+        err = data["error"]
+        parts = [str(err.get("message", err))]
+        for key in ("error_user_title", "error_user_msg"):
+            if err.get(key) and err[key] not in parts:
+                parts.append(err[key])
+        detail = " — ".join(parts)
+        tags = [f"{k}={err[k]}" for k in ("code", "error_subcode", "fbtrace_id") if err.get(k) is not None]
+        if tags:
+            detail += " (" + ", ".join(tags) + ")"
+        raise MetaApiError(f"{method} {path} failed: {detail}")
     return data
 
 
