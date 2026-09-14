@@ -29,6 +29,13 @@ ACCOUNTS = {
     "2406177369753142": "EQQUALBERRY_GLOBAL (USD)",
 }
 
+BULK_COLUMNS = [
+    "캠페인 ID", "복제할 광고 세트", "새 광고 세트 이름", "새 광고 이름",
+    "일일 예산", "웹사이트 URL", "소재", "헤드라인", "기본 텍스트",
+    "광고 계정 ID (선택)", "생성 후 상태 (선택, active/paused)",
+]
+BULK_REQUIRED = 9  # first 9 columns are mandatory
+
 
 def load_requests():
     if not os.path.exists(DB_PATH):
@@ -50,63 +57,149 @@ def upsert(entry):
         save_requests(items)
 
 
+def new_entry(**fields):
+    entry = {
+        "id": str(uuid.uuid4()),
+        "submittedAt": datetime.now().strftime("%m/%d %H:%M"),
+        "status": "processing",
+    }
+    entry.update(fields)
+    return entry
+
+
+def run_duplicate(token, entry, *, account_id, campaign_id, source_adset_name,
+                   new_adset_name, new_ad_name, daily_budget, website_url,
+                   creative_name, headline, primary_text, after_status):
+    try:
+        result = meta_lib.duplicate_ad(
+            token,
+            account_id=account_id,
+            campaign_id=campaign_id,
+            source_adset_name=source_adset_name,
+            new_adset_name=new_adset_name,
+            new_ad_name=new_ad_name,
+            daily_budget=int(daily_budget),
+            website_url=website_url,
+            creative_name=creative_name,
+            headline=headline,
+            primary_text=primary_text,
+            status=after_status,
+        )
+        entry["status"] = "done"
+        entry["result"] = result
+        return True, None
+    except meta_lib.MetaApiError as e:
+        entry["status"] = "error"
+        entry["error"] = str(e)
+        return False, str(e)
+    except Exception as e:  # noqa: BLE001
+        entry["status"] = "error"
+        entry["error"] = f"예상치 못한 오류: {e}"
+        return False, entry["error"]
+
+
 @app.route("/")
 def index():
     items = list(reversed(load_requests()))
-    return render_template("index.html", accounts=ACCOUNTS, items=items, message=None)
+    return render_template("index.html", accounts=ACCOUNTS, items=items,
+                            message=None, bulk_columns=BULK_COLUMNS)
 
 
 @app.route("/submit", methods=["POST"])
 def submit():
     form = request.form
-    entry = {
-        "id": str(uuid.uuid4()),
-        "submittedAt": datetime.now().strftime("%m/%d %H:%M"),
-        "campaign": form.get("campaign_id", ""),
-        "sourceAdset": form.get("source_adset_name", ""),
-        "adSetName": form.get("new_adset_name", ""),
-        "adName": form.get("new_ad_name", ""),
-        "budget": form.get("daily_budget", ""),
-        "status": "processing",
-    }
+    entry = new_entry(
+        campaign=form.get("campaign_id", ""),
+        sourceAdset=form.get("source_adset_name", ""),
+        adSetName=form.get("new_adset_name", ""),
+        adName=form.get("new_ad_name", ""),
+        budget=form.get("daily_budget", ""),
+    )
     upsert(entry)
 
-    message = None
     token = os.environ.get("META_ACCESS_TOKEN")
     if not token:
         entry["status"] = "error"
         entry["error"] = "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다. 터미널에서 export/set 하고 서버를 다시 시작하세요."
+        upsert(entry)
+        message = {"kind": "err", "text": entry["error"]}
     else:
-        try:
-            result = meta_lib.duplicate_ad(
-                token,
-                account_id=form["account_id"],
-                campaign_id=form["campaign_id"],
-                source_adset_name=form["source_adset_name"],
-                new_adset_name=form["new_adset_name"],
-                new_ad_name=form["new_ad_name"],
-                daily_budget=int(form["daily_budget"]),
-                website_url=form["website_url"],
-                creative_name=form["creative_name"],
-                headline=form["headline"],
-                primary_text=form["primary_text"],
-                status=form.get("after_status", "PAUSED"),
-            )
-            entry["status"] = "done"
-            entry["result"] = result
-            message = ("ok", f"생성 완료: 광고 세트 {result['ad_set_id']} / 광고 {result['ad_id']}")
-        except meta_lib.MetaApiError as e:
-            entry["status"] = "error"
-            entry["error"] = str(e)
-            message = ("err", str(e))
-        except Exception as e:  # noqa: BLE001
-            entry["status"] = "error"
-            entry["error"] = f"예상치 못한 오류: {e}"
-            message = ("err", entry["error"])
+        ok, err = run_duplicate(
+            token, entry,
+            account_id=form["account_id"], campaign_id=form["campaign_id"],
+            source_adset_name=form["source_adset_name"], new_adset_name=form["new_adset_name"],
+            new_ad_name=form["new_ad_name"], daily_budget=form["daily_budget"],
+            website_url=form["website_url"], creative_name=form["creative_name"],
+            headline=form["headline"], primary_text=form["primary_text"],
+            after_status=form.get("after_status", "PAUSED"),
+        )
+        upsert(entry)
+        message = {"kind": "ok", "text": f"생성 완료: 광고 세트 {entry['result']['ad_set_id']} / 광고 {entry['result']['ad_id']}"} if ok \
+            else {"kind": "err", "text": err}
 
-    upsert(entry)
     items = list(reversed(load_requests()))
-    return render_template("index.html", accounts=ACCOUNTS, items=items, message=message)
+    return render_template("index.html", accounts=ACCOUNTS, items=items,
+                            message=message, bulk_columns=BULK_COLUMNS)
+
+
+@app.route("/submit_bulk", methods=["POST"])
+def submit_bulk():
+    text = request.form.get("bulk_text", "")
+    rows = [(i, line.split("\t")) for i, line in enumerate(text.splitlines(), start=1) if line.strip()]
+
+    token = os.environ.get("META_ACCESS_TOKEN")
+    if not rows:
+        message = {"kind": "err", "text": "붙여넣은 내용이 없습니다."}
+    elif not token:
+        message = {"kind": "err", "text": "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다. 터미널에서 export/set 하고 서버를 다시 시작하세요."}
+    else:
+        success, fail, details = 0, 0, []
+        default_account = next(iter(ACCOUNTS))
+        for lineno, cols in rows:
+            cols = [c.strip() for c in cols]
+            if len(cols) < BULK_REQUIRED:
+                fail += 1
+                details.append(f"{lineno}행: 열이 {BULK_REQUIRED}개 필요한데 {len(cols)}개만 입력됨 — 건너뜀")
+                continue
+            (campaign_id, source_adset_name, new_adset_name, new_ad_name, daily_budget,
+             website_url, creative_name, headline, primary_text) = cols[:9]
+            account_id = cols[9] if len(cols) > 9 and cols[9] else default_account
+            after_raw = cols[10].strip().lower() if len(cols) > 10 and cols[10] else "paused"
+            after_status = "ACTIVE" if after_raw in ("active", "활성화") else "PAUSED"
+
+            entry = new_entry(campaign=campaign_id, sourceAdset=source_adset_name,
+                               adSetName=new_adset_name, adName=new_ad_name, budget=daily_budget)
+            upsert(entry)
+            if not daily_budget.isdigit():
+                entry["status"] = "error"
+                entry["error"] = f"예산은 숫자여야 합니다: '{daily_budget}'"
+                upsert(entry)
+                fail += 1
+                details.append(f"{lineno}행 ({new_ad_name}): {entry['error']}")
+                continue
+            ok, err = run_duplicate(
+                token, entry, account_id=account_id, campaign_id=campaign_id,
+                source_adset_name=source_adset_name, new_adset_name=new_adset_name,
+                new_ad_name=new_ad_name, daily_budget=daily_budget, website_url=website_url,
+                creative_name=creative_name, headline=headline, primary_text=primary_text,
+                after_status=after_status,
+            )
+            upsert(entry)
+            if ok:
+                success += 1
+            else:
+                fail += 1
+                details.append(f"{lineno}행 ({new_ad_name}): {err}")
+
+        message = {
+            "kind": "ok" if fail == 0 else "err",
+            "text": f"대량 업로드 완료 — 성공 {success}건 / 실패 {fail}건",
+            "details": details,
+        }
+
+    items = list(reversed(load_requests()))
+    return render_template("index.html", accounts=ACCOUNTS, items=items,
+                            message=message, bulk_columns=BULK_COLUMNS)
 
 
 if __name__ == "__main__":

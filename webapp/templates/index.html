@@ -3,62 +3,98 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>광고 복제 데스크 (로컬)</title>
+<title>광고 복제 데스크</title>
 <style>
   :root{
-    --bg:#F3F4F7; --surface:#FFFFFF; --surface-2:#F8F8FA;
-    --border:#E1E3E9; --border-strong:#CBCED6;
-    --text:#1A1D24; --text-muted:#666C7A; --text-faint:#9096A2;
-    --accent:#E8456A; --accent-contrast:#FFFFFF; --accent-soft:#FDE7EC; --accent-soft-border:#F6C3D0;
-    --status-done-bg:#DFF3E6; --status-done-fg:#1F7A45;
-    --status-error-bg:#FBE3E3; --status-error-fg:#A3201E;
-    --status-processing-bg:#E1EAFE; --status-processing-fg:#24478C;
-    --shadow: 0 1px 2px rgba(20,22,30,0.04), 0 8px 24px -12px rgba(20,22,30,0.12);
+    --bg:#f5f5f7; --surface:#ffffff; --surface-2:#fbfbfd; --surface-3:#f0f0f2;
+    --border:#d2d2d7; --border-strong:#c6c6c8;
+    --text:#1d1d1f; --text-muted:#6e6e73; --text-faint:#86868b;
+    --accent:#0071e3; --accent-hover:#0077ed; --accent-contrast:#ffffff; --accent-soft:#e8f2fd;
+    --status-done-bg:#e3f7e9; --status-done-fg:#1a7f42;
+    --status-error-bg:#fdecec; --status-error-fg:#c53030;
+    --status-processing-bg:#eef4ff; --status-processing-fg:#2f5fce;
+    --radius-lg:20px; --radius-md:12px; --radius-sm:8px;
+    --shadow: 0 2px 10px rgba(0,0,0,0.04), 0 12px 32px -16px rgba(0,0,0,0.12);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#000000; --surface:#1c1c1e; --surface-2:#242426; --surface-3:#2c2c2e;
+      --border:#38383a; --border-strong:#48484a;
+      --text:#f5f5f7; --text-muted:#98989d; --text-faint:#6e6e73;
+      --accent:#2997ff; --accent-hover:#5aabff; --accent-contrast:#ffffff; --accent-soft:#0a2a4a;
+      --status-done-bg:#0f2e1c; --status-done-fg:#4ade80;
+      --status-error-bg:#3a1414; --status-error-fg:#f87171;
+      --status-processing-bg:#0f1f3d; --status-processing-fg:#7fb1ff;
+      --shadow: 0 2px 10px rgba(0,0,0,0.3), 0 12px 32px -16px rgba(0,0,0,0.6);
+    }
   }
   *{box-sizing:border-box;}
-  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
-  #app{max-width:960px;margin:0 auto;padding:32px 20px 80px;}
-  .eyebrow{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);}
-  h1{font-size:24px;margin:4px 0 6px;}
-  .subtitle{color:var(--text-muted);font-size:13.5px;margin:0 0 26px;}
-  .panel{background:var(--surface);border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);padding:22px 24px;margin-bottom:22px;}
-  .panel h2{font-size:16px;margin:0 0 4px;}
-  .panel .hint{color:var(--text-muted);font-size:13px;margin:0 0 16px;}
-  fieldset{border:0;margin:0 0 18px;padding:0;}
-  legend{font-size:12px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text-faint);border-bottom:1px solid var(--border);padding-bottom:8px;margin-bottom:12px;width:100%;}
-  .field{margin-bottom:12px;}
-  .field label{display:block;font-size:13.5px;font-weight:600;margin-bottom:4px;}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Helvetica Neue",Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  #app{max-width:880px;margin:0 auto;padding:56px 22px 100px;}
+  .eyebrow{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);}
+  h1{font-size:34px;font-weight:700;letter-spacing:-0.015em;margin:6px 0 8px;}
+  .subtitle{color:var(--text-muted);font-size:15px;line-height:1.5;margin:0 0 32px;max-width:60ch;}
+
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:28px 30px;margin-bottom:24px;}
+  .panel h2{font-size:19px;font-weight:600;letter-spacing:-0.01em;margin:0 0 4px;}
+  .panel .hint{color:var(--text-muted);font-size:13.5px;margin:0 0 20px;}
+
+  .tabs{display:inline-flex;background:var(--surface-3);border-radius:980px;padding:3px;margin-bottom:22px;}
+  .tab-btn{border:none;background:transparent;font:inherit;font-size:13.5px;font-weight:600;color:var(--text-muted);padding:7px 18px;border-radius:980px;cursor:pointer;transition:background .15s,color .15s;}
+  .tab-btn.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.08);}
+  .tab-panel[hidden]{display:none;}
+
+  fieldset{border:0;margin:0 0 20px;padding:0;}
+  legend{font-size:11.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-faint);border-bottom:1px solid var(--border);padding-bottom:9px;margin-bottom:14px;width:100%;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:13.5px;font-weight:600;margin-bottom:5px;}
   .field-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
   @media (max-width:560px){.field-row{grid-template-columns:1fr;}}
+
   input[type=text],input[type=number],input[type=url],textarea,select{
-    width:100%;font:inherit;font-size:14px;color:var(--text);background:var(--surface-2);
-    border:1px solid var(--border-strong);border-radius:8px;padding:9px 11px;
+    width:100%;font:inherit;font-size:14.5px;color:var(--text);background:var(--surface-2);
+    border:1px solid var(--border-strong);border-radius:var(--radius-sm);padding:10px 12px;
+    transition:border-color .12s,box-shadow .12s;
   }
-  textarea{min-height:70px;resize:vertical;}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent);}
+  textarea{min-height:76px;resize:vertical;}
+  textarea.bulk-textarea{min-height:150px;font-family:ui-monospace,"SF Mono",Menlo,monospace;font-size:12.5px;}
   .budget-wrap{position:relative;}
-  .budget-wrap .prefix{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--text-muted);}
-  .budget-wrap input{padding-left:22px;}
-  .radio-group{display:flex;gap:14px;}
+  .budget-wrap .prefix{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);}
+  .budget-wrap input{padding-left:23px;}
+  .radio-group{display:flex;gap:16px;}
   .radio-group label{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:500;}
+
+  details.columns{border:1px dashed var(--border-strong);border-radius:var(--radius-md);padding:2px 16px;margin-bottom:16px;}
+  details.columns summary{cursor:pointer;padding:11px 0;font-weight:600;font-size:13px;color:var(--text);}
+  details.columns ol{margin:0 0 12px;padding-left:20px;font-size:12.5px;color:var(--text-muted);line-height:1.7;}
+
   button.primary{
-    font-weight:700;font-size:14px;background:var(--accent);color:var(--accent-contrast);
-    border:none;border-radius:9px;padding:12px 20px;cursor:pointer;
+    font-weight:600;font-size:14.5px;background:var(--accent);color:var(--accent-contrast);
+    border:none;border-radius:980px;padding:12px 24px;cursor:pointer;transition:background .12s;
   }
-  button.primary:hover{filter:brightness(1.05);}
-  .banner{border-radius:10px;padding:12px 16px;margin-bottom:18px;font-size:13.5px;font-weight:600;}
+  button.primary:hover{background:var(--accent-hover);}
+
+  .banner{border-radius:var(--radius-md);padding:14px 18px;margin-bottom:20px;font-size:13.5px;font-weight:600;}
   .banner.ok{background:var(--status-done-bg);color:var(--status-done-fg);}
   .banner.err{background:var(--status-error-bg);color:var(--status-error-fg);}
+  .banner ul{margin:8px 0 0;padding-left:18px;font-weight:500;font-size:12.5px;}
+
   table{width:100%;border-collapse:collapse;font-size:13px;}
-  th,td{border-bottom:1px solid var(--border);padding:8px 6px;text-align:left;vertical-align:top;}
-  th{color:var(--text-faint);font-weight:700;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;}
-  .pill{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 8px;border-radius:999px;white-space:nowrap;}
+  th,td{border-bottom:1px solid var(--border);padding:10px 8px;text-align:left;vertical-align:top;}
+  th{color:var(--text-faint);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;}
+  .pill{font-size:10.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 9px;border-radius:980px;white-space:nowrap;}
   .pill.done{background:var(--status-done-bg);color:var(--status-done-fg);}
   .pill.error{background:var(--status-error-bg);color:var(--status-error-fg);}
   .pill.processing{background:var(--status-processing-bg);color:var(--status-processing-fg);}
   a{color:var(--accent);font-weight:600;text-decoration:none;}
   a:hover{text-decoration:underline;}
   .mono{font-family:ui-monospace,monospace;}
-  .empty{color:var(--text-faint);text-align:center;padding:24px;}
+  .empty{color:var(--text-faint);text-align:center;padding:28px;}
 </style>
 </head>
 <body>
@@ -68,82 +104,111 @@
   <p class="subtitle">기존 광고 세트를 알려주시면 타겟팅을 복제하고, 소재를 매칭해 새 광고 세트와 광고를 즉시 생성합니다. 이 페이지는 내 컴퓨터에서만 열리고, 제출 즉시 Meta API를 직접 호출합니다 (승인 대기열 없음).</p>
 
   {% if message %}
-    <div class="banner {{ 'ok' if message[0] == 'ok' else 'err' }}">{{ message[1] }}</div>
+    <div class="banner {{ message.kind }}">
+      {{ message.text }}
+      {% if message.details %}
+        <ul>{% for d in message.details %}<li>{{ d }}</li>{% endfor %}</ul>
+      {% endif %}
+    </div>
   {% endif %}
 
   <div class="panel">
-    <h2>새 광고 요청</h2>
-    <p class="hint">달라지는 부분만 입력하세요 — 나머지는 복제할 광고 세트에서 그대로 가져옵니다.</p>
-    <form method="post" action="/submit">
-      <fieldset>
-        <legend>소스</legend>
-        <div class="field">
-          <label>캠페인 ID *</label>
-          <input type="text" name="campaign_id" required placeholder="예: 120210000000000000">
-        </div>
-        <div class="field">
-          <label>복제할 광고 세트 이름 *</label>
-          <input type="text" name="source_adset_name" required placeholder="캠페인 내 광고 세트 이름 그대로">
-        </div>
-      </fieldset>
-      <fieldset>
-        <legend>광고 세트 &amp; 예산</legend>
-        <div class="field-row">
+    <div class="tabs">
+      <button type="button" class="tab-btn active" data-tab="manual">수동 입력</button>
+      <button type="button" class="tab-btn" data-tab="bulk">대량 업로드</button>
+    </div>
+
+    <div class="tab-panel" id="tab-manual">
+      <h2>새 광고 요청</h2>
+      <p class="hint">달라지는 부분만 입력하세요 — 나머지는 복제할 광고 세트에서 그대로 가져옵니다.</p>
+      <form method="post" action="/submit">
+        <fieldset>
+          <legend>소스</legend>
           <div class="field">
-            <label>새 광고 세트 이름 *</label>
-            <input type="text" name="new_adset_name" required>
+            <label>캠페인 ID *</label>
+            <input type="text" name="campaign_id" required placeholder="예: 120210000000000000">
           </div>
           <div class="field">
-            <label>새 광고 이름 *</label>
-            <input type="text" name="new_ad_name" required>
+            <label>복제할 광고 세트 이름 *</label>
+            <input type="text" name="source_adset_name" required placeholder="캠페인 내 광고 세트 이름 그대로">
           </div>
-        </div>
-        <div class="field">
-          <label>일일 예산 (USD) *</label>
-          <div class="budget-wrap"><span class="prefix">$</span>
-            <input type="number" name="daily_budget" min="1" step="1" required>
+        </fieldset>
+        <fieldset>
+          <legend>광고 세트 &amp; 예산</legend>
+          <div class="field-row">
+            <div class="field">
+              <label>새 광고 세트 이름 *</label>
+              <input type="text" name="new_adset_name" required>
+            </div>
+            <div class="field">
+              <label>새 광고 이름 *</label>
+              <input type="text" name="new_ad_name" required>
+            </div>
           </div>
-        </div>
-      </fieldset>
-      <fieldset>
-        <legend>광고</legend>
-        <div class="field">
-          <label>웹사이트 URL *</label>
-          <input type="url" name="website_url" required placeholder="https://…">
-        </div>
-        <div class="field">
-          <label>소재 (라이브러리 파일명 일부) *</label>
-          <input type="text" name="creative_name" required>
-        </div>
-        <div class="field">
-          <label>헤드라인 *</label>
-          <input type="text" name="headline" required>
-        </div>
-        <div class="field">
-          <label>기본 텍스트 *</label>
-          <textarea name="primary_text" required></textarea>
-        </div>
-      </fieldset>
-      <fieldset>
-        <legend>고급 설정</legend>
-        <div class="field">
-          <label>광고 계정</label>
-          <select name="account_id">
-            {% for id, label in accounts.items() %}
-              <option value="{{ id }}">{{ label }}</option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="field">
-          <label>생성 후 상태</label>
-          <div class="radio-group">
-            <label><input type="radio" name="after_status" value="PAUSED" checked> 일시중지 (추천)</label>
-            <label><input type="radio" name="after_status" value="ACTIVE"> 즉시 활성화</label>
+          <div class="field">
+            <label>일일 예산 (USD) *</label>
+            <div class="budget-wrap"><span class="prefix">$</span>
+              <input type="number" name="daily_budget" min="1" step="1" required>
+            </div>
           </div>
+        </fieldset>
+        <fieldset>
+          <legend>광고</legend>
+          <div class="field">
+            <label>웹사이트 URL *</label>
+            <input type="url" name="website_url" required placeholder="https://…">
+          </div>
+          <div class="field">
+            <label>소재 (라이브러리 파일명 일부) *</label>
+            <input type="text" name="creative_name" required>
+          </div>
+          <div class="field">
+            <label>헤드라인 *</label>
+            <input type="text" name="headline" required>
+          </div>
+          <div class="field">
+            <label>기본 텍스트 *</label>
+            <textarea name="primary_text" required></textarea>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>고급 설정</legend>
+          <div class="field">
+            <label>광고 계정</label>
+            <select name="account_id">
+              {% for id, label in accounts.items() %}
+                <option value="{{ id }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>생성 후 상태</label>
+            <div class="radio-group">
+              <label><input type="radio" name="after_status" value="PAUSED" checked> 일시중지 (추천)</label>
+              <label><input type="radio" name="after_status" value="ACTIVE"> 즉시 활성화</label>
+            </div>
+          </div>
+        </fieldset>
+        <button type="submit" class="primary">지금 생성하기</button>
+      </form>
+    </div>
+
+    <div class="tab-panel" id="tab-bulk" hidden>
+      <h2>대량 업로드</h2>
+      <p class="hint">스프레드시트에서 복사한 행을 붙여넣으세요 — 광고 1건당 한 줄, 열은 Tab으로 구분, 아래 순서 그대로.</p>
+      <details class="columns">
+        <summary>열 순서 보기</summary>
+        <ol>
+          {% for col in bulk_columns %}<li>{{ col }}</li>{% endfor %}
+        </ol>
+      </details>
+      <form method="post" action="/submit_bulk">
+        <div class="field">
+          <textarea class="bulk-textarea" name="bulk_text" placeholder="120210000000000000	n-srm_ao_da_260619_handwrnk	n-srm_ao_da_260912_handwrnk-winner_2hb	260912_..._2hb	100	https://eqqualberryglobal.com/products/...	handwrnk	헤드라인	기본 텍스트			"></textarea>
         </div>
-      </fieldset>
-      <button type="submit" class="primary">지금 생성하기</button>
-    </form>
+        <button type="submit" class="primary">전체 행 실행</button>
+      </form>
+    </div>
   </div>
 
   <div class="panel">
@@ -176,5 +241,16 @@
     {% endif %}
   </div>
 </div>
+<script>
+  document.querySelectorAll(".tab-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll(".tab-btn").forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      var target = btn.getAttribute("data-tab");
+      document.getElementById("tab-manual").hidden = target !== "manual";
+      document.getElementById("tab-bulk").hidden = target !== "bulk";
+    });
+  });
+</script>
 </body>
 </html>
