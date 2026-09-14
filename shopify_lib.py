@@ -1,9 +1,15 @@
 """Shopify Admin GraphQL helpers for creating the 'bridge page' (an UNLISTED
 duplicate of a source product, retitled/rehandled for one ad) — mirrors the
 Shopify step of the meta-ad-duplicator artifact's processing instructions."""
+import os
+
 import requests
 
-API_VERSION = "2024-01"
+# Shopify drops each API version roughly a year after release, so a hardcoded
+# version here will eventually 404 with a bare "Not Found" body. Override with
+# SHOPIFY_API_VERSION if this one has since been retired — check
+# https://shopify.dev/docs/api/admin-graphql for the current supported list.
+API_VERSION = os.environ.get("SHOPIFY_API_VERSION", "2025-10")
 
 
 class ShopifyApiError(RuntimeError):
@@ -17,9 +23,18 @@ def _gql(shop, token, query, variables=None):
         json={"query": query, "variables": variables or {}},
         headers={"X-Shopify-Access-Token": token, "Content-Type": "application/json"},
     )
-    data = r.json()
+    try:
+        data = r.json()
+    except ValueError:
+        raise ShopifyApiError(
+            f"Shopify가 JSON이 아닌 응답을 반환했습니다 (HTTP {r.status_code}) — "
+            f"SHOPIFY_SHOP 도메인이나 API 버전({API_VERSION})이 잘못됐을 수 있습니다. "
+            f"응답 앞부분: {r.text[:200]!r}"
+        )
     if "errors" in data:
         raise ShopifyApiError(str(data["errors"]))
+    if "data" not in data:
+        raise ShopifyApiError(f"예상치 못한 Shopify 응답 (HTTP {r.status_code}): {data}")
     return data["data"]
 
 
