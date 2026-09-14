@@ -43,6 +43,13 @@ BULK_COLUMNS = [
     "Shopify 아마존 링크 재지정 (선택)",
 ]
 BULK_REQUIRED = 9  # first 9 columns are mandatory
+# Tokens people commonly type to mean "leave this blank" (a spreadsheet habit) —
+# treated as empty rather than as a literal value (e.g. a Shopify handle "-").
+BLANK_TOKENS = {"-", "--", "—", "n/a", "na", "없음", "none"}
+
+
+def is_blank(value):
+    return not value or value.strip().lower() in BLANK_TOKENS
 
 
 def load_requests():
@@ -226,16 +233,22 @@ def submit_bulk():
                 fail += 1
                 details.append(f"{lineno}행: 열이 {BULK_REQUIRED}개 필요한데 {len(cols)}개만 입력됨 — 건너뜀")
                 continue
+            if len(cols) > len(BULK_COLUMNS):
+                extra = cols[len(BULK_COLUMNS):]
+                details.append(
+                    f"{lineno}행: 열이 {len(BULK_COLUMNS)}개보다 많이 입력되어 뒤쪽 값이 무시됨 "
+                    f"({', '.join(repr(v) for v in extra if v)}) — 탭이 하나 더 들어갔을 수 있어요."
+                )
             (campaign_id, source_adset_name, new_adset_name, new_ad_name, daily_budget,
              website_url, creative_name, headline, primary_text) = cols[:9]
-            account_id = cols[9] if len(cols) > 9 and cols[9] else default_account
-            after_raw = cols[10].strip().lower() if len(cols) > 10 and cols[10] else "paused"
+            account_id = cols[9] if len(cols) > 9 and not is_blank(cols[9]) else default_account
+            after_raw = cols[10].strip().lower() if len(cols) > 10 and not is_blank(cols[10]) else "paused"
             after_status = "ACTIVE" if after_raw in ("active", "활성화") else "PAUSED"
-            shopify_source_handle = cols[11] if len(cols) > 11 else ""
-            shopify_title = cols[12] if len(cols) > 12 else ""
-            shopify_tags = cols[13] if len(cols) > 13 else ""
-            shopify_template = cols[14] if len(cols) > 14 else ""
-            shopify_amazon = cols[15] if len(cols) > 15 else ""
+            shopify_source_handle = cols[11] if len(cols) > 11 and not is_blank(cols[11]) else ""
+            shopify_title = cols[12] if len(cols) > 12 and not is_blank(cols[12]) else ""
+            shopify_tags = cols[13] if len(cols) > 13 and not is_blank(cols[13]) else ""
+            shopify_template = cols[14] if len(cols) > 14 and not is_blank(cols[14]) else ""
+            shopify_amazon = cols[15] if len(cols) > 15 and not is_blank(cols[15]) else ""
 
             entry = new_entry(campaign=campaign_id, sourceAdset=source_adset_name,
                                adSetName=new_adset_name, adName=new_ad_name, budget=daily_budget)
