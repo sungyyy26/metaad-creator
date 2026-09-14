@@ -48,69 +48,100 @@ def api(method, path, token, **params):
         raise MetaApiError(_format_error(method, path, err))
 
 
-def find_campaign_by_name(token, account_id, name):
-    data = api("GET", f"act_{account_id}/campaigns", token, fields="id,name", limit=500)
-    for campaign in data.get("data", []):
+def _cached(cache, key, fetch):
+    """cache is a plain dict the caller can share across several duplicate_ad()
+    calls in the same run (e.g. one bulk-upload batch) so repeated lookups of
+    the same campaign/ad-set/creative-library hit the API once instead of once
+    per row. None of these cached results are things this tool ever mutates
+    mid-run (we don't create campaigns, source ad sets, or creative assets),
+    so there's no staleness risk within a single run."""
+    if cache is None:
+        return fetch()
+    if key not in cache:
+        cache[key] = fetch()
+    return cache[key]
+
+
+def find_campaign_by_name(token, account_id, name, cache=None):
+    campaigns = _cached(cache, f"campaigns:{account_id}", lambda: api(
+        "GET", f"act_{account_id}/campaigns", token, fields="id,name", limit=500,
+    ).get("data", []))
+    for campaign in campaigns:
         if campaign["name"] == name:
             return campaign["id"]
     raise MetaApiError(f"'{name}' 이름의 캠페인을 act_{account_id} 계정에서 찾지 못했습니다.")
 
 
-def resolve_campaign_id(token, account_id, campaign_id_or_name):
+def resolve_campaign_id(token, account_id, campaign_id_or_name, cache=None):
     """The Graph API only accepts numeric object IDs, but ad ops usually thinks
     in campaign names — so if this doesn't look like an ID, look it up by name
     within the given ad account."""
     if campaign_id_or_name.isdigit():
         return campaign_id_or_name
-    return find_campaign_by_name(token, account_id, campaign_id_or_name)
+    return find_campaign_by_name(token, account_id, campaign_id_or_name, cache=cache)
 
 
-def find_adset_by_name(token, campaign_id, name):
-    data = api("GET", f"{campaign_id}/adsets", token,
-               fields="id,name,targeting,optimization_goal,billing_event,"
-                      "bid_strategy,promoted_object,destination_type,"
-                      "start_time,end_time,daily_budget", limit=200)
-    for adset in data.get("data", []):
+def find_adset_by_name(token, campaign_id, name, cache=None):
+    adsets = _cached(cache, f"adsets:{campaign_id}", lambda: api(
+        "GET", f"{campaign_id}/adsets", token,
+        fields="id,name,targeting,optimization_goal,billing_event,"
+               "bid_strategy,promoted_object,destination_type,"
+               "start_time,end_time,daily_budget", limit=200,
+    ).get("data", []))
+    for adset in adsets:
         if adset["name"] == name:
             return adset
     raise MetaApiError(f"'{campaign_id}' 캠페인 안에서 '{name}' 이름의 광고 세트를 찾지 못했습니다.")
 
 
-def find_template_ad(token, adset_id):
-    data = api("GET", f"{adset_id}/ads", token,
-               fields="id,name,creative{id,object_story_spec,call_to_action_type}",
-               limit=5)
-    ads = data.get("data", [])
-    if not ads:
-        raise MetaApiError(f"광고 세트 {adset_id} 안에 템플릿으로 쓸 광고가 없습니다.")
-    return ads[0]
+def find_template_ad(token, adset_id, cache=None):
+    def fetch():
+        data = api("GET", f"{adset_id}/ads", token,
+                   fields="id,name,creative{id,object_story_spec,call_to_action_type}",
+                   limit=5)
+        ads = data.get("data", [])
+        if not ads:
+            raise MetaApiError(f"광고 세트 {adset_id} 안에 템플릿으로 쓸 광고가 없습니다.")
+        return ads[0]
+    return _cached(cache, f"template_ad:{adset_id}", fetch)
 
 
-def find_creative_asset(token, account_id, name_query):
-    for endpoint in ("advideos", "adimages"):
-        data = api("GET", f"act_{account_id}/{endpoint}", token,
-                   fields="id,name,hash" if endpoint == "adimages" else "id,title",
-                   limit=100)
-        for item in data.get("data", []):
-            label = item.get("name") or item.get("title") or ""
-            if name_query.lower() in label.lower():
-                return endpoint, item
+def find_creative_asset(token, account_id, name_query, cache=None):
+    def fetch_library():
+        library = []
+        for endpoint in ("advideos", "adimages"):
+            data = api("GET", f"act_{account_id}/{endpoint}", token,
+                       fields="id,name,hash" if endpoint == "adimages" else "id,title",
+                       limit=100)
+            library.extend((endpoint, item) for item in data.get("data", []))
+        return library
+
+    library = _cached(cache, f"creative_library:{account_id}", fetch_library)
+    for endpoint, item in library:
+        label = item.get("name") or item.get("title") or ""
+        if name_query.lower() in label.lower():
+            return endpoint, item
     raise MetaApiError(f"'{name_query}'와(과) 일치하는 영상/이미지를 act_{account_id} 라이브러리에서 찾지 못했습니다.")
 
 
 def duplicate_ad(token, *, account_id, campaign_id, source_adset_name, new_adset_name,
                   new_ad_name, daily_budget, website_url, creative_name, headline,
-                  primary_text, start_iso=None, end_iso=None, status="PAUSED"):
+                  primary_text, start_iso=None, end_iso=None, status="PAUSED", cache=None):
     """Clone source_adset_name's targeting into a new ad set, then create a new ad
-    with a new creative inside it. Returns dict with the created object IDs."""
-    campaign_id = resolve_campaign_id(token, account_id, campaign_id)
-    source_adset = find_adset_by_name(token, campaign_id, source_adset_name)
-    template_ad = find_template_ad(token, source_adset["id"])
+    with a new creative inside it. Returns dict with the created object IDs.
+
+    Pass a shared `cache` dict across several calls in the same run (e.g. every
+    row of one bulk-upload batch) to fetch each campaign/ad-set/creative-library
+    lookup once instead of once per row — cuts API calls significantly and
+    reduces the chance of hitting Meta's ad-account rate limit."""
+    campaign_id = resolve_campaign_id(token, account_id, campaign_id, cache=cache)
+    source_adset = find_adset_by_name(token, campaign_id, source_adset_name, cache=cache)
+    template_ad = find_template_ad(token, source_adset["id"], cache=cache)
     story_spec = template_ad["creative"]["object_story_spec"]
     page_id = story_spec.get("page_id")
     cta_type = template_ad["creative"].get("call_to_action_type", "SHOP_NOW")
 
-    endpoint, asset = find_creative_asset(token, account_id, creative_name)
+    endpoint, asset = find_creative_asset(token, account_id, creative_name, cache=cache)
 
     adset_payload = dict(
         name=new_adset_name,

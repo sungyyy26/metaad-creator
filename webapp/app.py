@@ -83,7 +83,7 @@ def new_entry(**fields):
 
 def run_duplicate(token, entry, *, account_id, campaign_id, source_adset_name,
                    new_adset_name, new_ad_name, daily_budget, website_url,
-                   creative_name, headline, primary_text, after_status):
+                   creative_name, headline, primary_text, after_status, cache=None):
     try:
         result = meta_lib.duplicate_ad(
             token,
@@ -98,6 +98,7 @@ def run_duplicate(token, entry, *, account_id, campaign_id, source_adset_name,
             headline=headline,
             primary_text=primary_text,
             status=after_status,
+            cache=cache,
         )
         entry["status"] = "done"
         entry["result"] = result
@@ -215,6 +216,10 @@ def submit_bulk():
     else:
         success, incomplete, fail, details = 0, 0, 0, []
         default_account = next(iter(ACCOUNTS))
+        # Shared across every row in this batch: repeated campaign/ad-set/
+        # creative-library lookups hit the Meta API once instead of once per
+        # row, which is the main thing that trips their ad-account rate limit.
+        meta_cache = {}
         for lineno, cols in rows:
             cols = [c.strip() for c in cols]
             if len(cols) < BULK_REQUIRED:
@@ -247,7 +252,7 @@ def submit_bulk():
                 source_adset_name=source_adset_name, new_adset_name=new_adset_name,
                 new_ad_name=new_ad_name, daily_budget=daily_budget, website_url=website_url,
                 creative_name=creative_name, headline=headline, primary_text=primary_text,
-                after_status=after_status,
+                after_status=after_status, cache=meta_cache,
             )
             if ok and shopify_source_handle:
                 run_shopify_bridge(
