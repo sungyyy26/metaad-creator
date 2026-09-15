@@ -60,6 +60,10 @@ li::marker{color:var(--ink-dim);}
 
 .card{background:var(--panel);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:22px 24px;margin:16px 0;}
 
+.checklist-items{list-style:none;padding-left:0;margin:0;}
+.checklist-items li{position:relative;padding-left:28px;margin:9px 0;font-size:14.5px;}
+.checklist-items li::before{content:"☐";position:absolute;left:0;top:0;color:var(--accent);font-size:15px;}
+
 /* copy blocks — every copyable block gets a small icon button pinned top-right */
 .copyblock{position:relative;}
 .copy-icon-btn{
@@ -112,9 +116,6 @@ table.cols td:nth-child(3){font-size:11.5px;color:var(--ink-dim);}
 .tabcard .tabname{font-family:"Gothic A1",sans-serif;font-weight:700;font-size:13.5px;color:var(--accent);margin-bottom:4px;}
 .tabcard p{font-size:13px;color:var(--ink-dim);margin:0;}
 
-.appendix{margin-top:64px;padding-top:32px;border-top:2px solid var(--line);}
-.appendix .eyebrow{margin-bottom:8px;}
-
 .divider{border:none;border-top:1px solid var(--line);margin:40px 0;}
 footer{margin-top:60px;color:var(--ink-dim);font-size:13px;text-align:center;}
 </style>
@@ -131,7 +132,15 @@ footer{margin-top:60px;color:var(--ink-dim);font-size:13px;text-align:center;}
     <a href="#step3">3. 접속 정보 설정</a>
     <a href="#step4">4. 실행</a>
     <a href="#step5">5. 사용법</a>
-    <a href="#appendix">부록: 나만의 토큰 만들기</a>
+  </div>
+
+  <div class="card checklist">
+    <p class="eyebrow" style="margin-bottom:8px;">시작 전 체크리스트</p>
+    <ul class="checklist-items">
+      <li>이 GitHub 저장소(<code>sungyyy26/metaad-creator</code>)에 접근 권한이 있는지 확인 — 없다면 저장소 관리자에게 미리 요청해두세요</li>
+      <li>기존 사용자에게 <code>META_ACCESS_TOKEN</code>, <code>SHOPIFY_SHOP</code>, <code>SHOPIFY_ACCESS_TOKEN</code> 전달을 요청 (1:1로 안전하게 — 아래 STEP 3 참고)</li>
+      <li>Git·Python이 이미 설치되어 있는지 모른다면 그냥 진행하세요 — 아래 프롬프트가 확인부터 안내합니다</li>
+    </ul>
   </div>
 
   <div class="promptcard copyblock" id="prompt">
@@ -154,7 +163,7 @@ footer{margin-top:60px;color:var(--ink-dim);font-size:13px;text-align:center;}
 
   <div class="callout tip">
     <span class="label">참고</span>
-    같은 Meta 광고 계정·Shopify 스토어 권한이 있는 팀원이라면, 새 앱을 또 만들 필요 없이 <strong>이미 만들어둔 앱의 토큰을 그대로 전달</strong>받아 쓰는 게 훨씬 빠릅니다. 아래 가이드는 이 방법을 기준으로 합니다. 본인 명의로 직접 발급하고 싶다면 맨 아래 부록을 참고하세요.
+    같은 Meta 광고 계정·Shopify 스토어 권한이 있는 팀원이라면, 새 앱을 또 만들 필요 없이 <strong>이미 만들어둔 앱의 토큰을 그대로 전달</strong>받아 쓰는 게 훨씬 빠릅니다. 아래 가이드는 이 방법을 기준으로 합니다.
   </div>
 
   <h2 id="step1"><span class="stepno">STEP 1</span>Git · Python 설치</h2>
@@ -285,29 +294,6 @@ python webapp/app.py</code></pre>
     한 번에 너무 많은 행(수십 줄)을 넣으면 Meta 쪽 요청 제한에 걸릴 수 있습니다. 10~15줄 단위로 나눠 넣는 걸 권장합니다 — 걸리더라도 자동으로 재시도합니다.
   </div>
 
-  <div class="appendix" id="appendix">
-    <p class="eyebrow">부록</p>
-    <h2 style="margin-top:0;">나만의 토큰 직접 만들기</h2>
-    <p>기존 토큰을 전달받기 어렵거나, 각자 계정으로 분리해서 쓰고 싶다면 아래 방법으로 직접 발급받을 수 있습니다.</p>
-
-    <h3>Meta 액세스 토큰</h3>
-    <ol>
-      <li><a href="https://developers.facebook.com/tools/explorer/" target="_blank" rel="noopener">Graph API 탐색기</a>에서 이 프로젝트가 쓰는 Meta 앱을 선택 (없다면 새로 만들고 Marketing API 추가 후 <strong>Live 모드</strong>로 전환 + 비즈니스 계정 연결 필요)</li>
-      <li>권한(Permissions)에 <code>ads_management</code>, <code>ads_read</code>, <code>business_management</code> 추가</li>
-      <li><strong>Generate Access Token</strong> 클릭 → 로그인 계정에 해당 광고 계정 접근 권한이 있어야 함</li>
-    </ol>
-    <div class="callout tip">
-      <span class="label">참고</span>
-      개인 토큰은 보통 만료 기간이 있습니다. 자주 안 끊기게 쓰려면 비즈니스 설정의 <strong>시스템 사용자</strong>에서 발급하는 걸 추천합니다.
-    </div>
-
-    <h3>Shopify 액세스 토큰</h3>
-    <ol>
-      <li>Shopify 관리자 → 설정 → 앱 및 판매 채널 → <strong>앱 개발</strong>에서 커스텀 앱 열기 (또는 새로 만들기)</li>
-      <li>Admin API scopes에 <code>read_products</code>, <code>write_products</code> 체크</li>
-      <li><strong>앱 설치</strong> → 나타나는 <strong>Admin API access token</strong>(<code>shpat_</code>로 시작) 복사 — 한 번만 표시됩니다</li>
-    </ol>
-  </div>
 
   <footer>Meta Ads Duplicator · Ad Duplication Desk 대시보드의 로컬 버전</footer>
 </div>
