@@ -87,7 +87,7 @@ def update_product(shop, token, product_gid, *, handle=None, tags=None,
     if amazon_link:
         metafields.append({
             "namespace": "custom", "key": "amazon_link",
-            "value": amazon_link, "type": "single_line_text_field",
+            "value": amazon_link, "type": "url",
         })
     if metafields:
         fields["metafields"] = metafields
