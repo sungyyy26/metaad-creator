@@ -54,21 +54,34 @@ def upload_file(service_account_file, folder_id, filename, file_obj, mimetype="a
     }
 
 
-def list_subfolders(service_account_file, parent_folder_id):
-    """Immediate (non-recursive) subfolders of parent_folder_id, for a
-    dropdown letting the user pick where inside the shared root folder a
-    given upload should land. Returns [] (never raises) on any failure —
-    the caller falls back to uploading straight into the root folder, and a
-    misconfigured Drive setup shouldn't take down the whole dashboard page."""
-    try:
-        token = _get_access_token(service_account_file)
-        query = f"'{parent_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
-        r = requests.get(
-            FILES_URL,
-            headers={"Authorization": f"Bearer {token}"},
-            params={"q": query, "fields": "files(id,name)", "pageSize": 200, "orderBy": "name"},
-        )
-        data = r.json()
-        return [{"id": f["id"], "name": f["name"]} for f in data.get("files", [])]
-    except Exception:  # noqa: BLE001
-        return []
+def _list_children_folders(token, parent_folder_id):
+    query = f"'{parent_folder_id}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
+    r = requests.get(
+        FILES_URL,
+        headers={"Authorization": f"Bearer {token}"},
+        params={"q": query, "fields": "files(id,name)", "pageSize": 200, "orderBy": "name"},
+    )
+    data = r.json()
+    if "error" in data:
+        raise DriveApiError(data["error"].get("message", str(data["error"])))
+    return data.get("files", [])
+
+
+def list_all_subfolders(service_account_file, root_folder_id, max_folders=500):
+    """Every subfolder under root_folder_id, at every depth (breadth-first),
+    each carrying a 'path' like 'Campaign / Winners' showing where it sits
+    relative to the root. Raises DriveApiError on failure — unlike a swallow-
+    everything helper, the caller needs the real reason to show the user
+    (e.g. the root folder wasn't actually shared with the service account)."""
+    token = _get_access_token(service_account_file)
+    results = []
+    queue = [(root_folder_id, "")]
+    while queue and len(results) < max_folders:
+        parent_id, prefix = queue.pop(0)
+        for f in _list_children_folders(token, parent_id):
+            path = f"{prefix} / {f['name']}" if prefix else f["name"]
+            results.append({"id": f["id"], "name": f["name"], "path": path})
+            queue.append((f["id"], path))
+            if len(results) >= max_folders:
+                break
+    return results

@@ -15,6 +15,7 @@ import json
 import os
 import sys
 import threading
+import time
 import uuid
 from datetime import datetime
 
@@ -296,21 +297,49 @@ def run_shopify_bridge(entry, *, new_ad_name, source_handle, title_override=None
         entry["shopifyError"] = f"예상치 못한 오류: {e}"
 
 
+_DRIVE_FOLDERS_CACHE = {"folders": None, "error": None, "at": 0}
+DRIVE_FOLDERS_CACHE_TTL = 60  # seconds — avoids re-walking the whole Drive tree on every page load
+
+
+def get_drive_folder_options():
+    """Returns (folders, error) for the upload form's Drive-destination
+    select: folders always starts with the root itself, followed by every
+    subfolder found at any depth (each with a readable 'path'). error is None
+    on success, or a message to show the user if the Drive tree couldn't be
+    read (e.g. root folder not actually shared with the service account) —
+    the page still renders either way, just with only the root as an option."""
+    drive_root_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID")
+    drive_key_file = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE")
+    if not drive_root_id or not drive_key_file:
+        return [], None
+
+    now = time.time()
+    if _DRIVE_FOLDERS_CACHE["folders"] is not None and now - _DRIVE_FOLDERS_CACHE["at"] < DRIVE_FOLDERS_CACHE_TTL:
+        return _DRIVE_FOLDERS_CACHE["folders"], _DRIVE_FOLDERS_CACHE["error"]
+
+    folders = [{"id": drive_root_id, "name": "(최상위 폴더)", "path": "(최상위 폴더)"}]
+    error = None
+    try:
+        folders += drive_lib.list_all_subfolders(drive_key_file, drive_root_id)
+    except drive_lib.DriveApiError as e:
+        error = str(e)
+    except Exception as e:  # noqa: BLE001
+        error = f"예상치 못한 오류: {e}"
+
+    _DRIVE_FOLDERS_CACHE.update(folders=folders, error=error, at=now)
+    return folders, error
+
+
 @app.route("/")
 def index():
     items = list(reversed(load_requests()))
     uploads = list(reversed(load_uploads()))
     message = session.pop("flash_message", None)
-
-    drive_root_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID")
-    drive_key_file = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE")
-    drive_folders = []
-    if drive_root_id and drive_key_file:
-        drive_folders = [{"id": drive_root_id, "name": "(최상위 폴더)"}]
-        drive_folders += drive_lib.list_subfolders(drive_key_file, drive_root_id)
+    drive_folders, drive_error = get_drive_folder_options()
 
     return render_template("index.html", accounts=ACCOUNTS, items=items, uploads=uploads,
-                            message=message, bulk_columns=BULK_COLUMNS, drive_folders=drive_folders)
+                            message=message, bulk_columns=BULK_COLUMNS,
+                            drive_folders=drive_folders, drive_error=drive_error)
 
 
 @app.route("/submit", methods=["POST"])

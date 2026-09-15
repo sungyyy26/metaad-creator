@@ -270,10 +270,14 @@
           <label>Drive 저장 위치</label>
           <select name="drive_folder_id">
             {% for f in drive_folders %}
-              <option value="{{ f.id }}">{{ f.name }}</option>
+              <option value="{{ f.id }}">{{ f.path }}</option>
             {% endfor %}
           </select>
-          <span class="hint" style="display:block;margin-top:4px;">지정한 구글 드라이브 폴더 안의 하위 폴더 중 저장할 위치를 고르세요.</span>
+          {% if drive_error %}
+            <span class="hint" style="display:block;margin-top:4px;color:var(--status-error-fg);">하위 폴더 목록을 가져오지 못해 최상위 폴더만 표시됩니다: {{ drive_error }}</span>
+          {% else %}
+            <span class="hint" style="display:block;margin-top:4px;">지정한 구글 드라이브 폴더 안의 하위 폴더(모든 단계) 중 저장할 위치를 고르세요.</span>
+          {% endif %}
         </div>
         {% endif %}
         <button type="submit" class="primary">업로드</button>
