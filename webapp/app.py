@@ -301,8 +301,16 @@ def index():
     items = list(reversed(load_requests()))
     uploads = list(reversed(load_uploads()))
     message = session.pop("flash_message", None)
+
+    drive_root_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID")
+    drive_key_file = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE")
+    drive_folders = []
+    if drive_root_id and drive_key_file:
+        drive_folders = [{"id": drive_root_id, "name": "(최상위 폴더)"}]
+        drive_folders += drive_lib.list_subfolders(drive_key_file, drive_root_id)
+
     return render_template("index.html", accounts=ACCOUNTS, items=items, uploads=uploads,
-                            message=message, bulk_columns=BULK_COLUMNS)
+                            message=message, bulk_columns=BULK_COLUMNS, drive_folders=drive_folders)
 
 
 @app.route("/submit", methods=["POST"])
@@ -476,7 +484,7 @@ def upload_creative():
             entry["error"] = f"예상치 못한 오류: {e}"
 
         if entry["status"] == "done":
-            drive_folder = os.environ.get("GOOGLE_DRIVE_FOLDER_ID")
+            drive_folder = request.form.get("drive_folder_id", "").strip() or os.environ.get("GOOGLE_DRIVE_FOLDER_ID")
             drive_key_file = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE")
             if drive_folder and drive_key_file:
                 mimetype = getattr(file, "mimetype", None) or "application/octet-stream"
