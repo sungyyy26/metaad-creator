@@ -124,6 +124,7 @@
     <div class="tabs">
       <button type="button" class="tab-btn active" data-tab="bulk">대량 업로드</button>
       <button type="button" class="tab-btn" data-tab="manual">수동 입력</button>
+      <button type="button" class="tab-btn" data-tab="upload">소재 업로드</button>
     </div>
 
     <div class="tab-panel" id="tab-manual" hidden>
@@ -247,6 +248,58 @@
         <button type="submit" class="primary">전체 행 실행</button>
       </form>
     </div>
+
+    <div class="tab-panel" id="tab-upload" hidden>
+      <h2>Meta 소재 라이브러리에 업로드</h2>
+      <p class="hint">내 컴퓨터의 영상/이미지 파일을 광고 계정의 소재 라이브러리에 바로 올립니다 (공개 URL 필요 없음). 올린 뒤 "소재" 칸에 이 파일명을 적으면 광고 생성 시 자동으로 매칭됩니다.</p>
+      <form method="post" action="/upload_creative" enctype="multipart/form-data">
+        <div class="field">
+          <label>파일 *</label>
+          <input type="file" name="creative_file" accept="video/*,image/*" required>
+        </div>
+        <div class="field">
+          <label>광고 계정 *</label>
+          <select name="upload_account_id" required>
+            {% for id, label in accounts.items() %}
+              <option value="{{ id }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="primary">업로드</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>업로드 기록</h2>
+    <p class="hint">이 컴퓨터에서 올린 소재들 (webapp/uploads.json에 저장됨).</p>
+    {% if uploads %}
+    <table>
+      <thead><tr><th>상태</th><th>업로드 시각</th><th>파일명</th><th>계정</th><th>결과</th><th></th></tr></thead>
+      <tbody>
+        {% for u in uploads %}
+        <tr>
+          <td><span class="pill {{ u.status }}">{{ {'done':'완료','error':'오류'}.get(u.status, u.status) }}</span></td>
+          <td>{{ u.submittedAt }}</td>
+          <td>{{ u.filename }}</td>
+          <td>{{ accounts.get(u.accountId, u.accountId) }}</td>
+          <td>
+            {% if u.status == 'done' and u.result %}
+              {{ u.result.kind }} · <span class="mono">{{ u.result.asset_id }}</span>
+            {% elif u.status == 'error' %}
+              {{ u.error }}
+            {% endif %}
+          </td>
+          <td>
+            <button type="button" class="delete-btn" data-delete-url="/delete_upload/{{ u.id }}" title="기록 삭제 (실제 업로드된 소재는 삭제되지 않음)">×</button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+      <div class="empty">아직 업로드한 소재가 없습니다.</div>
+    {% endif %}
   </div>
 
   <div class="panel">
@@ -277,7 +330,7 @@
             {% endif %}
           </td>
           <td>
-            <button type="button" class="delete-btn" data-delete-id="{{ it.id }}" title="기록 삭제 (실제 광고는 삭제되지 않음)">×</button>
+            <button type="button" class="delete-btn" data-delete-url="/delete/{{ it.id }}" title="기록 삭제 (실제 광고는 삭제되지 않음)">×</button>
           </td>
         </tr>
         {% endfor %}
@@ -296,14 +349,15 @@
       var target = btn.getAttribute("data-tab");
       document.getElementById("tab-manual").hidden = target !== "manual";
       document.getElementById("tab-bulk").hidden = target !== "bulk";
+      document.getElementById("tab-upload").hidden = target !== "upload";
     });
   });
 
-  document.querySelectorAll(".delete-btn[data-delete-id]").forEach(function (btn) {
+  document.querySelectorAll(".delete-btn[data-delete-url]").forEach(function (btn) {
     btn.addEventListener("click", function () {
-      var id = btn.getAttribute("data-delete-id");
+      var url = btn.getAttribute("data-delete-url");
       btn.disabled = true;
-      fetch("/delete/" + id, { method: "POST" }).then(function (r) {
+      fetch(url, { method: "POST" }).then(function (r) {
         if (r.ok) {
           var row = btn.closest("tr");
           if (row) row.remove();

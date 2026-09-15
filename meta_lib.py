@@ -1,11 +1,13 @@
 """Shared Meta Marketing API helpers used by both the CLI script (duplicate_ad.py)
 and the local web dashboard (webapp/app.py)."""
 import json
+import os
 import time
 
 import requests
 
 GRAPH = "https://graph.facebook.com/v21.0"
+VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".m4v", ".webm", ".mkv"}
 
 # Ad-account/app-level throttling codes Meta expects callers to back off and
 # retry rather than treat as a hard failure (e.g. code 17 "User request limit
@@ -251,3 +253,36 @@ def duplicate_ad(token, *, campaign_id, candidate_account_ids, source_adset_name
             f"act={account_id}&selected_ad_ids={ad['id']}"
         ),
     }
+
+
+def upload_creative(token, account_id, filename, file_obj):
+    """Uploads a local file straight into the ad account's video/image library
+    (no public URL needed — unlike a Claude session with no local filesystem
+    access, this desktop tool can just send the file's bytes directly).
+    Video vs. image is picked by file extension. Returns a dict describing the
+    created asset; for images, 'asset_id' is the image hash used elsewhere as
+    `image_hash` in an ad creative's link_data; for videos, it's the video id
+    used as `video_id`.
+    """
+    ext = os.path.splitext(filename)[1].lower()
+    is_video = ext in VIDEO_EXTENSIONS
+    endpoint = "advideos" if is_video else "adimages"
+    field = "source" if is_video else "filename"
+
+    r = requests.post(
+        f"{GRAPH}/act_{account_id}/{endpoint}",
+        files={field: (filename, file_obj)},
+        data={"access_token": token},
+    )
+    data = r.json()
+    if "error" in data:
+        raise MetaApiError(_format_error("POST", f"act_{account_id}/{endpoint}", data["error"]))
+
+    if is_video:
+        return {"kind": "video", "asset_id": data.get("id"), "filename": filename}
+
+    images = data.get("images", {})
+    info = images.get(filename) or next(iter(images.values()), {})
+    if not info.get("hash"):
+        raise MetaApiError(f"이미지 업로드 응답에서 hash를 찾지 못했습니다: {data}")
+    return {"kind": "image", "asset_id": info["hash"], "filename": filename, "url": info.get("url")}

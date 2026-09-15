@@ -30,6 +30,7 @@ load_dotenv()  # reads .env in the repo root (or nearest parent) if present;
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", os.urandom(24))
 DB_PATH = os.path.join(os.path.dirname(__file__), "requests.json")
+UPLOADS_DB_PATH = os.path.join(os.path.dirname(__file__), "uploads.json")
 LOCK = threading.Lock()
 
 ACCOUNTS = {
@@ -165,30 +166,53 @@ def parse_bulk_row(cols):
     )
 
 
-def load_requests():
-    if not os.path.exists(DB_PATH):
+def _load_json_list(path):
+    if not os.path.exists(path):
         return []
-    with open(DB_PATH, encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         return json.load(f)
 
 
-def save_requests(items):
-    with open(DB_PATH, "w", encoding="utf-8") as f:
+def _save_json_list(path, items):
+    with open(path, "w", encoding="utf-8") as f:
         json.dump(items, f, ensure_ascii=False, indent=2)
 
 
-def upsert(entry):
+def _upsert(path, entry):
     with LOCK:
-        items = load_requests()
-        items = [it for it in items if it["id"] != entry["id"]]
+        items = [it for it in _load_json_list(path) if it["id"] != entry["id"]]
         items.append(entry)
-        save_requests(items)
+        _save_json_list(path, items)
+
+
+def _remove(path, entry_id):
+    with LOCK:
+        items = [it for it in _load_json_list(path) if it["id"] != entry_id]
+        _save_json_list(path, items)
+
+
+def load_requests():
+    return _load_json_list(DB_PATH)
+
+
+def upsert(entry):
+    _upsert(DB_PATH, entry)
 
 
 def remove_request(req_id):
-    with LOCK:
-        items = [it for it in load_requests() if it["id"] != req_id]
-        save_requests(items)
+    _remove(DB_PATH, req_id)
+
+
+def load_uploads():
+    return _load_json_list(UPLOADS_DB_PATH)
+
+
+def upsert_upload(entry):
+    _upsert(UPLOADS_DB_PATH, entry)
+
+
+def remove_upload(upload_id):
+    _remove(UPLOADS_DB_PATH, upload_id)
 
 
 def new_entry(**fields):
@@ -273,8 +297,9 @@ def run_shopify_bridge(entry, *, new_ad_name, source_handle, title_override=None
 @app.route("/")
 def index():
     items = list(reversed(load_requests()))
+    uploads = list(reversed(load_uploads()))
     message = session.pop("flash_message", None)
-    return render_template("index.html", accounts=ACCOUNTS, items=items,
+    return render_template("index.html", accounts=ACCOUNTS, items=items, uploads=uploads,
                             message=message, bulk_columns=BULK_COLUMNS)
 
 
@@ -410,6 +435,52 @@ def delete(req_id):
     removed from requests.json and the caller deletes the <tr> itself, so the
     page never navigates away (keeping whichever tab/scroll position it was on)."""
     remove_request(req_id)
+    return {"ok": True}
+
+
+@app.route("/upload_creative", methods=["POST"])
+def upload_creative():
+    """Uploads a local video/image file straight into a Meta ad account's
+    creative library — no public hosting needed, since this runs on your own
+    machine and can send the file's bytes directly."""
+    file = request.files.get("creative_file")
+    account_id = request.form.get("upload_account_id", "")
+    entry = new_entry(filename=(file.filename if file else ""), accountId=account_id)
+    upsert_upload(entry)
+
+    token = os.environ.get("META_ACCESS_TOKEN")
+    if not file or not file.filename:
+        entry["status"] = "error"
+        entry["error"] = "업로드할 파일을 선택해주세요."
+    elif not account_id:
+        entry["status"] = "error"
+        entry["error"] = "업로드할 광고 계정을 선택해주세요."
+    elif not token:
+        entry["status"] = "error"
+        entry["error"] = "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."
+    else:
+        try:
+            result = meta_lib.upload_creative(token, account_id, file.filename, file.stream)
+            entry["status"] = "done"
+            entry["result"] = result
+        except meta_lib.MetaApiError as e:
+            entry["status"] = "error"
+            entry["error"] = str(e)
+        except Exception as e:  # noqa: BLE001
+            entry["status"] = "error"
+            entry["error"] = f"예상치 못한 오류: {e}"
+    upsert_upload(entry)
+
+    message = ({"kind": "ok", "text": f"업로드 완료: {entry['result']['kind']} — {entry['result']['asset_id']}"}
+               if entry["status"] == "done"
+               else {"kind": "err", "text": entry.get("error", "알 수 없는 오류")})
+    session["flash_message"] = message
+    return redirect("/")
+
+
+@app.route("/delete_upload/<upload_id>", methods=["POST"])
+def delete_upload(upload_id):
+    remove_upload(upload_id)
     return {"ok": True}
 
 
