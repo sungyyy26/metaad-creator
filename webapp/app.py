@@ -575,6 +575,16 @@ def delete(req_id):
     return {"ok": True}
 
 
+@app.route("/delete_all_requests", methods=["POST"])
+def delete_all_requests():
+    """Clears the request-history log only (never the upload log, and never
+    anything already created in Meta/Shopify) — a real form post + redirect,
+    confirmed client-side first since it's a one-shot bulk action."""
+    _save_json_list(DB_PATH, [])
+    session["flash_message"] = {"kind": "ok", "text": "요청 기록을 모두 삭제했습니다."}
+    return redirect("/")
+
+
 @app.route("/upload_creative", methods=["POST"])
 def upload_creative():
     """Uploads a local video/image file straight into a Meta ad account's
