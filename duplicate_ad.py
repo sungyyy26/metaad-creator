@@ -23,7 +23,11 @@ import argparse
 import os
 import sys
 
+from dotenv import load_dotenv
+
 import meta_lib
+
+load_dotenv()  # picks up META_ACCESS_TOKEN from a .env file if present
 
 
 def main():

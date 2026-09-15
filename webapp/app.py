@@ -3,12 +3,11 @@
 http://127.0.0.1:5000 and calls the Meta Marketing API (and optionally the
 Shopify Admin API for bridge pages) directly — no Claude session in the loop.
 
-Run:
-    export META_ACCESS_TOKEN=...        (Windows CMD: set META_ACCESS_TOKEN=...)
-    export SHOPIFY_SHOP=your-store.myshopify.com   (optional, only if using bridge pages)
-    export SHOPIFY_ACCESS_TOKEN=shpat_...           (optional)
-    export SHOPIFY_STOREFRONT_DOMAIN=yourstore.com  (optional, defaults to SHOPIFY_SHOP)
+Run (one-time setup):
+    cp .env.example .env   # then fill in your tokens in .env — it's git-ignored
     pip install -r webapp/requirements.txt
+
+Run (every time after that — no need to re-export anything):
     python webapp/app.py
 """
 import json
@@ -18,11 +17,15 @@ import threading
 import uuid
 from datetime import datetime
 
+from dotenv import load_dotenv
 from flask import Flask, redirect, render_template, request, session
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import meta_lib  # noqa: E402
 import shopify_lib  # noqa: E402
+
+load_dotenv()  # reads .env in the repo root (or nearest parent) if present;
+                # values already set in the shell (export/set) still win.
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", os.urandom(24))
