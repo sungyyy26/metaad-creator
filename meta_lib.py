@@ -53,8 +53,9 @@ def _cached(cache, key, fetch):
     calls in the same run (e.g. one bulk-upload batch) so repeated lookups of
     the same campaign/ad-set/creative-library hit the API once instead of once
     per row. None of these cached results are things this tool ever mutates
-    mid-run (we don't create campaigns, source ad sets, or creative assets),
-    so there's no staleness risk within a single run."""
+    mid-run (we don't create campaigns or creative assets, and ad sets created
+    mid-run are tracked separately via `batch_adsets` — see duplicate_ad), so
+    there's no staleness risk within a single run."""
     if cache is None:
         return fetch()
     if key not in cache:
@@ -62,23 +63,46 @@ def _cached(cache, key, fetch):
     return cache[key]
 
 
-def find_campaign_by_name(token, account_id, name, cache=None):
-    campaigns = _cached(cache, f"campaigns:{account_id}", lambda: api(
-        "GET", f"act_{account_id}/campaigns", token, fields="id,name", limit=500,
-    ).get("data", []))
-    for campaign in campaigns:
-        if campaign["name"] == name:
-            return campaign["id"]
-    raise MetaApiError(f"'{name}' 이름의 캠페인을 act_{account_id} 계정에서 찾지 못했습니다.")
+def resolve_campaign_and_account(token, campaign_id_or_name, candidate_account_ids,
+                                  account_override=None, cache=None):
+    """Figures out both the numeric campaign_id and which ad account owns it.
 
+    - If account_override is given, trust it and only look inside that account.
+    - Else if campaign_id_or_name is already numeric, ask Meta which account
+      owns that campaign directly (one call, no guessing).
+    - Else (a campaign name, no override), search each candidate account's
+      campaign list for an exact name match — this is what makes the bulk
+      upload's "campaign" column work with just a name, matching how ad ops
+      actually thinks, without requiring them to also specify the account.
+    """
+    if account_override:
+        if campaign_id_or_name.isdigit():
+            return account_override, campaign_id_or_name
+        campaigns = _cached(cache, f"campaigns:{account_override}", lambda: api(
+            "GET", f"act_{account_override}/campaigns", token, fields="id,name", limit=500,
+        ).get("data", []))
+        for c in campaigns:
+            if c["name"] == campaign_id_or_name:
+                return account_override, c["id"]
+        raise MetaApiError(f"'{campaign_id_or_name}' 이름의 캠페인을 act_{account_override} 계정에서 찾지 못했습니다.")
 
-def resolve_campaign_id(token, account_id, campaign_id_or_name, cache=None):
-    """The Graph API only accepts numeric object IDs, but ad ops usually thinks
-    in campaign names — so if this doesn't look like an ID, look it up by name
-    within the given ad account."""
     if campaign_id_or_name.isdigit():
-        return campaign_id_or_name
-    return find_campaign_by_name(token, account_id, campaign_id_or_name, cache=cache)
+        data = _cached(cache, f"campaign_owner:{campaign_id_or_name}", lambda: api(
+            "GET", campaign_id_or_name, token, fields="account_id"))
+        owner = str(data.get("account_id", "")).replace("act_", "")
+        if not owner:
+            raise MetaApiError(f"캠페인 {campaign_id_or_name}의 소유 광고 계정을 확인하지 못했습니다.")
+        return owner, campaign_id_or_name
+
+    for account_id in candidate_account_ids:
+        campaigns = _cached(cache, f"campaigns:{account_id}", lambda account_id=account_id: api(
+            "GET", f"act_{account_id}/campaigns", token, fields="id,name", limit=500,
+        ).get("data", []))
+        for c in campaigns:
+            if c["name"] == campaign_id_or_name:
+                return account_id, c["id"]
+    tried = ", ".join(candidate_account_ids)
+    raise MetaApiError(f"'{campaign_id_or_name}' 이름의 캠페인을 어느 계정에서도 찾지 못했습니다 (확인한 계정: {tried}).")
 
 
 def find_adset_by_name(token, campaign_id, name, cache=None):
@@ -124,44 +148,71 @@ def find_creative_asset(token, account_id, name_query, cache=None):
     raise MetaApiError(f"'{name_query}'와(과) 일치하는 영상/이미지를 act_{account_id} 라이브러리에서 찾지 못했습니다.")
 
 
-def duplicate_ad(token, *, account_id, campaign_id, source_adset_name, new_adset_name,
+def duplicate_ad(token, *, campaign_id, candidate_account_ids, source_adset_name, new_adset_name,
                   new_ad_name, daily_budget, website_url, creative_name, headline,
-                  primary_text, start_iso=None, end_iso=None, status="PAUSED", cache=None):
-    """Clone source_adset_name's targeting into a new ad set, then create a new ad
-    with a new creative inside it. Returns dict with the created object IDs.
+                  primary_text, start_iso=None, end_iso=None, status="PAUSED",
+                  account_override=None, cache=None, batch_adsets=None):
+    """Two modes, chosen by whether source_adset_name is given:
 
-    Pass a shared `cache` dict across several calls in the same run (e.g. every
-    row of one bulk-upload batch) to fetch each campaign/ad-set/creative-library
-    lookup once instead of once per row — cuts API calls significantly and
-    reduces the chance of hitting Meta's ad-account rate limit."""
-    campaign_id = resolve_campaign_id(token, account_id, campaign_id, cache=cache)
-    source_adset = find_adset_by_name(token, campaign_id, source_adset_name, cache=cache)
-    template_ad = find_template_ad(token, source_adset["id"], cache=cache)
+    - Normal (source_adset_name given): clone its targeting/optimization/promoted
+      object into a brand-new ad set (new_adset_name), then create the new ad
+      inside it.
+    - "Ads-only" (source_adset_name blank): don't create a new ad set at all —
+      add just the new ad into an ad set that's already named new_adset_name,
+      either one that already exists in Meta, or one an earlier row in the same
+      bulk batch just created (tracked via `batch_adsets`, since the ad-set-list
+      cache snapshot taken at the start of the batch won't see it). The target
+      ad set's daily_budget is force-overwritten to daily_budget afterwards,
+      matching the original artifact's rule for this path.
+
+    Pass a shared `cache` dict across a batch to fetch each campaign/ad-set/
+    creative-library lookup once instead of once per row.
+    """
+    account_id, campaign_id = resolve_campaign_and_account(
+        token, campaign_id, candidate_account_ids, account_override=account_override, cache=cache)
+
+    ads_only = not source_adset_name or not source_adset_name.strip()
+
+    if ads_only:
+        batch_key = f"{account_id}:{campaign_id}:{new_adset_name}"
+        existing_id = (batch_adsets or {}).get(batch_key)
+        if existing_id:
+            target_adset_id = existing_id
+        else:
+            target_adset_id = find_adset_by_name(token, campaign_id, new_adset_name, cache=cache)["id"]
+        template_ad = find_template_ad(token, target_adset_id, cache=cache)
+    else:
+        source_adset = find_adset_by_name(token, campaign_id, source_adset_name, cache=cache)
+        template_ad = find_template_ad(token, source_adset["id"], cache=cache)
+
+        adset_payload = dict(
+            name=new_adset_name,
+            campaign_id=campaign_id,
+            daily_budget=daily_budget * 100,  # cents
+            billing_event=source_adset["billing_event"],
+            optimization_goal=source_adset["optimization_goal"],
+            bid_strategy=source_adset.get("bid_strategy"),
+            targeting=json.dumps(source_adset["targeting"]),
+            status="PAUSED",
+        )
+        if source_adset.get("promoted_object"):
+            adset_payload["promoted_object"] = json.dumps(source_adset["promoted_object"])
+        if source_adset.get("destination_type"):
+            adset_payload["destination_type"] = source_adset["destination_type"]
+        if start_iso:
+            adset_payload["start_time"] = start_iso
+        if end_iso:
+            adset_payload["end_time"] = end_iso
+        new_adset = api("POST", f"act_{account_id}/adsets", token, **adset_payload)
+        target_adset_id = new_adset["id"]
+        if batch_adsets is not None:
+            batch_adsets[f"{account_id}:{campaign_id}:{new_adset_name}"] = target_adset_id
+
     story_spec = template_ad["creative"]["object_story_spec"]
     page_id = story_spec.get("page_id")
     cta_type = template_ad["creative"].get("call_to_action_type", "SHOP_NOW")
 
     endpoint, asset = find_creative_asset(token, account_id, creative_name, cache=cache)
-
-    adset_payload = dict(
-        name=new_adset_name,
-        campaign_id=campaign_id,
-        daily_budget=daily_budget * 100,  # cents
-        billing_event=source_adset["billing_event"],
-        optimization_goal=source_adset["optimization_goal"],
-        bid_strategy=source_adset.get("bid_strategy"),
-        targeting=json.dumps(source_adset["targeting"]),
-        status="PAUSED",
-    )
-    if source_adset.get("promoted_object"):
-        adset_payload["promoted_object"] = json.dumps(source_adset["promoted_object"])
-    if source_adset.get("destination_type"):
-        adset_payload["destination_type"] = source_adset["destination_type"]
-    if start_iso:
-        adset_payload["start_time"] = start_iso
-    if end_iso:
-        adset_payload["end_time"] = end_iso
-    new_adset = api("POST", f"act_{account_id}/adsets", token, **adset_payload)
 
     link_data = {
         "link": website_url,
@@ -180,14 +231,21 @@ def duplicate_ad(token, *, account_id, campaign_id, source_adset_name, new_adset
 
     ad = api("POST", f"act_{account_id}/ads", token,
              name=new_ad_name,
-             adset_id=new_adset["id"],
+             adset_id=target_adset_id,
              creative=json.dumps({"creative_id": creative["id"]}),
              status=status)
 
+    if ads_only:
+        # Always overwrite the shared ad set's budget to what this request asked
+        # for, even if unchanged — matches the original artifact's rule for the
+        # ads-only path.
+        api("POST", target_adset_id, token, daily_budget=daily_budget * 100)
+
     return {
-        "ad_set_id": new_adset["id"],
+        "ad_set_id": target_adset_id,
         "creative_id": creative["id"],
         "ad_id": ad["id"],
+        "account_id": account_id,
         "ads_manager_url": (
             f"https://www.facebook.com/adsmanager/manage/ads/edit?"
             f"act={account_id}&selected_ad_ids={ad['id']}"

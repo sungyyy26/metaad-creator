@@ -135,11 +135,12 @@
           <div class="field">
             <label>캠페인 (이름 또는 ID) *</label>
             <input type="text" name="campaign_id" required placeholder="예: [이퀄베리][Amazon(USA)][US]_n-srm_cv_ao_da_2  또는 120210000000000000">
-            <span class="hint" style="display:block;margin-top:4px;">캠페인 이름을 그대로 입력해도 되고, 숫자 ID를 알면 그걸 써도 됩니다. 아래 "광고 계정"에서 이 캠페인이 속한 계정을 정확히 선택해야 이름으로 찾을 수 있어요.</span>
+            <span class="hint" style="display:block;margin-top:4px;">캠페인 이름을 그대로 입력해도 되고, 숫자 ID를 알면 그걸 써도 됩니다. 어느 광고 계정에 속해있는지는 자동으로 찾습니다 — 아래 "광고 계정"에서 직접 지정할 수도 있어요.</span>
           </div>
           <div class="field">
-            <label>복제할 광고 세트 이름 *</label>
-            <input type="text" name="source_adset_name" required placeholder="캠페인 내 광고 세트 이름 그대로">
+            <label>복제할 광고 세트 이름</label>
+            <input type="text" name="source_adset_name" placeholder="캠페인 내 광고 세트 이름 그대로">
+            <span class="hint" style="display:block;margin-top:4px;">비워두면 새 세트를 만드는 대신, 아래 "새 광고 세트 이름"에 적은 이름의 (이미 있는) 광고 세트에 광고만 추가합니다.</span>
           </div>
         </fieldset>
         <fieldset>
@@ -174,6 +175,7 @@
           <div class="field">
             <label>헤드라인 *</label>
             <input type="text" name="headline" required>
+            <span class="hint" style="display:block;margin-top:4px;">실제 문구를 입력하세요 — 이 로컬 도구는 Claude를 호출할 수 없어 "생성" 자동 작성은 지원하지 않습니다.</span>
           </div>
           <div class="field">
             <label>기본 텍스트 *</label>
@@ -184,7 +186,8 @@
           <legend>고급 설정</legend>
           <div class="field">
             <label>광고 계정</label>
-            <select name="account_id">
+            <select name="account_override">
+              <option value="">자동 감지 (캠페인이 속한 계정을 찾아서 사용)</option>
               {% for id, label in accounts.items() %}
                 <option value="{{ id }}">{{ label }}</option>
               {% endfor %}
@@ -239,7 +242,7 @@
       </details>
       <form method="post" action="/submit_bulk">
         <div class="field">
-          <textarea class="bulk-textarea" name="bulk_text" placeholder="120210000000000000	n-srm_ao_da_260619_handwrnk	n-srm_ao_da_260912_handwrnk-winner_2hb	260912_..._2hb	100	https://eqqualberryglobal.com/products/...	handwrnk	헤드라인	기본 텍스트					vitamin-illuminating-serum"></textarea>
+          <textarea class="bulk-textarea" name="bulk_text" placeholder="[캠페인]	[복제할 광고 세트 — 광고만 추가하려면 비움]	[새 광고 세트 이름]	[새 광고 이름]	[예산]	[URL]	[소재]	[헤드라인]	[기본 텍스트]	[시작 — 비우면 즉시]	[종료 — 비우면 없음]	[생성 후 상태 — 비우면 일시중지]	[Shopify 핸들 — 선택]	[제목 재지정]	[태그 재지정]	[템플릿 재지정]	[아마존 링크 재지정]"></textarea>
         </div>
         <button type="submit" class="primary">전체 행 실행</button>
       </form>

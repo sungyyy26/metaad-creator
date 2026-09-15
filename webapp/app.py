@@ -36,23 +36,133 @@ ACCOUNTS = {
     "1298298124998350": "EQQUALBERRY_AMAZON_US (USD)",
     "2406177369753142": "EQQUALBERRY_GLOBAL (USD)",
 }
+CANDIDATE_ACCOUNT_IDS = list(ACCOUNTS.keys())
 
+# Matches the meta-ad-duplicator artifact's bulk paste column order exactly
+# (minus the Slack-notify column, which this local tool doesn't send).
 BULK_COLUMNS = [
-    "캠페인 (이름 또는 ID)", "복제할 광고 세트", "새 광고 세트 이름", "새 광고 이름",
-    "일일 예산", "웹사이트 URL", "소재", "헤드라인", "기본 텍스트",
-    "광고 계정 ID (선택)", "생성 후 상태 (선택, active/paused)",
-    "Shopify 복제할 상품 핸들 (선택)", "Shopify 제목 재지정 (선택)",
-    "Shopify 태그 재지정 (선택, 쉼표 구분)", "Shopify 템플릿 재지정 (선택)",
-    "Shopify 아마존 링크 재지정 (선택)",
+    "캠페인 (필수)",
+    "복제할 광고 (필수 — 이미 있거나 같은 배치의 다른 행이 만드는 광고 세트에 광고만 추가하려면 비워두세요)",
+    "새 광고 세트 이름 (필수)",
+    "새 광고 이름 (필수)",
+    "일일 예산 (필수)",
+    "웹사이트 URL (필수)",
+    "소재 (필수)",
+    "헤드라인 (실제 문구를 입력하세요 — 이 로컬 도구는 '생성' 자동 작성을 지원하지 않습니다)",
+    "기본 텍스트 (실제 문구를 입력하세요 — 이 로컬 도구는 '생성' 자동 작성을 지원하지 않습니다)",
+    "시작 (비워두면 즉시; 형식 YYYY/MM/DD H(:MM)AM/PM, 예: 2026/09/08 12AM — 해당 광고 계정의 Meta 시간대 기준)",
+    "종료 (비워두면 종료일 없음; 형식은 시작과 동일, 예: 2026/09/08 11:59PM)",
+    "생성 후 상태 (비워두면 일시중지)",
+    "복제할 Shopify 상품 핸들 (선택 — 비워두면 브릿지 페이지 없음; 제목이 아니라 핸들)",
+    "Shopify 제목 재지정 (선택)",
+    "Shopify 태그 재지정 (선택, 쉼표로 구분)",
+    "Shopify 테마 템플릿 재지정 (선택)",
+    "Shopify 아마존 어트리뷰션 링크 재지정 (선택)",
 ]
-BULK_REQUIRED = 9  # first 9 columns are mandatory
+# 0-indexed column -> human label, for the required-field check. Column 1
+# (복제할 광고) is deliberately NOT required — leaving it blank is the
+# "ads-only" mode (add just an ad into an existing/batch-created ad set).
+REQUIRED_BULK_COLS = {
+    0: "캠페인", 2: "새 광고 세트 이름", 3: "새 광고 이름",
+    4: "일일 예산", 5: "웹사이트 URL", 6: "소재",
+}
+MIN_BULK_COLS = 7  # through "소재" — everything required is in the first 7
+
 # Tokens people commonly type to mean "leave this blank" (a spreadsheet habit) —
 # treated as empty rather than as a literal value (e.g. a Shopify handle "-").
 BLANK_TOKENS = {"-", "--", "—", "n/a", "na", "없음", "none"}
+GENERATE_TOKENS = {"생성", "generate"}
 
 
 def is_blank(value):
     return not value or value.strip().lower() in BLANK_TOKENS
+
+
+def is_generate_placeholder(value):
+    return (value or "").strip().lower() in GENERATE_TOKENS
+
+
+def parse_schedule_datetime(value):
+    """'YYYY/MM/DD H(:MM)AM/PM' (e.g. '2026/09/08 12AM') -> ISO 8601 with no
+    timezone offset, which Meta then interprets in the ad account's own
+    configured timezone."""
+    normalized = value.strip().upper()
+    for fmt in ("%Y/%m/%d %I:%M%p", "%Y/%m/%d %I%p"):
+        try:
+            return datetime.strptime(normalized, fmt).strftime("%Y-%m-%dT%H:%M:%S")
+        except ValueError:
+            continue
+    raise ValueError(f"'{value}' 형식을 인식하지 못했습니다 (예: 2026/09/08 12AM 또는 2026/09/08 11:59PM)")
+
+
+class RowError(Exception):
+    pass
+
+
+def parse_bulk_row(cols):
+    """Parses one tab-separated bulk-upload row into the fields duplicate_ad()
+    needs, or raises RowError with a message describing exactly what's wrong."""
+    cols = [c.strip() for c in cols]
+    if len(cols) < MIN_BULK_COLS:
+        raise RowError(f"열이 최소 {MIN_BULK_COLS}개(캠페인~소재) 필요한데 {len(cols)}개만 입력됨")
+
+    missing = [label for idx, label in REQUIRED_BULK_COLS.items()
+               if idx >= len(cols) or is_blank(cols[idx])]
+    if missing:
+        raise RowError(f"필수 항목이 비어있음: {', '.join(missing)}")
+
+    def get(i):
+        return cols[i] if i < len(cols) else ""
+
+    daily_budget = cols[4]
+    if not daily_budget.isdigit():
+        raise RowError(f"예산은 숫자여야 합니다: '{daily_budget}'")
+
+    headline, primary_text = get(7), get(8)
+    for label, value in (("헤드라인", headline), ("기본 텍스트", primary_text)):
+        if is_generate_placeholder(value):
+            raise RowError(
+                f"{label}에 '생성'이 입력되어 있는데, 이 로컬 도구는 Claude를 호출할 수 없어 자동 카피 생성을 지원하지 않습니다 — "
+                f"실제 문구를 직접 입력하거나 미리 작성한 텍스트를 붙여넣어 주세요."
+            )
+        if is_blank(value):
+            raise RowError(f"{label}가 비어있습니다 — 실제 문구를 입력해주세요 (자동 생성은 지원되지 않습니다).")
+
+    try:
+        start_iso = parse_schedule_datetime(get(9)) if not is_blank(get(9)) else None
+        end_iso = parse_schedule_datetime(get(10)) if not is_blank(get(10)) else None
+    except ValueError as e:
+        raise RowError(str(e))
+
+    after_raw = get(11)
+    after_status = "ACTIVE" if (not is_blank(after_raw) and after_raw.strip().lower() in ("active", "활성화")) else "PAUSED"
+
+    warning = None
+    extra = [v for v in cols[len(BULK_COLUMNS):] if v.strip()]
+    if extra:
+        warning = (f"열이 {len(BULK_COLUMNS)}개보다 많이 입력되어 뒤쪽 값이 무시됨 "
+                   f"({', '.join(repr(v) for v in extra)}) — 탭이 하나 더 들어갔을 수 있어요.")
+
+    return dict(
+        campaign_id=cols[0],
+        source_adset_name="" if is_blank(get(1)) else get(1),
+        new_adset_name=cols[2],
+        new_ad_name=cols[3],
+        daily_budget=daily_budget,
+        website_url=cols[5],
+        creative_name=cols[6],
+        headline=headline,
+        primary_text=primary_text,
+        start_iso=start_iso,
+        end_iso=end_iso,
+        after_status=after_status,
+        shopify_source_handle="" if is_blank(get(12)) else get(12),
+        shopify_title="" if is_blank(get(13)) else get(13),
+        shopify_tags="" if is_blank(get(14)) else get(14),
+        shopify_template="" if is_blank(get(15)) else get(15),
+        shopify_amazon="" if is_blank(get(16)) else get(16),
+        warning=warning,
+    )
 
 
 def load_requests():
@@ -91,14 +201,16 @@ def new_entry(**fields):
     return entry
 
 
-def run_duplicate(token, entry, *, account_id, campaign_id, source_adset_name,
-                   new_adset_name, new_ad_name, daily_budget, website_url,
-                   creative_name, headline, primary_text, after_status, cache=None):
+def run_duplicate(token, entry, *, campaign_id, source_adset_name, new_adset_name,
+                   new_ad_name, daily_budget, website_url, creative_name, headline,
+                   primary_text, after_status, account_override=None, start_iso=None,
+                   end_iso=None, cache=None, batch_adsets=None):
     try:
         result = meta_lib.duplicate_ad(
             token,
-            account_id=account_id,
             campaign_id=campaign_id,
+            candidate_account_ids=CANDIDATE_ACCOUNT_IDS,
+            account_override=account_override or None,
             source_adset_name=source_adset_name,
             new_adset_name=new_adset_name,
             new_ad_name=new_ad_name,
@@ -107,8 +219,11 @@ def run_duplicate(token, entry, *, account_id, campaign_id, source_adset_name,
             creative_name=creative_name,
             headline=headline,
             primary_text=primary_text,
+            start_iso=start_iso,
+            end_iso=end_iso,
             status=after_status,
             cache=cache,
+            batch_adsets=batch_adsets,
         )
         entry["status"] = "done"
         entry["result"] = result
@@ -176,19 +291,28 @@ def submit():
     upsert(entry)
 
     token = os.environ.get("META_ACCESS_TOKEN")
+    headline, primary_text = form.get("headline", ""), form.get("primary_text", "")
+    generate_field = next((label for label, v in (("헤드라인", headline), ("기본 텍스트", primary_text))
+                           if is_generate_placeholder(v)), None)
     if not token:
         entry["status"] = "error"
         entry["error"] = "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다. 터미널에서 export/set 하고 서버를 다시 시작하세요."
         upsert(entry)
         message = {"kind": "err", "text": entry["error"]}
+    elif generate_field:
+        entry["status"] = "error"
+        entry["error"] = (f"{generate_field}에 '생성'이 입력되어 있는데, 이 로컬 도구는 자동 카피 생성을 지원하지 않습니다 — "
+                          f"실제 문구를 입력해주세요.")
+        upsert(entry)
+        message = {"kind": "err", "text": entry["error"]}
     else:
         ok, err = run_duplicate(
             token, entry,
-            account_id=form["account_id"], campaign_id=form["campaign_id"],
+            campaign_id=form["campaign_id"], account_override=form.get("account_override", "").strip(),
             source_adset_name=form["source_adset_name"], new_adset_name=form["new_adset_name"],
             new_ad_name=form["new_ad_name"], daily_budget=form["daily_budget"],
             website_url=form["website_url"], creative_name=form["creative_name"],
-            headline=form["headline"], primary_text=form["primary_text"],
+            headline=headline, primary_text=primary_text,
             after_status=form.get("after_status", "PAUSED"),
         )
         shopify_source_handle = form.get("shopify_source_handle", "").strip()
@@ -225,65 +349,51 @@ def submit_bulk():
         message = {"kind": "err", "text": "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다. 터미널에서 export/set 하고 서버를 다시 시작하세요."}
     else:
         success, incomplete, fail, details = 0, 0, 0, []
-        default_account = next(iter(ACCOUNTS))
         # Shared across every row in this batch: repeated campaign/ad-set/
         # creative-library lookups hit the Meta API once instead of once per
-        # row, which is the main thing that trips their ad-account rate limit.
+        # row (main thing that trips their ad-account rate limit), and newly
+        # created ad sets are tracked here so a later "ads-only" row can find
+        # one this same batch just made.
         meta_cache = {}
+        batch_adsets = {}
         for lineno, cols in rows:
-            cols = [c.strip() for c in cols]
-            if len(cols) < BULK_REQUIRED:
+            try:
+                row = parse_bulk_row(cols)
+            except RowError as e:
                 fail += 1
-                details.append(f"{lineno}행: 열이 {BULK_REQUIRED}개 필요한데 {len(cols)}개만 입력됨 — 건너뜀")
+                details.append(f"{lineno}행: {e}")
                 continue
-            if len(cols) > len(BULK_COLUMNS):
-                extra = cols[len(BULK_COLUMNS):]
-                details.append(
-                    f"{lineno}행: 열이 {len(BULK_COLUMNS)}개보다 많이 입력되어 뒤쪽 값이 무시됨 "
-                    f"({', '.join(repr(v) for v in extra if v)}) — 탭이 하나 더 들어갔을 수 있어요."
-                )
-            (campaign_id, source_adset_name, new_adset_name, new_ad_name, daily_budget,
-             website_url, creative_name, headline, primary_text) = cols[:9]
-            account_id = cols[9] if len(cols) > 9 and not is_blank(cols[9]) else default_account
-            after_raw = cols[10].strip().lower() if len(cols) > 10 and not is_blank(cols[10]) else "paused"
-            after_status = "ACTIVE" if after_raw in ("active", "활성화") else "PAUSED"
-            shopify_source_handle = cols[11] if len(cols) > 11 and not is_blank(cols[11]) else ""
-            shopify_title = cols[12] if len(cols) > 12 and not is_blank(cols[12]) else ""
-            shopify_tags = cols[13] if len(cols) > 13 and not is_blank(cols[13]) else ""
-            shopify_template = cols[14] if len(cols) > 14 and not is_blank(cols[14]) else ""
-            shopify_amazon = cols[15] if len(cols) > 15 and not is_blank(cols[15]) else ""
 
-            entry = new_entry(campaign=campaign_id, sourceAdset=source_adset_name,
-                               adSetName=new_adset_name, adName=new_ad_name, budget=daily_budget)
+            entry = new_entry(campaign=row["campaign_id"], sourceAdset=row["source_adset_name"],
+                               adSetName=row["new_adset_name"], adName=row["new_ad_name"],
+                               budget=row["daily_budget"])
             upsert(entry)
-            if not daily_budget.isdigit():
-                entry["status"] = "error"
-                entry["error"] = f"예산은 숫자여야 합니다: '{daily_budget}'"
-                upsert(entry)
-                fail += 1
-                details.append(f"{lineno}행 ({new_ad_name}): {entry['error']}")
-                continue
+
             ok, err = run_duplicate(
-                token, entry, account_id=account_id, campaign_id=campaign_id,
-                source_adset_name=source_adset_name, new_adset_name=new_adset_name,
-                new_ad_name=new_ad_name, daily_budget=daily_budget, website_url=website_url,
-                creative_name=creative_name, headline=headline, primary_text=primary_text,
-                after_status=after_status, cache=meta_cache,
+                token, entry, campaign_id=row["campaign_id"],
+                source_adset_name=row["source_adset_name"], new_adset_name=row["new_adset_name"],
+                new_ad_name=row["new_ad_name"], daily_budget=row["daily_budget"],
+                website_url=row["website_url"], creative_name=row["creative_name"],
+                headline=row["headline"], primary_text=row["primary_text"],
+                start_iso=row["start_iso"], end_iso=row["end_iso"],
+                after_status=row["after_status"], cache=meta_cache, batch_adsets=batch_adsets,
             )
-            if ok and shopify_source_handle:
+            if ok and row["shopify_source_handle"]:
                 run_shopify_bridge(
-                    entry, new_ad_name=new_ad_name, source_handle=shopify_source_handle,
-                    title_override=shopify_title, tags_override=shopify_tags,
-                    template_override=shopify_template, amazon_link_override=shopify_amazon,
+                    entry, new_ad_name=row["new_ad_name"], source_handle=row["shopify_source_handle"],
+                    title_override=row["shopify_title"], tags_override=row["shopify_tags"],
+                    template_override=row["shopify_template"], amazon_link_override=row["shopify_amazon"],
                 )
             upsert(entry)
 
+            if row["warning"]:
+                details.append(f"{lineno}행: {row['warning']}")
             if not ok:
                 fail += 1
-                details.append(f"{lineno}행 ({new_ad_name}): {err}")
+                details.append(f"{lineno}행 ({row['new_ad_name']}): {err}")
             elif entry["status"] == "incomplete":
                 incomplete += 1
-                details.append(f"{lineno}행 ({new_ad_name}): Meta 광고는 생성됨, Shopify 실패 — {entry['shopifyError']}")
+                details.append(f"{lineno}행 ({row['new_ad_name']}): Meta 광고는 생성됨, Shopify 실패 — {entry['shopifyError']}")
             else:
                 success += 1
 

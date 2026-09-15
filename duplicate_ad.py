@@ -54,8 +54,9 @@ def main():
 
     result = meta_lib.duplicate_ad(
         token,
-        account_id=args.account_id,
         campaign_id=args.campaign_id,
+        candidate_account_ids=[args.account_id],
+        account_override=args.account_id,
         source_adset_name=args.source_adset_name,
         new_adset_name=args.new_adset_name,
         new_ad_name=args.new_ad_name,
