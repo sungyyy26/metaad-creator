@@ -279,13 +279,19 @@
       <tbody>
         {% for u in uploads %}
         <tr>
-          <td><span class="pill {{ u.status }}">{{ {'done':'완료','error':'오류'}.get(u.status, u.status) }}</span></td>
+          <td><span class="pill {{ u.status }}">{{ {'done':'완료','error':'오류','incomplete':'미완료'}.get(u.status, u.status) }}</span></td>
           <td>{{ u.submittedAt }}</td>
           <td>{{ u.filename }}</td>
           <td>{{ accounts.get(u.accountId, u.accountId) }}</td>
           <td>
-            {% if u.status == 'done' and u.result %}
+            {% if u.result %}
               {{ u.result.kind }} · <span class="mono">{{ u.result.asset_id }}</span>
+            {% endif %}
+            {% if u.driveUrl %}
+              <br><a href="{{ u.driveUrl }}" target="_blank" rel="noopener">Drive 열기 →</a>
+            {% endif %}
+            {% if u.status == 'incomplete' and u.driveError %}
+              <br><span style="color:var(--status-incomplete-fg);">Drive: {{ u.driveError }}</span>
             {% elif u.status == 'error' %}
               {{ u.error }}
             {% endif %}

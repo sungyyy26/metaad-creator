@@ -3,3 +3,4 @@ webapp/uploads.json
 __pycache__/
 *.pyc
 .env
+service_account*.json
