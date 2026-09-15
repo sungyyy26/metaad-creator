@@ -17,7 +17,12 @@ from google.auth.transport.requests import Request as GoogleAuthRequest
 from google.oauth2 import service_account
 
 SCOPES = ["https://www.googleapis.com/auth/drive.file"]
-UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink"
+# supportsAllDrives/includeItemsFromAllDrives are required for anything living
+# in a Shared Drive ("공유 드라이브", formerly Team Drive) — without them the
+# API silently returns zero results (no error) for a folder inside one, since
+# by default it only searches "My Drive".
+UPLOAD_URL = ("https://www.googleapis.com/upload/drive/v3/files"
+              "?uploadType=multipart&fields=id,webViewLink&supportsAllDrives=true")
 FILES_URL = "https://www.googleapis.com/drive/v3/files"
 
 
@@ -59,7 +64,11 @@ def _list_children_folders(token, parent_folder_id):
     r = requests.get(
         FILES_URL,
         headers={"Authorization": f"Bearer {token}"},
-        params={"q": query, "fields": "files(id,name)", "pageSize": 200, "orderBy": "name"},
+        params={
+            "q": query, "fields": "files(id,name)", "pageSize": 200, "orderBy": "name",
+            "supportsAllDrives": "true", "includeItemsFromAllDrives": "true",
+            "corpora": "allDrives",
+        },
     )
     data = r.json()
     if "error" in data:
