@@ -135,11 +135,11 @@ def create_bridge_page(shop, token, *, source_handle, new_handle, title_override
         tags=tags,
         template_suffix=template_override,
         amazon_link=amazon_link_override,
-        # Shopify's ProductStatus enum has no "UNLISTED" value. ACTIVE + not
-        # added to any collection/menu is what makes a product reachable only
-        # by direct link ("unlisted" in the playbook's sense) — verify this
-        # matches how your theme/store actually treats these bridge pages.
-        status="ACTIVE",
+        # Confirmed against this store's live schema: ProductStatus.UNLISTED
+        # ("active but needs a direct link; excluded from search/collections")
+        # is exactly the bridge-page behavior wanted. Only available from API
+        # version 2025-10 onward (older versions silently coerce it to ACTIVE).
+        status="UNLISTED",
     )
 
     # Fall back to the full *.myshopify.com domain (always a valid, resolvable

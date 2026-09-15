@@ -122,11 +122,11 @@
 
   <div class="panel">
     <div class="tabs">
-      <button type="button" class="tab-btn active" data-tab="manual">수동 입력</button>
-      <button type="button" class="tab-btn" data-tab="bulk">대량 업로드</button>
+      <button type="button" class="tab-btn active" data-tab="bulk">대량 업로드</button>
+      <button type="button" class="tab-btn" data-tab="manual">수동 입력</button>
     </div>
 
-    <div class="tab-panel" id="tab-manual">
+    <div class="tab-panel" id="tab-manual" hidden>
       <h2>새 광고 요청</h2>
       <p class="hint">달라지는 부분만 입력하세요 — 나머지는 복제할 광고 세트에서 그대로 가져옵니다.</p>
       <form method="post" action="/submit">
@@ -231,7 +231,7 @@
       </form>
     </div>
 
-    <div class="tab-panel" id="tab-bulk" hidden>
+    <div class="tab-panel" id="tab-bulk">
       <h2>대량 업로드</h2>
       <p class="hint">스프레드시트에서 복사한 행을 붙여넣으세요 — 광고 1건당 한 줄, 열은 Tab으로 구분, 아래 순서 그대로.</p>
       <details class="columns">
