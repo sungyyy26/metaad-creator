@@ -39,8 +39,7 @@ ACCOUNTS = {
 }
 CANDIDATE_ACCOUNT_IDS = list(ACCOUNTS.keys())
 
-# Matches the meta-ad-duplicator artifact's bulk paste column order exactly
-# (minus the Slack-notify column, which this local tool doesn't send).
+# Matches the meta-ad-duplicator artifact's bulk paste column order exactly.
 BULK_COLUMNS = [
     "캠페인 (필수)",
     "복제할 광고 (필수 — 이미 있거나 같은 배치의 다른 행이 만드는 광고 세트에 광고만 추가하려면 비워두세요)",
@@ -304,20 +303,44 @@ def index():
                             message=message, bulk_columns=BULK_COLUMNS)
 
 
+def _manual_input_snapshot(form, headline, primary_text):
+    """Captures everything /retry needs to resubmit a manual request exactly
+    as it was first entered, without asking the user to retype it."""
+    return {
+        "campaign_id": form.get("campaign_id", ""),
+        "account_override": form.get("account_override", "").strip(),
+        "source_adset_name": form.get("source_adset_name", ""),
+        "new_adset_name": form.get("new_adset_name", ""),
+        "new_ad_name": form.get("new_ad_name", ""),
+        "daily_budget": form.get("daily_budget", ""),
+        "website_url": form.get("website_url", ""),
+        "creative_name": form.get("creative_name", ""),
+        "headline": headline,
+        "primary_text": primary_text,
+        "after_status": form.get("after_status", "PAUSED"),
+        "shopify_source_handle": form.get("shopify_source_handle", "").strip(),
+        "shopify_title": form.get("shopify_title_override", "").strip(),
+        "shopify_tags": form.get("shopify_tags_override", "").strip(),
+        "shopify_template": form.get("shopify_template_override", "").strip(),
+        "shopify_amazon": form.get("shopify_amazon_override", "").strip(),
+    }
+
+
 @app.route("/submit", methods=["POST"])
 def submit():
     form = request.form
+    headline, primary_text = form.get("headline", ""), form.get("primary_text", "")
     entry = new_entry(
         campaign=form.get("campaign_id", ""),
         sourceAdset=form.get("source_adset_name", ""),
         adSetName=form.get("new_adset_name", ""),
         adName=form.get("new_ad_name", ""),
         budget=form.get("daily_budget", ""),
+        input=_manual_input_snapshot(form, headline, primary_text),
     )
     upsert(entry)
 
     token = os.environ.get("META_ACCESS_TOKEN")
-    headline, primary_text = form.get("headline", ""), form.get("primary_text", "")
     generate_field = next((label for label, v in (("헤드라인", headline), ("기본 텍스트", primary_text))
                            if is_generate_placeholder(v)), None)
     if not token:
@@ -390,9 +413,31 @@ def submit_bulk():
                 details.append(f"{lineno}행: {e}")
                 continue
 
-            entry = new_entry(campaign=row["campaign_id"], sourceAdset=row["source_adset_name"],
-                               adSetName=row["new_adset_name"], adName=row["new_ad_name"],
-                               budget=row["daily_budget"])
+            entry = new_entry(
+                campaign=row["campaign_id"], sourceAdset=row["source_adset_name"],
+                adSetName=row["new_adset_name"], adName=row["new_ad_name"],
+                budget=row["daily_budget"],
+                input={
+                    "campaign_id": row["campaign_id"],
+                    "account_override": "",
+                    "source_adset_name": row["source_adset_name"],
+                    "new_adset_name": row["new_adset_name"],
+                    "new_ad_name": row["new_ad_name"],
+                    "daily_budget": row["daily_budget"],
+                    "website_url": row["website_url"],
+                    "creative_name": row["creative_name"],
+                    "headline": row["headline"],
+                    "primary_text": row["primary_text"],
+                    "start_iso": row["start_iso"],
+                    "end_iso": row["end_iso"],
+                    "after_status": row["after_status"],
+                    "shopify_source_handle": row["shopify_source_handle"],
+                    "shopify_title": row["shopify_title"],
+                    "shopify_tags": row["shopify_tags"],
+                    "shopify_template": row["shopify_template"],
+                    "shopify_amazon": row["shopify_amazon"],
+                },
+            )
             upsert(entry)
 
             ok, err = run_duplicate(
@@ -425,6 +470,97 @@ def submit_bulk():
 
         summary = f"대량 업로드 완료 — 성공 {success}건 / 미완료(Shopify) {incomplete}건 / 실패 {fail}건"
         message = {"kind": "ok" if (fail == 0 and incomplete == 0) else "err", "text": summary, "details": details}
+
+    session["flash_message"] = message
+    return redirect("/")
+
+
+@app.route("/preview_bulk", methods=["POST"])
+def preview_bulk():
+    """Parses the pasted bulk text the same way /submit_bulk does, but only
+    parses — never calls Meta/Shopify — so the page can show what each row
+    will do before the user commits to running it."""
+    text = request.form.get("bulk_text", "")
+    rows = [(i, line.split("\t")) for i, line in enumerate(text.splitlines(), start=1) if line.strip()]
+
+    preview = []
+    for lineno, cols in rows:
+        try:
+            row = parse_bulk_row(cols)
+        except RowError as e:
+            preview.append({"lineno": lineno, "ok": False, "error": str(e)})
+            continue
+        preview.append({
+            "lineno": lineno,
+            "ok": True,
+            "campaign": row["campaign_id"],
+            "source_adset": row["source_adset_name"] or "(광고만 추가 — 기존 세트 사용)",
+            "new_adset": row["new_adset_name"],
+            "new_ad_name": row["new_ad_name"],
+            "daily_budget": row["daily_budget"],
+            "website_url": row["website_url"],
+            "creative_name": row["creative_name"],
+            "start": row["start_iso"] or "즉시",
+            "end": row["end_iso"] or "없음",
+            "status": "즉시 활성화" if row["after_status"] == "ACTIVE" else "일시중지",
+            "shopify_handle": row["shopify_source_handle"] or "-",
+            "warning": row["warning"],
+        })
+
+    ok_count = sum(1 for p in preview if p["ok"])
+    return {"rows": preview, "total": len(rows), "ok_count": ok_count, "error_count": len(rows) - ok_count}
+
+
+@app.route("/retry/<req_id>", methods=["POST"])
+def retry(req_id):
+    """Re-runs a request that previously failed outright, using the inputs
+    captured when it was first submitted — no retyping. Only offered for
+    status == 'error' (nothing was created yet); an 'incomplete' entry already
+    has a real Meta ad, so re-running it would create a duplicate ad rather
+    than fix anything."""
+    items = load_requests()
+    entry = next((it for it in items if it["id"] == req_id), None)
+    if not entry or not entry.get("input") or entry.get("status") != "error":
+        session["flash_message"] = {"kind": "err", "text": "이 항목은 재시도할 수 없습니다."}
+        return redirect("/")
+
+    inp = entry["input"]
+    entry["submittedAt"] = datetime.now().strftime("%m/%d %H:%M")
+    entry.pop("error", None)
+    upsert(entry)
+
+    token = os.environ.get("META_ACCESS_TOKEN")
+    if not token:
+        entry["status"] = "error"
+        entry["error"] = "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다. 터미널에서 export/set 하고 서버를 다시 시작하세요."
+        upsert(entry)
+        session["flash_message"] = {"kind": "err", "text": entry["error"]}
+        return redirect("/")
+
+    ok, err = run_duplicate(
+        token, entry,
+        campaign_id=inp["campaign_id"], account_override=inp.get("account_override") or None,
+        source_adset_name=inp["source_adset_name"], new_adset_name=inp["new_adset_name"],
+        new_ad_name=inp["new_ad_name"], daily_budget=inp["daily_budget"],
+        website_url=inp["website_url"], creative_name=inp["creative_name"],
+        headline=inp["headline"], primary_text=inp["primary_text"],
+        start_iso=inp.get("start_iso"), end_iso=inp.get("end_iso"),
+        after_status=inp.get("after_status", "PAUSED"),
+    )
+    if ok and inp.get("shopify_source_handle"):
+        run_shopify_bridge(
+            entry, new_ad_name=inp["new_ad_name"], source_handle=inp["shopify_source_handle"],
+            title_override=inp.get("shopify_title"), tags_override=inp.get("shopify_tags"),
+            template_override=inp.get("shopify_template"), amazon_link_override=inp.get("shopify_amazon"),
+        )
+    upsert(entry)
+
+    if not ok:
+        message = {"kind": "err", "text": err}
+    elif entry["status"] == "incomplete":
+        message = {"kind": "err", "text": f"Meta 광고는 생성됐지만 Shopify 브릿지 페이지 실패: {entry['shopifyError']}"}
+    else:
+        message = {"kind": "ok", "text": f"재시도 성공: 광고 세트 {entry['result']['ad_set_id']} / 광고 {entry['result']['ad_id']}"}
 
     session["flash_message"] = message
     return redirect("/")
