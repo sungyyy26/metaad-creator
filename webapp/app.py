@@ -10,12 +10,10 @@ Run (one-time setup):
 Run (every time after that — no need to re-export anything):
     python webapp/app.py
 """
-import io
 import json
 import os
 import sys
 import threading
-import time
 import uuid
 from datetime import datetime
 
@@ -23,7 +21,6 @@ from dotenv import load_dotenv
 from flask import Flask, redirect, render_template, request, session
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import drive_lib  # noqa: E402
 import meta_lib  # noqa: E402
 import shopify_lib  # noqa: E402
 
@@ -297,49 +294,14 @@ def run_shopify_bridge(entry, *, new_ad_name, source_handle, title_override=None
         entry["shopifyError"] = f"예상치 못한 오류: {e}"
 
 
-_DRIVE_FOLDERS_CACHE = {"folders": None, "error": None, "at": 0}
-DRIVE_FOLDERS_CACHE_TTL = 60  # seconds — avoids re-walking the whole Drive tree on every page load
-
-
-def get_drive_folder_options():
-    """Returns (folders, error) for the upload form's Drive-destination
-    select: folders always starts with the root itself, followed by every
-    subfolder found at any depth (each with a readable 'path'). error is None
-    on success, or a message to show the user if the Drive tree couldn't be
-    read (e.g. root folder not actually shared with the service account) —
-    the page still renders either way, just with only the root as an option."""
-    drive_root_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID")
-    drive_key_file = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE")
-    if not drive_root_id or not drive_key_file:
-        return [], None
-
-    now = time.time()
-    if _DRIVE_FOLDERS_CACHE["folders"] is not None and now - _DRIVE_FOLDERS_CACHE["at"] < DRIVE_FOLDERS_CACHE_TTL:
-        return _DRIVE_FOLDERS_CACHE["folders"], _DRIVE_FOLDERS_CACHE["error"]
-
-    folders = [{"id": drive_root_id, "name": "(최상위 폴더)", "path": "(최상위 폴더)"}]
-    error = None
-    try:
-        folders += drive_lib.list_all_subfolders(drive_key_file, drive_root_id)
-    except drive_lib.DriveApiError as e:
-        error = str(e)
-    except Exception as e:  # noqa: BLE001
-        error = f"예상치 못한 오류: {e}"
-
-    _DRIVE_FOLDERS_CACHE.update(folders=folders, error=error, at=now)
-    return folders, error
-
-
 @app.route("/")
 def index():
     items = list(reversed(load_requests()))
     uploads = list(reversed(load_uploads()))
     message = session.pop("flash_message", None)
-    drive_folders, drive_error = get_drive_folder_options()
 
     return render_template("index.html", accounts=ACCOUNTS, items=items, uploads=uploads,
-                            message=message, bulk_columns=BULK_COLUMNS,
-                            drive_folders=drive_folders, drive_error=drive_error)
+                            message=message, bulk_columns=BULK_COLUMNS)
 
 
 @app.route("/submit", methods=["POST"])
@@ -481,9 +443,7 @@ def delete(req_id):
 def upload_creative():
     """Uploads a local video/image file straight into a Meta ad account's
     creative library — no public hosting needed, since this runs on your own
-    machine and can send the file's bytes directly. If GOOGLE_DRIVE_FOLDER_ID
-    and GOOGLE_SERVICE_ACCOUNT_FILE are configured, the same file is also
-    copied into that Drive folder right after."""
+    machine and can send the file's bytes directly."""
     file = request.files.get("creative_file")
     account_id = request.form.get("upload_account_id", "")
     entry = new_entry(filename=(file.filename if file else ""), accountId=account_id)
@@ -500,9 +460,8 @@ def upload_creative():
         entry["status"] = "error"
         entry["error"] = "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."
     else:
-        content = file.stream.read()
         try:
-            result = meta_lib.upload_creative(token, account_id, file.filename, io.BytesIO(content))
+            result = meta_lib.upload_creative(token, account_id, file.filename, file.stream)
             entry["status"] = "done"
             entry["result"] = result
         except meta_lib.MetaApiError as e:
@@ -511,34 +470,11 @@ def upload_creative():
         except Exception as e:  # noqa: BLE001
             entry["status"] = "error"
             entry["error"] = f"예상치 못한 오류: {e}"
-
-        if entry["status"] == "done":
-            drive_folder = request.form.get("drive_folder_id", "").strip() or os.environ.get("GOOGLE_DRIVE_FOLDER_ID")
-            drive_key_file = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE")
-            if drive_folder and drive_key_file:
-                mimetype = getattr(file, "mimetype", None) or "application/octet-stream"
-                try:
-                    drive_result = drive_lib.upload_file(
-                        drive_key_file, drive_folder, file.filename, io.BytesIO(content), mimetype=mimetype,
-                    )
-                    entry["driveUrl"] = drive_result["url"]
-                except drive_lib.DriveApiError as e:
-                    entry["status"] = "incomplete"
-                    entry["driveError"] = str(e)
-                except Exception as e:  # noqa: BLE001
-                    entry["status"] = "incomplete"
-                    entry["driveError"] = f"예상치 못한 오류: {e}"
     upsert_upload(entry)
 
-    if entry["status"] == "done":
-        text = f"업로드 완료: {entry['result']['kind']} — {entry['result']['asset_id']}"
-        if entry.get("driveUrl"):
-            text += " (Drive에도 저장됨)"
-        message = {"kind": "ok", "text": text}
-    elif entry["status"] == "incomplete":
-        message = {"kind": "err", "text": f"Meta 업로드는 완료됐지만 Drive 저장 실패: {entry['driveError']}"}
-    else:
-        message = {"kind": "err", "text": entry.get("error", "알 수 없는 오류")}
+    message = ({"kind": "ok", "text": f"업로드 완료: {entry['result']['kind']} — {entry['result']['asset_id']}"}
+               if entry["status"] == "done"
+               else {"kind": "err", "text": entry.get("error", "알 수 없는 오류")})
     session["flash_message"] = message
     return redirect("/")
 
