@@ -76,6 +76,25 @@ def _list_children_folders(token, parent_folder_id):
     return data.get("files", [])
 
 
+def get_folder_info(token, folder_id):
+    """Confirms the service account can actually see folder_id at all —
+    Drive returns 404 ('File not found') for an ID you have no access to, not
+    403, so an empty children-list and 'no access' look identical unless we
+    check this directly. Raises DriveApiError with Drive's own message on any
+    failure (missing, wrong type, no access)."""
+    r = requests.get(
+        f"{FILES_URL}/{folder_id}",
+        headers={"Authorization": f"Bearer {token}"},
+        params={"fields": "id,name,mimeType,driveId", "supportsAllDrives": "true"},
+    )
+    data = r.json()
+    if "error" in data:
+        raise DriveApiError(data["error"].get("message", str(data["error"])))
+    if data.get("mimeType") != "application/vnd.google-apps.folder":
+        raise DriveApiError(f"'{folder_id}'는 폴더가 아닙니다 (mimeType={data.get('mimeType')}).")
+    return data
+
+
 def list_all_subfolders(service_account_file, root_folder_id, max_folders=500):
     """Every subfolder under root_folder_id, at every depth (breadth-first),
     each carrying a 'path' like 'Campaign / Winners' showing where it sits
@@ -83,6 +102,7 @@ def list_all_subfolders(service_account_file, root_folder_id, max_folders=500):
     everything helper, the caller needs the real reason to show the user
     (e.g. the root folder wasn't actually shared with the service account)."""
     token = _get_access_token(service_account_file)
+    get_folder_info(token, root_folder_id)  # raises clearly if the service account can't actually see it
     results = []
     queue = [(root_folder_id, "")]
     while queue and len(results) < max_folders:
