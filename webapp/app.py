@@ -408,11 +408,16 @@ def run_shopify_bridge(entry, *, new_ad_name, source_handle, title_override=None
 
 @app.route("/")
 def index():
-    items = list(reversed(load_requests()))
+    all_items = list(reversed(load_requests()))
+    # 광고 셋팅 요청과 예산 조정 요청은 각자의 탭(모드)에서만 보이도록 분리해서
+    # 넘긴다 — 같은 requests.json에 함께 저장되지만 화면에는 따로 뜬다.
+    setting_items = [it for it in all_items if (it.get("type") or "setting") == "setting"]
+    budget_items = [it for it in all_items if it.get("type") == "budget"]
     uploads = list(reversed(load_uploads()))
     message = session.pop("flash_message", None)
 
-    return render_template("index.html", accounts=ACCOUNTS, items=items, uploads=uploads,
+    return render_template("index.html", accounts=ACCOUNTS, setting_items=setting_items,
+                            budget_items=budget_items, uploads=uploads,
                             message=message, bulk_columns=BULK_COLUMNS)
 
 
@@ -698,9 +703,19 @@ def delete(req_id):
 def delete_all_requests():
     """Clears the request-history log only (never the upload log, and never
     anything already created in Meta/Shopify) — a real form post + redirect,
-    confirmed client-side first since it's a one-shot bulk action."""
-    _save_json_list(DB_PATH, [])
-    session["flash_message"] = {"kind": "ok", "text": "요청 기록을 모두 삭제했습니다."}
+    confirmed client-side first since it's a one-shot bulk action. An
+    optional 'type' field scopes the delete to just 광고 셋팅 or just 예산
+    조정 entries (each tab's "전체 삭제" only clears its own history);
+    omitted, it clears everything, as it always has."""
+    entry_type = request.form.get("type", "").strip()
+    if entry_type:
+        remaining = [it for it in load_requests() if (it.get("type") or "setting") != entry_type]
+        _save_json_list(DB_PATH, remaining)
+        label = "예산 조정" if entry_type == "budget" else "광고 셋팅"
+        session["flash_message"] = {"kind": "ok", "text": f"{label} 요청 기록을 모두 삭제했습니다."}
+    else:
+        _save_json_list(DB_PATH, [])
+        session["flash_message"] = {"kind": "ok", "text": "요청 기록을 모두 삭제했습니다."}
     return redirect("/")
 
 
@@ -882,10 +897,10 @@ def budget_lookup():
 def apply_budget_changes():
     """Actually writes the selected ad sets' daily budgets to Meta — only
     ever called after the user has reviewed /budget_lookup's results and
-    explicitly picked which rows to apply, never automatically. Each item
-    (whether it succeeds or fails) is logged into the same 요청 기록 as
-    광고 셋팅 requests, tagged type='budget' so the two are distinguishable
-    in the history list."""
+    explicitly picked which rows to apply, never automatically. Every ad set
+    in this one "적용" click is logged as a single 요청 기록 entry
+    (type='budget'), listing each ad set inside it, rather than one entry
+    per ad set — one click, one history row, whether it's one ad set or ten."""
     token = os.environ.get("META_ACCESS_TOKEN")
     if not token:
         return {"ok": False, "error": "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."}, 400
@@ -895,34 +910,45 @@ def apply_budget_changes():
     if not items:
         return {"ok": False, "error": "반영할 항목이 없습니다."}, 400
 
-    results = []
+    results, entry_items = [], []
     for item in items:
         adset_id = item.get("adset_id")
         new_budget = item.get("new_budget")
-        entry = new_entry(
-            type="budget",
-            campaign=item.get("campaign_name", ""),
-            adSetName=item.get("adset_name", ""),
-            creativeNames=item.get("creative_names") or [],
-            liveCurrentBudget=item.get("live_current_budget"),
-            newBudget=new_budget,
-        )
+        sub = {
+            "campaign_name": item.get("campaign_name", ""),
+            "adSetName": item.get("adset_name", ""),
+            "creativeNames": item.get("creative_names") or [],
+            "liveCurrentBudget": item.get("live_current_budget"),
+            "newBudget": new_budget,
+        }
         if not adset_id or new_budget is None:
-            entry["status"] = "error"
-            entry["error"] = "adset_id 또는 new_budget이 없습니다."
-            upsert(entry)
-            results.append({"adset_id": adset_id, "ok": False, "error": entry["error"]})
+            sub["ok"], sub["error"] = False, "adset_id 또는 new_budget이 없습니다."
+            entry_items.append(sub)
+            results.append({"adset_id": adset_id, "ok": False, "error": sub["error"]})
             continue
         try:
             meta_lib.update_adset_budget(token, adset_id, new_budget)
-            entry["status"] = "done"
-            upsert(entry)
+            sub["ok"], sub["error"] = True, None
+            entry_items.append(sub)
             results.append({"adset_id": adset_id, "ok": True})
         except meta_lib.MetaApiError as e:
-            entry["status"] = "error"
-            entry["error"] = str(e)
-            upsert(entry)
+            sub["ok"], sub["error"] = False, str(e)
+            entry_items.append(sub)
             results.append({"adset_id": adset_id, "ok": False, "error": str(e)})
+
+    success_count = sum(1 for s in entry_items if s["ok"])
+    if success_count == len(entry_items):
+        overall_status = "done"
+    elif success_count == 0:
+        overall_status = "error"
+    else:
+        overall_status = "incomplete"  # some ad sets applied, some failed
+
+    # named "changes", not "items" -- a dict key called "items" collides with
+    # the dict.items() method when accessed as it.items in a Jinja template
+    entry = new_entry(type="budget", status=overall_status, changes=entry_items)
+    upsert(entry)
+
     return {"ok": True, "results": results}
 
 

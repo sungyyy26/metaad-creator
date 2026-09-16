@@ -175,6 +175,10 @@
   .record-note{margin-top:var(--sp-1);}
   .record-note.warn{color:var(--status-incomplete-fg);}
   .record-note.err{color:var(--status-error-fg);}
+
+  .budget-batch-list{display:flex;flex-direction:column;gap:var(--sp-3);margin-top:var(--sp-2);}
+  .budget-batch-item{padding-top:var(--sp-2);border-top:1px solid var(--border);}
+  .budget-batch-item:first-child{padding-top:0;border-top:none;}
   .record-row .delete-btn{position:absolute;top:12px;right:12px;}
 
   .pill{font-size:var(--fs-2xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 9px;border-radius:980px;white-space:nowrap;flex:none;}
@@ -477,60 +481,50 @@
     </div>
   </div>
 
-  <div class="panel">
+  <div class="panel" id="panel-setting-history">
     <div class="panel-header">
       <h2>요청 기록</h2>
-      {% if items %}
+      {% if setting_items %}
         <form method="post" action="/delete_all_requests" id="delete-all-form">
+          <input type="hidden" name="type" value="setting">
           <button type="submit" class="delete-all-btn">전체 삭제</button>
         </form>
       {% endif %}
     </div>
-    <p class="hint">이 컴퓨터에서 제출한 요청들 (webapp/requests.json에 저장됨).</p>
-    {% if items %}
+    <p class="hint">이 컴퓨터에서 제출한 광고 셋팅 요청들 (webapp/requests.json에 저장됨).</p>
+    {% if setting_items %}
     <div class="record-list" id="request-record-list">
-      {% for it in items %}
-      {% set entry_type = it.type or 'setting' %}
+      {% for it in setting_items %}
       <div class="record-row">
         <button type="button" class="delete-btn" data-delete-url="/delete/{{ it.id }}" title="기록 삭제 (실제 광고는 삭제되지 않음)">×</button>
         <div class="record-top">
           <span class="pill {{ it.status }}">{{ {'done':'완료','error':'오류','processing':'처리중','incomplete':'미완료'}.get(it.status, it.status) }}</span>
-          <span class="type-tag {{ entry_type }}">{{ '예산 조정' if entry_type == 'budget' else '광고 셋팅' }}</span>
           <span class="record-time">{{ it.submittedAt }}</span>
-          {% if entry_type != 'budget' %}<span class="record-budget mono">${{ it.budget }}/일</span>{% endif %}
+          <span class="record-budget mono">${{ it.budget }}/일</span>
         </div>
         {% if it.campaign %}<div class="record-campaign"><span class="record-label">C:</span>{{ it.campaign }}</div>{% endif %}
-        {% if entry_type == 'budget' %}
-          <div class="record-main"><span class="record-label">AS:</span><span class="adset">{{ it.adSetName }}</span></div>
-          <div class="record-result">소재: {{ it.creativeNames|join(", ") }}</div>
-          <div class="record-result mono">현재 ${{ it.liveCurrentBudget if it.liveCurrentBudget is not none else '?' }} → 변경 ${{ it.newBudget }}</div>
-          {% if it.status == 'error' %}
-            <div class="record-note err"><span class="record-note-text">{{ it.error }}</span></div>
+        <div class="record-main"><span class="record-label">AS:</span><span class="adset">{{ it.adSetName }}</span><span class="arrow">→</span><span class="record-label">AD:</span><span class="adname">{{ it.adName }}</span></div>
+        {% if it.result or it.resultShopifyUrl or it.status in ('incomplete', 'error') %}
+        <div class="record-result">
+          {% if it.result %}
+            <a href="{{ it.result.ads_manager_url }}" target="_blank" rel="noopener">Ads Manager →</a>
           {% endif %}
-        {% else %}
-          <div class="record-main"><span class="record-label">AS:</span><span class="adset">{{ it.adSetName }}</span><span class="arrow">→</span><span class="record-label">AD:</span><span class="adname">{{ it.adName }}</span></div>
-          {% if it.result or it.resultShopifyUrl or it.status in ('incomplete', 'error') %}
-          <div class="record-result">
-            {% if it.result %}
-              <a href="{{ it.result.ads_manager_url }}" target="_blank" rel="noopener">Ads Manager →</a>
-            {% endif %}
-            {% if it.resultShopifyUrl %}
-              <a href="{{ it.resultShopifyUrl }}" target="_blank" rel="noopener">Shopify 페이지 →</a>
-            {% endif %}
-            {% if it.status == 'incomplete' and it.shopifyError %}
-              <div class="record-note warn">Shopify: {{ it.shopifyError }}</div>
-            {% elif it.status == 'error' %}
-              <div class="record-note err">
-                <span class="record-note-text">{{ it.error }}</span>
-                {% if it.input %}
-                  <form method="post" action="/retry/{{ it.id }}" class="retry-form">
-                    <button type="submit" class="retry-btn">재시도</button>
-                  </form>
-                {% endif %}
-              </div>
-            {% endif %}
-          </div>
+          {% if it.resultShopifyUrl %}
+            <a href="{{ it.resultShopifyUrl }}" target="_blank" rel="noopener">Shopify 페이지 →</a>
           {% endif %}
+          {% if it.status == 'incomplete' and it.shopifyError %}
+            <div class="record-note warn">Shopify: {{ it.shopifyError }}</div>
+          {% elif it.status == 'error' %}
+            <div class="record-note err">
+              <span class="record-note-text">{{ it.error }}</span>
+              {% if it.input %}
+                <form method="post" action="/retry/{{ it.id }}" class="retry-form">
+                  <button type="submit" class="retry-btn">재시도</button>
+                </form>
+              {% endif %}
+            </div>
+          {% endif %}
+        </div>
         {% endif %}
       </div>
       {% endfor %}
@@ -538,6 +532,49 @@
     <div class="pagination" id="request-pagination" hidden></div>
     {% else %}
       <div class="empty">아직 제출된 요청이 없습니다.</div>
+    {% endif %}
+  </div>
+
+  <div class="panel" id="panel-budget-history" hidden>
+    <div class="panel-header">
+      <h2>예산 조정 기록</h2>
+      {% if budget_items %}
+        <form method="post" action="/delete_all_requests" id="delete-all-budget-form">
+          <input type="hidden" name="type" value="budget">
+          <button type="submit" class="delete-all-btn">전체 삭제</button>
+        </form>
+      {% endif %}
+    </div>
+    <p class="hint">이 컴퓨터에서 적용한 예산 조정들 (webapp/requests.json에 저장됨). 한 번의 "적용" 클릭에 포함된 광고 세트가 여러 개여도 기록은 1건입니다.</p>
+    {% if budget_items %}
+    <div class="record-list" id="budget-record-list">
+      {% for it in budget_items %}
+      <div class="record-row">
+        <button type="button" class="delete-btn" data-delete-url="/delete/{{ it.id }}" title="기록 삭제 (실제 예산은 되돌아가지 않음)">×</button>
+        <div class="record-top">
+          <span class="pill {{ it.status }}">{{ {'done':'완료','error':'오류','incomplete':'일부 실패'}.get(it.status, it.status) }}</span>
+          <span class="record-time">{{ it.submittedAt }}</span>
+          <span class="record-budget mono">{{ it.changes|length }}건</span>
+        </div>
+        <div class="budget-batch-list">
+          {% for sub in it.changes %}
+          <div class="budget-batch-item">
+            {% if sub.campaign_name %}<div class="record-campaign"><span class="record-label">C:</span>{{ sub.campaign_name }}</div>{% endif %}
+            <div class="record-main"><span class="record-label">AS:</span><span class="adset">{{ sub.adSetName }}</span></div>
+            <div class="record-result">소재: {{ sub.creativeNames|join(", ") }}</div>
+            <div class="record-result mono">현재 ${{ sub.liveCurrentBudget if sub.liveCurrentBudget is not none else '?' }} → 변경 ${{ sub.newBudget }}</div>
+            {% if not sub.ok %}
+              <div class="record-note err"><span class="record-note-text">{{ sub.error }}</span></div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="pagination" id="budget-history-pagination" hidden></div>
+    {% else %}
+      <div class="empty">아직 적용된 예산 조정이 없습니다.</div>
     {% endif %}
   </div>
 
@@ -591,6 +628,8 @@
       var mode = btn.getAttribute("data-mode");
       document.getElementById("panel-setting").hidden = mode !== "setting";
       document.getElementById("panel-budget").hidden = mode !== "budget";
+      document.getElementById("panel-setting-history").hidden = mode !== "setting";
+      document.getElementById("panel-budget-history").hidden = mode !== "budget";
     });
   });
 
@@ -609,10 +648,10 @@
     });
   });
 
-  (function () {
+  function setupPagination(listId, paginationId) {
     var PAGE_SIZE = 3;
-    var list = document.getElementById("request-record-list");
-    var pagination = document.getElementById("request-pagination");
+    var list = document.getElementById(listId);
+    var pagination = document.getElementById(paginationId);
     if (!list || !pagination) return;
 
     var currentPage = 1;
@@ -659,12 +698,24 @@
     // without this script re-running, so re-paginate whenever the list's
     // children change instead of only on initial load.
     new MutationObserver(render).observe(list, { childList: true });
-  })();
+  }
+
+  setupPagination("request-record-list", "request-pagination");
+  setupPagination("budget-record-list", "budget-history-pagination");
 
   var deleteAllForm = document.getElementById("delete-all-form");
   if (deleteAllForm) {
     deleteAllForm.addEventListener("submit", function (e) {
       if (!confirm("요청 기록을 모두 삭제할까요? (실제 생성된 광고는 삭제되지 않습니다)")) {
+        e.preventDefault();
+      }
+    });
+  }
+
+  var deleteAllBudgetForm = document.getElementById("delete-all-budget-form");
+  if (deleteAllBudgetForm) {
+    deleteAllBudgetForm.addEventListener("submit", function (e) {
+      if (!confirm("예산 조정 기록을 모두 삭제할까요? (실제 반영된 예산은 되돌아가지 않습니다)")) {
         e.preventDefault();
       }
     });
