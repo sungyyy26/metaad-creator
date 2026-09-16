@@ -444,6 +444,7 @@ def submit():
     form = request.form
     headline, primary_text = form.get("headline", ""), form.get("primary_text", "")
     entry = new_entry(
+        type="setting",
         campaign=form.get("campaign_id", ""),
         sourceAdset=form.get("source_adset_name", ""),
         adSetName=form.get("new_adset_name", ""),
@@ -527,6 +528,7 @@ def submit_bulk():
                 continue
 
             entry = new_entry(
+                type="setting",
                 campaign=row["campaign_id"], sourceAdset=row["source_adset_name"],
                 adSetName=row["new_adset_name"], adName=row["new_ad_name"],
                 budget=row["daily_budget"],
@@ -879,7 +881,10 @@ def budget_lookup():
 def apply_budget_changes():
     """Actually writes the selected ad sets' daily budgets to Meta — only
     ever called after the user has reviewed /budget_lookup's results and
-    explicitly picked which rows to apply, never automatically."""
+    explicitly picked which rows to apply, never automatically. Each item
+    (whether it succeeds or fails) is logged into the same 요청 기록 as
+    광고 셋팅 requests, tagged type='budget' so the two are distinguishable
+    in the history list."""
     token = os.environ.get("META_ACCESS_TOKEN")
     if not token:
         return {"ok": False, "error": "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."}, 400
@@ -893,13 +898,29 @@ def apply_budget_changes():
     for item in items:
         adset_id = item.get("adset_id")
         new_budget = item.get("new_budget")
+        entry = new_entry(
+            type="budget",
+            campaign=item.get("campaign_name", ""),
+            adSetName=item.get("adset_name", ""),
+            creativeNames=item.get("creative_names") or [],
+            liveCurrentBudget=item.get("live_current_budget"),
+            newBudget=new_budget,
+        )
         if not adset_id or new_budget is None:
-            results.append({"adset_id": adset_id, "ok": False, "error": "adset_id 또는 new_budget이 없습니다."})
+            entry["status"] = "error"
+            entry["error"] = "adset_id 또는 new_budget이 없습니다."
+            upsert(entry)
+            results.append({"adset_id": adset_id, "ok": False, "error": entry["error"]})
             continue
         try:
             meta_lib.update_adset_budget(token, adset_id, new_budget)
+            entry["status"] = "done"
+            upsert(entry)
             results.append({"adset_id": adset_id, "ok": True})
         except meta_lib.MetaApiError as e:
+            entry["status"] = "error"
+            entry["error"] = str(e)
+            upsert(entry)
             results.append({"adset_id": adset_id, "ok": False, "error": str(e)})
     return {"ok": True, "results": results}
 
