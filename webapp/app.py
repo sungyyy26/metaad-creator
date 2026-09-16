@@ -781,7 +781,7 @@ def budget_lookup():
 
     if not campaigns:
         return {
-            "ok": True, "campaigns": [], "matches": [],
+            "ok": True, "campaigns": [], "matches": [], "conflicts": [],
             "not_found": [r["creative_name"] for r in rows],
             "message": f"'{' / '.join(keywords)}' 키워드를 모두 포함하는 캠페인을 찾지 못했습니다.",
         }
@@ -794,7 +794,13 @@ def budget_lookup():
     except meta_lib.MetaApiError as e:
         return {"ok": False, "error": str(e)}, 400
 
-    matches, not_found, seen = [], [], set()
+    # Budget lives on the ad set, not the ad — so every ad set gets matched
+    # (and its budget changed) at most once, even if several of the file's
+    # 소재명 rows each independently find an ad inside that same ad set.
+    adset_info = {}          # adset_id -> {campaign_name, adset_name, live_budget}
+    adset_contributions = {}  # adset_id -> [{creative_name, current_budget, new_budget}, ...]
+    not_found = []
+
     for row in rows:
         needle = row["creative_name"].lower()
         found_ads = [
@@ -805,33 +811,66 @@ def budget_lookup():
         if not found_ads:
             not_found.append(row["creative_name"])
             continue
+
+        matched_adset_ids = set()
         for ad in found_ads:
             adset = ad.get("adset") or {}
             adset_id = adset.get("id")
-            # Several ads can share one ad set (budget lives on the ad set, not
-            # the ad) — only offer each ad set once per matched creative name.
-            dedupe_key = (row["creative_name"], adset_id)
-            if not adset_id or dedupe_key in seen:
+            if not adset_id:
                 continue
-            seen.add(dedupe_key)
-            live_budget = int(adset["daily_budget"]) // 100 if adset.get("daily_budget") else None
-            matches.append({
+            matched_adset_ids.add(adset_id)
+            if adset_id not in adset_info:
+                adset_info[adset_id] = {
+                    "campaign_name": ad["_campaign_name"],
+                    "adset_name": adset.get("name", ""),
+                    "live_budget": int(adset["daily_budget"]) // 100 if adset.get("daily_budget") else None,
+                }
+        # A row that matches several ads within the same ad set (a broad
+        # substring hit) still only counts as this row's single opinion about
+        # that ad set's budget — not once per ad.
+        for adset_id in matched_adset_ids:
+            adset_contributions.setdefault(adset_id, []).append({
                 "creative_name": row["creative_name"],
-                "campaign_name": ad["_campaign_name"],
-                "adset_id": adset_id,
-                "adset_name": adset.get("name", ""),
-                "ad_name": ad.get("name", ""),
-                "file_current_budget": row["current_budget"],
-                "live_current_budget": live_budget,
-                "mismatch": (row["current_budget"] is not None and live_budget is not None
-                             and row["current_budget"] != live_budget),
+                "current_budget": row["current_budget"],
                 "new_budget": row["new_budget"],
             })
+
+    matches, conflicts = [], []
+    for adset_id, contributions in adset_contributions.items():
+        info = adset_info[adset_id]
+        creative_names = [c["creative_name"] for c in contributions]
+        unique_pairs = {(c["current_budget"], c["new_budget"]) for c in contributions}
+        if len(unique_pairs) > 1:
+            # Several 소재명 in the same ad set disagree on what the budget
+            # should be — refuse to guess which one is right and surface it
+            # as a conflict the user has to fix in the file instead.
+            conflicts.append({
+                "campaign_name": info["campaign_name"],
+                "adset_name": info["adset_name"],
+                "values": [
+                    {"creative_name": c["creative_name"], "current_budget": c["current_budget"], "new_budget": c["new_budget"]}
+                    for c in contributions
+                ],
+            })
+            continue
+        current_budget, new_budget = next(iter(unique_pairs))
+        live_budget = info["live_budget"]
+        matches.append({
+            "creative_names": creative_names,
+            "campaign_name": info["campaign_name"],
+            "adset_id": adset_id,
+            "adset_name": info["adset_name"],
+            "file_current_budget": current_budget,
+            "live_current_budget": live_budget,
+            "mismatch": (current_budget is not None and live_budget is not None and current_budget != live_budget),
+            "new_budget": new_budget,
+        })
 
     return {
         "ok": True,
         "campaigns": [{"id": c["id"], "name": c["name"]} for c in campaigns],
         "matches": matches,
+        "conflicts": conflicts,
         "not_found": not_found,
     }
 

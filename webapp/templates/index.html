@@ -458,6 +458,7 @@
       <div class="step-label">2단계 · 결과 확인 및 반영</div>
       <div class="bulk-preview-summary" id="budget-results-summary"></div>
       <div class="record-list" id="budget-results-list"></div>
+      <div id="budget-conflicts" hidden></div>
       <div id="budget-not-found" hidden></div>
       <div class="field-actions-right" id="budget-apply-actions" hidden>
         <button type="button" class="primary" id="budget-apply-btn">적용</button>
@@ -629,6 +630,7 @@
     var summaryEl = document.getElementById("budget-results-summary");
     var listEl = document.getElementById("budget-results-list");
     var notFoundEl = document.getElementById("budget-not-found");
+    var conflictsEl = document.getElementById("budget-conflicts");
     var applyActions = document.getElementById("budget-apply-actions");
     var applyBtn = document.getElementById("budget-apply-btn");
 
@@ -727,13 +729,26 @@
           '" data-new-budget="' + escapeHtml(m.new_budget) + '"' + (m.new_budget != null ? ' checked' : ' disabled') + '>' +
         '<div class="budget-match-body">' +
           '<div class="record-campaign"><span class="record-label">C:</span>' + escapeHtml(m.campaign_name) + '</div>' +
-          '<div class="record-main"><span class="record-label">AS:</span><span class="adset">' + escapeHtml(m.adset_name) +
-            '</span><span class="arrow">→</span><span class="record-label">AD:</span><span class="adname">' + escapeHtml(m.ad_name) + '</span></div>' +
+          '<div class="record-main"><span class="record-label">AS:</span><span class="adset">' + escapeHtml(m.adset_name) + '</span></div>' +
+          '<div class="record-result">소재: ' + escapeHtml(m.creative_names.join(", ")) + '</div>' +
           '<div class="record-result mono">현재 $' + escapeHtml(fmtBudget(m.live_current_budget)) +
             ' → 변경 $' + escapeHtml(fmtBudget(m.new_budget)) + '</div>' +
           mismatchNote +
         '</div>' +
       '</label>';
+    }
+
+    function renderConflict(c) {
+      var rows = c.values.map(function (v) {
+        return escapeHtml(v.creative_name) + ' (기존 $' + escapeHtml(fmtBudget(v.current_budget)) +
+          ' → 변경 $' + escapeHtml(fmtBudget(v.new_budget)) + ')';
+      }).join(", ");
+      return '<div class="record-row preview-row">' +
+        '<div class="record-campaign"><span class="record-label">C:</span>' + escapeHtml(c.campaign_name) + '</div>' +
+        '<div class="record-main"><span class="record-label">AS:</span><span class="adset">' + escapeHtml(c.adset_name) + '</span></div>' +
+        '<div class="record-note err"><span class="record-note-text">이 광고 세트의 소재들이 서로 다른 예산 값을 가지고 있어 어느 쪽이 맞는지 판단할 수 없습니다: ' +
+          rows + ' — 파일을 확인 후 다시 조회해주세요.</span></div>' +
+      '</div>';
     }
 
     lookupBtn.addEventListener("click", function () {
@@ -764,13 +779,23 @@
             summaryEl.textContent = data.error || "조회에 실패했습니다.";
             listEl.innerHTML = "";
             notFoundEl.hidden = true;
+            conflictsEl.hidden = true;
             applyActions.hidden = true;
             return;
           }
+          var conflictCount = (data.conflicts || []).length;
           summaryEl.textContent = data.message ||
-            ("캠페인 " + data.campaigns.length + "개 · 매칭 " + data.matches.length + "건 · 못 찾음 " + data.not_found.length + "건");
+            ("캠페인 " + data.campaigns.length + "개 · 매칭 " + data.matches.length + "건 · 못 찾음 " +
+              data.not_found.length + "건" + (conflictCount ? " · 값 충돌 " + conflictCount + "건" : ""));
           listEl.innerHTML = data.matches.map(renderMatch).join("") ||
             '<div class="empty">일치하는 소재를 찾지 못했습니다.</div>';
+          if (conflictCount) {
+            conflictsEl.hidden = false;
+            conflictsEl.innerHTML = data.conflicts.map(renderConflict).join("");
+          } else {
+            conflictsEl.hidden = true;
+            conflictsEl.innerHTML = "";
+          }
           if (data.not_found.length) {
             notFoundEl.hidden = false;
             notFoundEl.innerHTML = '<div class="record-note warn">캠페인 안에서 찾지 못한 소재명: ' +
