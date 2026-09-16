@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>광고 복제 데스크</title>
+<title>광고 에딧 데스크</title>
 <script>
 (function () {
   try {
@@ -71,6 +71,10 @@
   h1{font-size:var(--fs-xl);font-weight:700;letter-spacing:-0.015em;margin:var(--sp-2) 0 var(--sp-2);text-wrap:balance;}
   .subtitle{color:var(--text-muted);font-size:var(--fs-md);line-height:1.5;margin:0 0 var(--sp-6);max-width:60ch;}
 
+  .page-header{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--sp-4);flex-wrap:wrap;}
+  .page-header-left{flex:1;min-width:240px;}
+  .mode-toggle{flex:none;margin-top:2px;}
+
   .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:28px 30px;margin-bottom:var(--sp-5);}
   .panel h2{font-size:var(--fs-lg);font-weight:600;letter-spacing:-0.01em;margin:0 0 var(--sp-1);}
   .panel .hint{color:var(--text-muted);font-size:var(--fs-sm);margin:0 0 var(--sp-5);}
@@ -87,10 +91,11 @@
   .field-hint{display:block;font-size:var(--fs-xs);color:var(--text-faint);margin-top:var(--sp-1);line-height:1.5;}
   .field-hint.tight{margin-top:calc(var(--sp-2) * -1);margin-bottom:var(--sp-3);}
 
-  .tabs{display:inline-flex;background:var(--surface-3);border-radius:980px;padding:3px;margin-bottom:var(--sp-5);}
-  .tab-btn{border:none;background:transparent;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-muted);padding:7px 18px;border-radius:980px;cursor:pointer;transition:background .15s,color .15s;}
-  .tab-btn.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.08);}
-  .tab-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .tabs,.mode-toggle{display:inline-flex;background:var(--surface-3);border-radius:980px;padding:3px;margin-bottom:var(--sp-5);}
+  .mode-toggle{margin-bottom:0;}
+  .tab-btn,.mode-btn{border:none;background:transparent;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-muted);padding:7px 18px;border-radius:980px;cursor:pointer;transition:background .15s,color .15s;white-space:nowrap;}
+  .tab-btn.active,.mode-btn.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.08);}
+  .tab-btn:focus-visible,.mode-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   .tab-panel[hidden]{display:none;}
 
   fieldset{border:0;margin:0 0 var(--sp-5);padding:0;}
@@ -226,9 +231,17 @@
   <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
 </button>
 <div id="app">
-  <div class="eyebrow">Boosters · 메타 광고 · 로컬 실행</div>
-  <h1>광고 복제 데스크</h1>
-  <p class="subtitle">기존 광고 세트를 알려주시면 타겟팅을 복제하고, 소재를 매칭해 새 광고 세트와 광고를 즉시 생성합니다. 이 페이지는 내 컴퓨터에서만 열리고, 제출 즉시 Meta API를 직접 호출합니다 (승인 대기열 없음).</p>
+  <div class="page-header">
+    <div class="page-header-left">
+      <div class="eyebrow">Boosters · 메타 광고 · 로컬 실행</div>
+      <h1>광고 에딧 데스크</h1>
+      <p class="subtitle">기존 광고 세트를 알려주시면 타겟팅을 복제하고, 소재를 매칭해 새 광고 세트와 광고를 즉시 생성합니다. 이 페이지는 내 컴퓨터에서만 열리고, 제출 즉시 Meta API를 직접 호출합니다 (승인 대기열 없음).</p>
+    </div>
+    <div class="mode-toggle">
+      <button type="button" class="mode-btn active" data-mode="setting">광고 셋팅</button>
+      <button type="button" class="mode-btn" data-mode="budget">예산 조정</button>
+    </div>
+  </div>
 
   {% if message %}
     <div class="banner {{ message.kind }}" id="flash-banner">
@@ -240,12 +253,11 @@
     </div>
   {% endif %}
 
-  <div class="panel">
+  <div class="panel" id="panel-setting">
     <div class="tabs">
       <button type="button" class="tab-btn active" data-tab="bulk">대량 업로드</button>
       <button type="button" class="tab-btn" data-tab="manual">수동 입력</button>
       <button type="button" class="tab-btn" data-tab="upload">소재 업로드</button>
-      <button type="button" class="tab-btn" data-tab="budget">예산 조정</button>
     </div>
 
     <div class="tab-panel" id="tab-manual" hidden>
@@ -401,42 +413,42 @@
         <button type="submit" class="primary">업로드</button>
       </form>
     </div>
+  </div>
 
-    <div class="tab-panel" id="tab-budget" hidden>
-      <h2>메타 예산 조정</h2>
-      <p class="hint">채널·제품군으로 대상 캠페인을 찾고, 업로드한 파일의 소재명을 그 캠페인들 안에서만 찾아 예산을 반영합니다.</p>
-      <div class="field-row">
-        <div class="field">
-          <label>채널 *</label>
-          <select id="budget_channel">
-            <option value="Amazon">Amazon</option>
-            <option value="Boots">Boots</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>제품군</label>
-          <input type="text" id="budget_product_group" placeholder="예: hand-wrnk (비워두면 채널만으로 검색)">
-        </div>
+  <div class="panel" id="panel-budget" hidden>
+    <h2>메타 예산 조정</h2>
+    <p class="hint">채널·제품군으로 대상 캠페인을 찾고, 업로드한 파일의 소재명을 그 캠페인들 안에서만 찾아 예산을 반영합니다.</p>
+    <div class="field-row">
+      <div class="field">
+        <label>채널 *</label>
+        <select id="budget_channel">
+          <option value="Amazon">Amazon</option>
+          <option value="Boots">Boots</option>
+        </select>
       </div>
       <div class="field">
-        <label>예산 파일 (.xlsx 또는 .csv) *</label>
-        <div class="file-input-wrap">
-          <label class="file-input-btn" for="budget_file_input">파일 선택</label>
-          <input type="file" id="budget_file_input" accept=".xlsx,.xlsm,.csv" class="file-input-hidden">
-          <span class="file-input-name" id="budget_file_name">선택된 파일 없음</span>
-        </div>
-        <span class="field-hint">헤더 이름은 자유롭게 써도 됩니다 — 소재/소재명/광고명, 기존/기존예산/현재/현재예산, 변경/변경예산/제안/제안예산 중 하나로만 인식되면 됩니다.</span>
+        <label>제품군</label>
+        <input type="text" id="budget_product_group" placeholder="예: hand-wrnk (비워두면 채널만으로 검색)">
       </div>
-      <div class="field-actions-right">
-        <button type="button" class="primary" id="budget-lookup-btn">조회</button>
+    </div>
+    <div class="field">
+      <label>예산 파일 (.xlsx 또는 .csv) *</label>
+      <div class="file-input-wrap">
+        <label class="file-input-btn" for="budget_file_input">파일 선택</label>
+        <input type="file" id="budget_file_input" accept=".xlsx,.xlsm,.csv" class="file-input-hidden">
+        <span class="file-input-name" id="budget_file_name">선택된 파일 없음</span>
       </div>
-      <div class="bulk-preview" id="budget-results" hidden>
-        <div class="bulk-preview-summary" id="budget-results-summary"></div>
-        <div class="record-list" id="budget-results-list"></div>
-        <div id="budget-not-found" hidden></div>
-        <div class="field-actions-right" id="budget-apply-actions" hidden>
-          <button type="button" class="primary" id="budget-apply-btn">선택 항목 예산 반영</button>
-        </div>
+      <span class="field-hint">헤더 이름은 자유롭게 써도 됩니다 — 소재/소재명/광고명, 기존/기존예산/현재/현재예산, 변경/변경예산/제안/제안예산 중 하나로만 인식되면 됩니다.</span>
+    </div>
+    <div class="field-actions-right">
+      <button type="button" class="primary" id="budget-lookup-btn">조회</button>
+    </div>
+    <div class="bulk-preview" id="budget-results" hidden>
+      <div class="bulk-preview-summary" id="budget-results-summary"></div>
+      <div class="record-list" id="budget-results-list"></div>
+      <div id="budget-not-found" hidden></div>
+      <div class="field-actions-right" id="budget-apply-actions" hidden>
+        <button type="button" class="primary" id="budget-apply-btn">선택 항목 예산 반영</button>
       </div>
     </div>
   </div>
@@ -533,7 +545,16 @@
       document.getElementById("tab-manual").hidden = target !== "manual";
       document.getElementById("tab-bulk").hidden = target !== "bulk";
       document.getElementById("tab-upload").hidden = target !== "upload";
-      document.getElementById("tab-budget").hidden = target !== "budget";
+    });
+  });
+
+  document.querySelectorAll(".mode-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll(".mode-btn").forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      var mode = btn.getAttribute("data-mode");
+      document.getElementById("panel-setting").hidden = mode !== "setting";
+      document.getElementById("panel-budget").hidden = mode !== "budget";
     });
   });
 

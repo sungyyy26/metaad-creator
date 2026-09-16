@@ -110,7 +110,7 @@ table.cols td:nth-child(3){font-size:11.5px;color:var(--ink-dim);}
 .toc a{font-family:"Gothic A1",sans-serif;font-weight:600;font-size:12.5px;color:var(--ink-dim);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 13px;text-decoration:none;}
 .toc a:hover{border-color:var(--accent);color:var(--accent);}
 
-.tabgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:16px 0;}
+.tabgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0;}
 @media (max-width:640px){.tabgrid{grid-template-columns:1fr;}}
 .tabcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;}
 .tabcard .tabname{font-family:"Gothic A1",sans-serif;font-weight:700;font-size:13.5px;color:var(--accent);margin-bottom:4px;}
@@ -245,7 +245,7 @@ python webapp/app.py</code></pre>
   </div>
 
   <h2 id="step5"><span class="stepno">STEP 5</span>사용법</h2>
-  <p>대시보드는 네 개의 탭으로 나뉩니다.</p>
+  <p>화면 우측 상단의 <strong>광고 셋팅 / 예산 조정</strong> 토글로 두 작업 영역을 오갑니다. <strong>광고 셋팅</strong>은 세 개의 하위 탭으로 나뉘고, <strong>예산 조정</strong>은 그 자체로 하나의 화면입니다.</p>
   <div class="tabgrid">
     <div class="tabcard">
       <div class="tabname">대량 업로드</div>
@@ -259,6 +259,9 @@ python webapp/app.py</code></pre>
       <div class="tabname">소재 업로드</div>
       <p>내 컴퓨터의 영상/이미지를 광고 계정의 소재 라이브러리에 바로 업로드 (공개 URL 불필요).</p>
     </div>
+  </div>
+  <p class="lede" style="margin-top:14px;">위 세 개는 <strong>광고 셋팅</strong> 모드의 하위 탭입니다. <strong>예산 조정</strong>은 토글로 전환하면 나오는 별도 화면입니다:</p>
+  <div class="tabgrid" style="grid-template-columns:1fr;">
     <div class="tabcard">
       <div class="tabname">예산 조정</div>
       <p>채널·제품군으로 캠페인을 찾고, 엑셀/CSV 파일의 소재명을 그 안에서 매칭해 예산을 반영. 조회 결과를 확인하고 선택한 항목만 실제로 반영합니다.</p>
