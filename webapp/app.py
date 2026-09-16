@@ -54,7 +54,7 @@ BULK_COLUMNS = [
     "기본 텍스트 (실제 문구를 입력하세요 — 이 로컬 도구는 '생성' 자동 작성을 지원하지 않습니다)",
     "시작 (비워두면 즉시; 형식 YYYY/MM/DD H(:MM)AM/PM, 예: 2026/09/08 12AM — 해당 광고 계정의 Meta 시간대 기준)",
     "종료 (비워두면 종료일 없음; 형식은 시작과 동일, 예: 2026/09/08 11:59PM)",
-    "생성 후 상태 (비워두면 일시중지)",
+    "생성 후 상태 (더 이상 사용되지 않음 — 값을 적어도 무시됩니다: 광고는 항상 즉시 활성화, 새로 만들어지는 광고 세트는 항상 일시중지 상태로 생성됩니다)",
     "복제할 Shopify 상품 핸들 (선택 — 비워두면 브릿지 페이지 없음; 제목이 아니라 핸들)",
     "Shopify 제목 재지정 (선택)",
     "Shopify 태그 재지정 (선택, 쉼표로 구분)",
@@ -476,7 +476,7 @@ def submit():
             new_ad_name=form["new_ad_name"], daily_budget=form["daily_budget"],
             website_url=form["website_url"], creative_name=form["creative_name"],
             headline=headline, primary_text=primary_text,
-            after_status=form.get("after_status", "PAUSED"),
+            after_status="ACTIVE",  # ad is always created active; new ad sets are always created paused
         )
         shopify_source_handle = form.get("shopify_source_handle", "").strip()
         if ok and shopify_source_handle:
@@ -562,7 +562,8 @@ def submit_bulk():
                 website_url=row["website_url"], creative_name=row["creative_name"],
                 headline=row["headline"], primary_text=row["primary_text"],
                 start_iso=row["start_iso"], end_iso=row["end_iso"],
-                after_status=row["after_status"], cache=meta_cache, batch_adsets=batch_adsets,
+                after_status="ACTIVE",  # ad is always created active; new ad sets are always created paused
+                cache=meta_cache, batch_adsets=batch_adsets,
             )
             if ok and row["shopify_source_handle"]:
                 run_shopify_bridge(
@@ -619,7 +620,7 @@ def preview_bulk():
             "primary_text": row["primary_text"],
             "start": row["start_iso"] or "즉시",
             "end": row["end_iso"] or "없음",
-            "status": "즉시 활성화" if row["after_status"] == "ACTIVE" else "일시중지",
+            "status": "즉시 활성화 (광고 세트는 항상 일시중지로 생성)",
             "shopify_handle": row["shopify_source_handle"] or "-",
             "shopify_title": row["shopify_title"] or None,
             "warning": row["warning"],
@@ -663,7 +664,7 @@ def retry(req_id):
         website_url=inp["website_url"], creative_name=inp["creative_name"],
         headline=inp["headline"], primary_text=inp["primary_text"],
         start_iso=inp.get("start_iso"), end_iso=inp.get("end_iso"),
-        after_status=inp.get("after_status", "PAUSED"),
+        after_status="ACTIVE",  # ad is always created active; new ad sets are always created paused
     )
     if ok and inp.get("shopify_source_handle"):
         run_shopify_bridge(

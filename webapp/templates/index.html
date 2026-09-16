@@ -146,6 +146,17 @@
   .banner ul{margin:var(--sp-2) 0 0;padding-left:18px;font-weight:500;font-size:var(--fs-xs);}
 
   .record-list{display:flex;flex-direction:column;gap:var(--sp-3);}
+
+  .pagination{display:flex;justify-content:center;gap:var(--sp-2);margin-top:var(--sp-4);}
+  .pagination[hidden]{display:none;}
+  .page-btn{
+    min-width:32px;height:32px;padding:0 8px;border:1px solid var(--border-strong);
+    background:var(--surface-2);color:var(--text-muted);border-radius:8px;font-size:var(--fs-sm);
+    font-weight:600;cursor:pointer;transition:background .12s,color .12s,border-color .12s;
+  }
+  .page-btn:hover{background:var(--surface-3);}
+  .page-btn.active{background:var(--accent);color:var(--accent-contrast);border-color:var(--accent);}
+  .page-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   .record-row{position:relative;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--sp-4) 44px var(--sp-4) var(--sp-4);transition:border-color .12s;}
   .record-row:hover{border-color:var(--border-strong);}
   .record-top{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-4);margin-bottom:var(--sp-2);}
@@ -337,10 +348,7 @@
           </div>
           <div class="field">
             <label>생성 후 상태</label>
-            <div class="radio-group">
-              <label><input type="radio" name="after_status" value="PAUSED" checked> 일시중지 (추천)</label>
-              <label><input type="radio" name="after_status" value="ACTIVE"> 즉시 활성화</label>
-            </div>
+            <span class="field-hint">광고는 생성 즉시 <strong>활성화</strong>됩니다. 다만 새로 만들어지는 광고 세트는 항상 <strong>일시중지</strong> 상태로 생성되어, 광고 세트를 직접 켜기 전까지는 실제로 노출되지 않습니다 (안전장치).</span>
           </div>
         </fieldset>
         <fieldset>
@@ -385,7 +393,7 @@
       </details>
       <form method="post" action="/submit_bulk" id="bulk-form">
         <div class="field">
-          <textarea class="bulk-textarea" name="bulk_text" id="bulk_text" placeholder="[캠페인]	[복제할 광고 세트 — 광고만 추가하려면 비움]	[새 광고 세트 이름]	[새 광고 이름]	[예산]	[URL]	[소재]	[헤드라인]	[기본 텍스트]	[시작 — 비우면 즉시]	[종료 — 비우면 없음]	[생성 후 상태 — 비우면 일시중지]	[Shopify 핸들 — 선택]	[제목 재지정]	[태그 재지정]	[템플릿 재지정]	[아마존 링크 재지정]"></textarea>
+          <textarea class="bulk-textarea" name="bulk_text" id="bulk_text" placeholder="[캠페인]	[복제할 광고 세트 — 광고만 추가하려면 비움]	[새 광고 세트 이름]	[새 광고 이름]	[예산]	[URL]	[소재]	[헤드라인]	[기본 텍스트]	[시작 — 비우면 즉시]	[종료 — 비우면 없음]	[생성 후 상태 — 더 이상 사용 안 함, 비워두세요]	[Shopify 핸들 — 선택]	[제목 재지정]	[태그 재지정]	[템플릿 재지정]	[아마존 링크 재지정]"></textarea>
         </div>
         <div class="bulk-actions">
           <button type="button" class="secondary" id="bulk-preview-btn">행 미리보기</button>
@@ -480,7 +488,7 @@
     </div>
     <p class="hint">이 컴퓨터에서 제출한 요청들 (webapp/requests.json에 저장됨).</p>
     {% if items %}
-    <div class="record-list">
+    <div class="record-list" id="request-record-list">
       {% for it in items %}
       {% set entry_type = it.type or 'setting' %}
       <div class="record-row">
@@ -527,6 +535,7 @@
       </div>
       {% endfor %}
     </div>
+    <div class="pagination" id="request-pagination" hidden></div>
     {% else %}
       <div class="empty">아직 제출된 요청이 없습니다.</div>
     {% endif %}
@@ -599,6 +608,58 @@
       }).catch(function () { btn.disabled = false; });
     });
   });
+
+  (function () {
+    var PAGE_SIZE = 3;
+    var list = document.getElementById("request-record-list");
+    var pagination = document.getElementById("request-pagination");
+    if (!list || !pagination) return;
+
+    var currentPage = 1;
+
+    function getRows() {
+      return Array.prototype.slice.call(list.children).filter(function (el) {
+        return el.classList.contains("record-row");
+      });
+    }
+
+    function render() {
+      var rows = getRows();
+      var totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+      if (currentPage > totalPages) currentPage = totalPages;
+
+      if (rows.length <= PAGE_SIZE) {
+        rows.forEach(function (row) { row.hidden = false; });
+        pagination.hidden = true;
+        pagination.innerHTML = "";
+        return;
+      }
+
+      rows.forEach(function (row, idx) {
+        row.hidden = Math.floor(idx / PAGE_SIZE) !== (currentPage - 1);
+      });
+
+      var html = "";
+      for (var p = 1; p <= totalPages; p++) {
+        html += '<button type="button" class="page-btn' + (p === currentPage ? ' active' : '') +
+          '" data-page="' + p + '">' + p + '</button>';
+      }
+      pagination.innerHTML = html;
+      pagination.hidden = false;
+      pagination.querySelectorAll(".page-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          currentPage = Number(btn.getAttribute("data-page"));
+          render();
+        });
+      });
+    }
+
+    render();
+    // Deleting a row (fetch-based, no page reload) changes the row count
+    // without this script re-running, so re-paginate whenever the list's
+    // children change instead of only on initial load.
+    new MutationObserver(render).observe(list, { childList: true });
+  })();
 
   var deleteAllForm = document.getElementById("delete-all-form");
   if (deleteAllForm) {
