@@ -104,6 +104,8 @@
   .field label{display:block;font-size:var(--fs-sm);font-weight:600;margin-bottom:5px;}
   .field-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);}
   @media (max-width:560px){.field-row{grid-template-columns:1fr;}}
+  .inline-add-row{display:flex;gap:var(--sp-2);margin-top:var(--sp-2);}
+  .inline-add-row input{flex:1;}
 
   input[type=text],input[type=number],input[type=url],textarea,select{
     width:100%;font:inherit;font-size:var(--fs-base);color:var(--text);background:var(--surface-2);
@@ -424,11 +426,16 @@
         <select id="budget_channel">
           <option value="Amazon">Amazon</option>
           <option value="Boots">Boots</option>
+          <option value="__add__">+ 새 채널 추가</option>
         </select>
+        <div class="inline-add-row" id="budget_channel_add_row" hidden>
+          <input type="text" id="budget_channel_new" placeholder="새 채널 이름 입력">
+          <button type="button" class="secondary" id="budget_channel_add_btn">추가</button>
+        </div>
       </div>
       <div class="field">
         <label>제품군</label>
-        <input type="text" id="budget_product_group" placeholder="예: hand-wrnk (비워두면 채널만으로 검색)">
+        <input type="text" id="budget_product_group" placeholder="예: v-srm (비워두면 채널만으로 검색)">
       </div>
     </div>
     <div class="field">
@@ -610,6 +617,9 @@
     if (!lookupBtn) return;
     var channelSelect = document.getElementById("budget_channel");
     var productGroupInput = document.getElementById("budget_product_group");
+    var channelAddRow = document.getElementById("budget_channel_add_row");
+    var channelNewInput = document.getElementById("budget_channel_new");
+    var channelAddBtn = document.getElementById("budget_channel_add_btn");
     var resultsEl = document.getElementById("budget-results");
     var summaryEl = document.getElementById("budget-results-summary");
     var listEl = document.getElementById("budget-results-list");
@@ -625,6 +635,81 @@
 
     function fmtBudget(v) {
       return v === null || v === undefined ? "?" : String(v);
+    }
+
+    // 채널 목록에 "+ 새 채널 추가"를 고르면 직접 입력한 이름을 옵션으로 추가할
+    // 수 있게 한다. 이 브라우저에 저장해두므로 (localStorage) 다음에 열 때도
+    // 다시 입력할 필요 없이 그대로 남아있다.
+    var CHANNEL_STORAGE_KEY = "budget-custom-channels";
+
+    function loadCustomChannels() {
+      try {
+        var raw = localStorage.getItem(CHANNEL_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function saveCustomChannels(list) {
+      try { localStorage.setItem(CHANNEL_STORAGE_KEY, JSON.stringify(list)); } catch (e) {}
+    }
+
+    function addChannelOption(name, select) {
+      var addOption = channelSelect.querySelector('option[value="__add__"]');
+      var option = document.createElement("option");
+      option.value = name;
+      option.textContent = name;
+      channelSelect.insertBefore(option, addOption);
+      if (select) {
+        channelSelect.value = name;
+      }
+      return option;
+    }
+
+    loadCustomChannels().forEach(function (name) { addChannelOption(name, false); });
+
+    function confirmNewChannel() {
+      var name = channelNewInput.value.trim();
+      if (!name) {
+        channelNewInput.focus();
+        return;
+      }
+      var existing = Array.prototype.find.call(channelSelect.options, function (opt) {
+        return opt.value.toLowerCase() === name.toLowerCase() && opt.value !== "__add__";
+      });
+      if (existing) {
+        channelSelect.value = existing.value;
+      } else {
+        addChannelOption(name, true);
+        var stored = loadCustomChannels();
+        stored.push(name);
+        saveCustomChannels(stored);
+      }
+      channelNewInput.value = "";
+      channelAddRow.hidden = true;
+    }
+
+    if (channelSelect) {
+      channelSelect.addEventListener("change", function () {
+        if (channelSelect.value === "__add__") {
+          channelAddRow.hidden = false;
+          channelNewInput.focus();
+        } else {
+          channelAddRow.hidden = true;
+        }
+      });
+    }
+    if (channelAddBtn) {
+      channelAddBtn.addEventListener("click", confirmNewChannel);
+    }
+    if (channelNewInput) {
+      channelNewInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          confirmNewChannel();
+        }
+      });
     }
 
     function renderMatch(m) {
@@ -647,6 +732,11 @@
     }
 
     lookupBtn.addEventListener("click", function () {
+      if (channelSelect.value === "__add__") {
+        alert("새 채널 이름을 입력하고 '추가'를 눌러주세요.");
+        channelNewInput.focus();
+        return;
+      }
       var file = budgetFileInput.files[0];
       if (!file) {
         alert("파일을 선택해주세요.");
