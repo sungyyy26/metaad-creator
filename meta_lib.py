@@ -107,6 +107,58 @@ def resolve_campaign_and_account(token, campaign_id_or_name, candidate_account_i
     raise MetaApiError(f"'{campaign_id_or_name}' 이름의 캠페인을 어느 계정에서도 찾지 못했습니다 (확인한 계정: {tried}).")
 
 
+def _paginate(token, path, **params):
+    """GETs `path` and follows Graph API cursor pagination until exhausted,
+    returning every page's `data` entries concatenated. Reuses api()'s own
+    rate-limit retry for every page rather than duplicating it."""
+    items = []
+    page_params = dict(params)
+    while True:
+        data = api("GET", path, token, **page_params)
+        items.extend(data.get("data", []))
+        paging = data.get("paging", {})
+        after = paging.get("cursors", {}).get("after")
+        if not paging.get("next") or not after:
+            return items
+        page_params["after"] = after
+
+
+def list_campaigns(token, account_id, cache=None):
+    """Every campaign (id, name) in an ad account — used by the budget-
+    adjustment tab to search by keyword, unlike resolve_campaign_and_account's
+    exact-name lookup."""
+    return _cached(cache, f"all_campaigns:{account_id}", lambda: _paginate(
+        token, f"act_{account_id}/campaigns", fields="id,name", limit=200))
+
+
+def find_matching_campaigns(token, account_ids, keywords, cache=None):
+    """Every campaign across account_ids whose name contains ALL of `keywords`
+    (case-insensitive substring match) — e.g. a channel token like "Amazon"
+    plus a free-text product-group phrase."""
+    needles = [k.strip().lower() for k in keywords if k and k.strip()]
+    matches = []
+    for account_id in account_ids:
+        for c in list_campaigns(token, account_id, cache=cache):
+            name_lower = c["name"].lower()
+            if all(k in name_lower for k in needles):
+                matches.append({"id": c["id"], "name": c["name"], "account_id": account_id})
+    return matches
+
+
+def list_campaign_ads(token, campaign_id, cache=None):
+    """Every ad in a campaign, with its ad set's id/name/daily_budget and the
+    ad's own creative name, so a spreadsheet's 소재명 column can be matched
+    against either the ad name or the creative name."""
+    return _cached(cache, f"campaign_ads:{campaign_id}", lambda: _paginate(
+        token, f"{campaign_id}/ads", limit=200,
+        fields="id,name,adset{id,name,daily_budget},creative{name}"))
+
+
+def update_adset_budget(token, adset_id, daily_budget):
+    """Sets an ad set's daily budget (major currency units -> Meta's cents)."""
+    api("POST", adset_id, token, daily_budget=int(daily_budget) * 100)
+
+
 def find_adset_by_name(token, campaign_id, name, cache=None):
     adsets = _cached(cache, f"adsets:{campaign_id}", lambda: api(
         "GET", f"{campaign_id}/adsets", token,

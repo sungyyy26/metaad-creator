@@ -110,7 +110,7 @@ table.cols td:nth-child(3){font-size:11.5px;color:var(--ink-dim);}
 .toc a{font-family:"Gothic A1",sans-serif;font-weight:600;font-size:12.5px;color:var(--ink-dim);background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 13px;text-decoration:none;}
 .toc a:hover{border-color:var(--accent);color:var(--accent);}
 
-.tabgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0;}
+.tabgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:16px 0;}
 @media (max-width:640px){.tabgrid{grid-template-columns:1fr;}}
 .tabcard{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;}
 .tabcard .tabname{font-family:"Gothic A1",sans-serif;font-weight:700;font-size:13.5px;color:var(--accent);margin-bottom:4px;}
@@ -245,7 +245,7 @@ python webapp/app.py</code></pre>
   </div>
 
   <h2 id="step5"><span class="stepno">STEP 5</span>사용법</h2>
-  <p>대시보드는 세 개의 탭으로 나뉩니다.</p>
+  <p>대시보드는 네 개의 탭으로 나뉩니다.</p>
   <div class="tabgrid">
     <div class="tabcard">
       <div class="tabname">대량 업로드</div>
@@ -258,6 +258,10 @@ python webapp/app.py</code></pre>
     <div class="tabcard">
       <div class="tabname">소재 업로드</div>
       <p>내 컴퓨터의 영상/이미지를 광고 계정의 소재 라이브러리에 바로 업로드 (공개 URL 불필요).</p>
+    </div>
+    <div class="tabcard">
+      <div class="tabname">예산 조정</div>
+      <p>채널·제품군으로 캠페인을 찾고, 엑셀/CSV 파일의 소재명을 그 안에서 매칭해 예산을 반영. 조회 결과를 확인하고 선택한 항목만 실제로 반영합니다.</p>
     </div>
   </div>
 
@@ -294,12 +298,28 @@ python webapp/app.py</code></pre>
     한 번에 너무 많은 행(수십 줄)을 넣으면 Meta 쪽 요청 제한에 걸릴 수 있습니다. 10~15줄 단위로 나눠 넣는 걸 권장합니다 — 걸리더라도 자동으로 재시도합니다.
   </div>
 
+  <h3>요청 기록 카드 보는 법 &amp; 삭제</h3>
+  <p>각 카드는 상태 배지 · 제출 시각 · 일일 예산이 한 줄에 표시되고, 그 아래 <code>C:</code>(캠페인) · <code>AS:</code>(광고 세트) · <code>AD:</code>(광고 이름) 라벨로 구분됩니다. 카드 우측 상단의 <strong>×</strong> 버튼은 그 기록 하나만 지우고, 패널 제목 옆의 <strong>"전체 삭제"</strong> 버튼은 요청 기록 전체를 한 번에 지웁니다 — 어느 쪽이든 이 로컬 기록만 지울 뿐, 이미 Meta·Shopify에 만들어진 광고나 페이지는 그대로 남습니다.</p>
+
   <h3>행 미리보기 &amp; 재시도</h3>
   <p>붙여넣은 뒤 <strong>"행 미리보기"</strong> 버튼을 누르면, 실제로 Meta에 요청을 보내기 전에 각 행이 어떤 광고 세트·광고로 파싱됐는지와 열 개수·형식 오류를 먼저 확인할 수 있습니다. 문제가 없는지 확인한 다음 "전체 행 실행"으로 넘어가세요.</p>
   <p>요청 기록에서 <strong>오류</strong>로 표시된 항목에는 <strong>"재시도"</strong> 버튼이 함께 뜹니다 — 값을 다시 입력할 필요 없이 그 자리에서 같은 내용으로 재실행됩니다. (Meta 광고는 만들어졌지만 Shopify 페이지만 실패한 <strong>미완료</strong> 항목은 재시도 대상이 아닙니다 — 다시 실행하면 광고가 중복 생성되기 때문입니다. 이 경우는 화면에 뜬 Shopify 오류 메시지를 보고 직접 확인해주세요.)</p>
 
   <h3>라이트 / 다크 모드</h3>
   <p>화면 우측 상단의 동그란 버튼으로 라이트·다크 모드를 직접 전환할 수 있습니다. 아무것도 누르지 않으면 컴퓨터의 시스템 설정을 그대로 따라가고, 한 번 전환하면 그 선택이 이 브라우저에 저장되어 다음에 열 때도 유지됩니다.</p>
+
+  <h3>예산 조정 탭 사용법</h3>
+  <p><strong>채널</strong>(Amazon/Boots)과 <strong>제품군</strong>(자유 입력, 비워두면 채널만으로 검색)을 정하고 예산 파일을 올린 뒤 <strong>조회</strong>를 누르면, 그 키워드를 모두 포함하는 이름의 캠페인들을 먼저 찾고, 그 캠페인들 안에서만 파일의 소재명과 일치하는 광고를 찾습니다. 결과에는 Meta에 실제로 저장된 현재 예산과 파일이 말하는 기존 예산이 다를 경우 경고가 함께 뜹니다.</p>
+  <p>파일의 헤더 이름은 정확히 맞출 필요 없습니다 — 다음 중 하나로만 인식되면 됩니다:</p>
+  <ul>
+    <li><strong>소재명</strong>: <code>소재</code>, <code>소재명</code>, <code>광고명</code></li>
+    <li><strong>기존 예산</strong>: <code>기존</code>, <code>기존예산</code>, <code>현재</code>, <code>현재예산</code></li>
+    <li><strong>변경 예산</strong>: <code>변경</code>, <code>변경예산</code>, <code>제안</code>, <code>제안예산</code></li>
+  </ul>
+  <div class="callout warn">
+    <span class="label">주의사항</span>
+    조회 결과는 미리보기일 뿐, 체크박스로 선택한 항목만 <strong>"선택 항목 예산 반영"</strong>을 눌러야 실제로 Meta 예산이 바뀝니다 — 반영 전에 현재→변경 값을 꼭 확인하세요. .xls(옛 엑셀 형식)는 지원하지 않으니 .xlsx로 저장해서 올려주세요.
+  </div>
 
   <footer>Meta Ads Duplicator · Ad Duplication Desk 대시보드의 로컬 버전</footer>
 </div>

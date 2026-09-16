@@ -200,9 +200,16 @@
   .bulk-preview{margin-top:var(--sp-5);border-top:1px solid var(--border);padding-top:var(--sp-4);}
   .bulk-preview-summary{font-size:var(--fs-sm);font-weight:600;color:var(--text-muted);margin-bottom:var(--sp-3);}
   .preview-row{padding:var(--sp-3) var(--sp-4);}
+  .preview-copy{margin-top:var(--sp-2);font-size:var(--fs-xs);color:var(--text-muted);line-height:1.6;white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word;}
+  .preview-copy .record-label{color:var(--text-faint);}
 
   .record-note.err{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap;}
   .record-note-text{flex:1;min-width:0;overflow-wrap:break-word;word-break:break-word;}
+
+  .field-actions-right{display:flex;justify-content:flex-end;margin-top:var(--sp-2);}
+  .budget-match-row{display:flex;gap:var(--sp-3);align-items:flex-start;cursor:pointer;}
+  .budget-match-row input[type=checkbox]{margin-top:3px;flex:none;width:16px;height:16px;}
+  .budget-match-body{flex:1;min-width:0;}
   .retry-form{margin:0;flex:none;}
   .retry-btn{
     font-size:var(--fs-2xs);font-weight:700;background:transparent;color:var(--status-error-fg);
@@ -238,6 +245,7 @@
       <button type="button" class="tab-btn active" data-tab="bulk">대량 업로드</button>
       <button type="button" class="tab-btn" data-tab="manual">수동 입력</button>
       <button type="button" class="tab-btn" data-tab="upload">소재 업로드</button>
+      <button type="button" class="tab-btn" data-tab="budget">예산 조정</button>
     </div>
 
     <div class="tab-panel" id="tab-manual" hidden>
@@ -348,6 +356,7 @@
     <div class="tab-panel" id="tab-bulk">
       <h2>대량 업로드</h2>
       <p class="hint">스프레드시트에서 복사한 행을 붙여넣으세요 — 광고 1건당 한 줄, 열은 Tab으로 구분, 아래 순서 그대로.</p>
+      <p class="field-hint tight">칸 안에 공백이나 줄바꿈이 있어도 괜찮습니다 — 엑셀·구글시트에서 셀을 그대로 복사해 붙여넣으면 헤드라인·기본 텍스트·Shopify 제목의 여러 줄 문구까지 정확히 인식됩니다. "행 미리보기"로 실제로 어떻게 읽혔는지 확인해보세요.</p>
       <details class="columns">
         <summary>열 순서 보기</summary>
         <ol>
@@ -391,6 +400,44 @@
         </div>
         <button type="submit" class="primary">업로드</button>
       </form>
+    </div>
+
+    <div class="tab-panel" id="tab-budget" hidden>
+      <h2>메타 예산 조정</h2>
+      <p class="hint">채널·제품군으로 대상 캠페인을 찾고, 업로드한 파일의 소재명을 그 캠페인들 안에서만 찾아 예산을 반영합니다.</p>
+      <div class="field-row">
+        <div class="field">
+          <label>채널 *</label>
+          <select id="budget_channel">
+            <option value="Amazon">Amazon</option>
+            <option value="Boots">Boots</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>제품군</label>
+          <input type="text" id="budget_product_group" placeholder="예: hand-wrnk (비워두면 채널만으로 검색)">
+        </div>
+      </div>
+      <div class="field">
+        <label>예산 파일 (.xlsx 또는 .csv) *</label>
+        <div class="file-input-wrap">
+          <label class="file-input-btn" for="budget_file_input">파일 선택</label>
+          <input type="file" id="budget_file_input" accept=".xlsx,.xlsm,.csv" class="file-input-hidden">
+          <span class="file-input-name" id="budget_file_name">선택된 파일 없음</span>
+        </div>
+        <span class="field-hint">헤더 이름은 자유롭게 써도 됩니다 — 소재/소재명/광고명, 기존/기존예산/현재/현재예산, 변경/변경예산/제안/제안예산 중 하나로만 인식되면 됩니다.</span>
+      </div>
+      <div class="field-actions-right">
+        <button type="button" class="primary" id="budget-lookup-btn">조회</button>
+      </div>
+      <div class="bulk-preview" id="budget-results" hidden>
+        <div class="bulk-preview-summary" id="budget-results-summary"></div>
+        <div class="record-list" id="budget-results-list"></div>
+        <div id="budget-not-found" hidden></div>
+        <div class="field-actions-right" id="budget-apply-actions" hidden>
+          <button type="button" class="primary" id="budget-apply-btn">선택 항목 예산 반영</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -486,6 +533,7 @@
       document.getElementById("tab-manual").hidden = target !== "manual";
       document.getElementById("tab-bulk").hidden = target !== "bulk";
       document.getElementById("tab-upload").hidden = target !== "upload";
+      document.getElementById("tab-budget").hidden = target !== "budget";
     });
   });
 
@@ -527,6 +575,154 @@
       fileName.textContent = fileInput.files.length ? fileInput.files[0].name : "선택된 파일 없음";
     });
   }
+
+  var budgetFileInput = document.getElementById("budget_file_input");
+  var budgetFileName = document.getElementById("budget_file_name");
+  if (budgetFileInput && budgetFileName) {
+    budgetFileInput.addEventListener("change", function () {
+      budgetFileName.textContent = budgetFileInput.files.length ? budgetFileInput.files[0].name : "선택된 파일 없음";
+    });
+  }
+
+  (function () {
+    var lookupBtn = document.getElementById("budget-lookup-btn");
+    if (!lookupBtn) return;
+    var channelSelect = document.getElementById("budget_channel");
+    var productGroupInput = document.getElementById("budget_product_group");
+    var resultsEl = document.getElementById("budget-results");
+    var summaryEl = document.getElementById("budget-results-summary");
+    var listEl = document.getElementById("budget-results-list");
+    var notFoundEl = document.getElementById("budget-not-found");
+    var applyActions = document.getElementById("budget-apply-actions");
+    var applyBtn = document.getElementById("budget-apply-btn");
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, function (c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+      });
+    }
+
+    function fmtBudget(v) {
+      return v === null || v === undefined ? "?" : String(v);
+    }
+
+    function renderMatch(m) {
+      var mismatchNote = m.mismatch
+        ? '<div class="record-note warn">파일의 기존 예산($' + escapeHtml(fmtBudget(m.file_current_budget)) +
+          ')이 실제 Meta 예산($' + escapeHtml(fmtBudget(m.live_current_budget)) + ')과 다릅니다 — 최신 상태인지 확인해주세요.</div>'
+        : '';
+      return '<label class="record-row preview-row budget-match-row">' +
+        '<input type="checkbox" class="budget-apply-check" data-adset-id="' + escapeHtml(m.adset_id) +
+          '" data-new-budget="' + escapeHtml(m.new_budget) + '"' + (m.new_budget != null ? ' checked' : ' disabled') + '>' +
+        '<div class="budget-match-body">' +
+          '<div class="record-campaign"><span class="record-label">C:</span>' + escapeHtml(m.campaign_name) + '</div>' +
+          '<div class="record-main"><span class="record-label">AS:</span><span class="adset">' + escapeHtml(m.adset_name) +
+            '</span><span class="arrow">→</span><span class="record-label">AD:</span><span class="adname">' + escapeHtml(m.ad_name) + '</span></div>' +
+          '<div class="record-result mono">현재 $' + escapeHtml(fmtBudget(m.live_current_budget)) +
+            ' → 변경 $' + escapeHtml(fmtBudget(m.new_budget)) + '</div>' +
+          mismatchNote +
+        '</div>' +
+      '</label>';
+    }
+
+    lookupBtn.addEventListener("click", function () {
+      var file = budgetFileInput.files[0];
+      if (!file) {
+        alert("파일을 선택해주세요.");
+        return;
+      }
+      var body = new FormData();
+      body.set("channel", channelSelect.value);
+      body.set("product_group", productGroupInput.value);
+      body.set("budget_file", file);
+
+      lookupBtn.disabled = true;
+      var originalLabel = lookupBtn.textContent;
+      lookupBtn.textContent = "조회 중…";
+
+      fetch("/budget_lookup", { method: "POST", body: body })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          resultsEl.hidden = false;
+          if (!data.ok) {
+            summaryEl.textContent = data.error || "조회에 실패했습니다.";
+            listEl.innerHTML = "";
+            notFoundEl.hidden = true;
+            applyActions.hidden = true;
+            return;
+          }
+          summaryEl.textContent = data.message ||
+            ("캠페인 " + data.campaigns.length + "개 · 매칭 " + data.matches.length + "건 · 못 찾음 " + data.not_found.length + "건");
+          listEl.innerHTML = data.matches.map(renderMatch).join("") ||
+            '<div class="empty">일치하는 소재를 찾지 못했습니다.</div>';
+          if (data.not_found.length) {
+            notFoundEl.hidden = false;
+            notFoundEl.innerHTML = '<div class="record-note warn">캠페인 안에서 찾지 못한 소재명: ' +
+              data.not_found.map(escapeHtml).join(", ") + '</div>';
+          } else {
+            notFoundEl.hidden = true;
+            notFoundEl.innerHTML = "";
+          }
+          applyActions.hidden = data.matches.length === 0;
+        })
+        .catch(function () {
+          resultsEl.hidden = false;
+          summaryEl.textContent = "조회 중 오류가 발생했습니다.";
+          listEl.innerHTML = "";
+          applyActions.hidden = true;
+        })
+        .finally(function () {
+          lookupBtn.disabled = false;
+          lookupBtn.textContent = originalLabel;
+        });
+    });
+
+    if (applyBtn) {
+      applyBtn.addEventListener("click", function () {
+        var checks = Array.prototype.filter.call(
+          document.querySelectorAll(".budget-apply-check"), function (c) { return c.checked; });
+        if (!checks.length) {
+          alert("반영할 항목을 선택해주세요.");
+          return;
+        }
+        if (!confirm(checks.length + "건의 Meta 광고 세트 예산을 실제로 변경합니다. 계속할까요?")) return;
+
+        var items = checks.map(function (c) {
+          return { adset_id: c.getAttribute("data-adset-id"), new_budget: Number(c.getAttribute("data-new-budget")) };
+        });
+        applyBtn.disabled = true;
+        var originalLabel = applyBtn.textContent;
+        applyBtn.textContent = "반영 중…";
+        fetch("/apply_budget_changes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: items }),
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (!data.ok) {
+              alert(data.error || "예산 반영에 실패했습니다.");
+              return;
+            }
+            var okCount = data.results.filter(function (r) { return r.ok; }).length;
+            var failCount = data.results.length - okCount;
+            var msg = "반영 완료 — 성공 " + okCount + "건 / 실패 " + failCount + "건";
+            if (failCount) {
+              msg += "\n\n" + data.results.filter(function (r) { return !r.ok; })
+                .map(function (r) { return r.adset_id + ": " + r.error; }).join("\n");
+            }
+            alert(msg);
+          })
+          .catch(function () {
+            alert("예산 반영 중 오류가 발생했습니다.");
+          })
+          .finally(function () {
+            applyBtn.disabled = false;
+            applyBtn.textContent = originalLabel;
+          });
+      });
+    }
+  })();
 
   (function () {
     var THEME_KEY = "theme-preference";
@@ -584,6 +780,9 @@
         '<div class="record-main"><span class="record-label">AS:</span><span class="adset">' + escapeHtml(row.source_adset) + '</span><span class="arrow">→</span>' +
           escapeHtml(row.new_adset) + ' · <span class="record-label">AD:</span><span class="adname">' + escapeHtml(row.new_ad_name) + '</span></div>' +
         '<div class="record-result">' + escapeHtml(row.website_url) + shopify + '</div>' +
+        '<div class="preview-copy"><span class="record-label">헤드라인:</span> ' + escapeHtml(row.headline) + '</div>' +
+        '<div class="preview-copy"><span class="record-label">기본 텍스트:</span> ' + escapeHtml(row.primary_text) + '</div>' +
+        (row.shopify_title ? '<div class="preview-copy"><span class="record-label">Shopify 제목:</span> ' + escapeHtml(row.shopify_title) + '</div>' : '') +
         warn +
         '</div>';
     }

@@ -10,8 +10,11 @@ Run (one-time setup):
 Run (every time after that — no need to re-export anything):
     python webapp/app.py
 """
+import csv
+import io
 import json
 import os
+import re
 import sys
 import threading
 import uuid
@@ -35,7 +38,6 @@ LOCK = threading.Lock()
 
 ACCOUNTS = {
     "1298298124998350": "EQQUALBERRY_AMAZON_US (USD)",
-    "2406177369753142": "EQQUALBERRY_GLOBAL (USD)",
 }
 CANDIDATE_ACCOUNT_IDS = list(ACCOUNTS.keys())
 
@@ -95,8 +97,119 @@ def parse_schedule_datetime(value):
     raise ValueError(f"'{value}' 형식을 인식하지 못했습니다 (예: 2026/09/08 12AM 또는 2026/09/08 11:59PM)")
 
 
+def split_bulk_rows(text):
+    """Splits pasted bulk text into rows the way a spreadsheet's own
+    tab-separated clipboard format does, not just on every newline: when a
+    cell contains a real line break (a multi-line 기본 텍스트, e.g.), Excel and
+    Google Sheets wrap that cell in double quotes when you copy it, so
+    csv.reader (given tab as the delimiter) correctly treats the quoted
+    newline as part of the same field instead of as a new row. A plain,
+    unquoted cell parses exactly as a naive tab-split would."""
+    reader = csv.reader(io.StringIO(text), delimiter="\t")
+    return [row for row in reader if any(cell.strip() for cell in row)]
+
+
 class RowError(Exception):
     pass
+
+
+# 예산 조정 탭: 업로드하는 파일마다 헤더 이름이 다를 수 있어서, 정확한 문구가
+# 아니라 허용된 별칭 집합으로 컬럼을 찾는다. 값(딕셔너리 키)은 코드 내부용,
+# 사람에게 보여줄 땐 BUDGET_FIELD_LABELS를 쓴다.
+BUDGET_COLUMN_ALIASES = {
+    "creative_name": {"소재", "소재명", "광고명"},
+    "current_budget": {"기존", "기존예산", "기존 예산", "현재", "현재예산", "현재 예산"},
+    "new_budget": {"변경", "변경예산", "변경 예산", "제안", "제안예산", "제안 예산"},
+}
+BUDGET_FIELD_LABELS = {
+    "creative_name": "소재명",
+    "current_budget": "기존 예산",
+    "new_budget": "변경 예산",
+}
+
+
+def find_budget_columns(header_row):
+    """Maps each required field to its 0-indexed column position by matching
+    the header row's cell text against BUDGET_COLUMN_ALIASES, not a fixed
+    column order — different teammates export this spreadsheet with
+    different headers. Raises RowError naming exactly what's missing rather
+    than silently guessing, since a wrong guess would mismatch real columns."""
+    positions = {}
+    for idx, cell in enumerate(header_row):
+        label = (str(cell) if cell is not None else "").strip()
+        for field, aliases in BUDGET_COLUMN_ALIASES.items():
+            if field not in positions and label in aliases:
+                positions[field] = idx
+    missing = [field for field in BUDGET_COLUMN_ALIASES if field not in positions]
+    if missing:
+        raise RowError("헤더에서 다음 컬럼을 찾지 못했습니다: " + ", ".join(BUDGET_FIELD_LABELS[m] for m in missing))
+    return positions
+
+
+def parse_budget_amount(value):
+    """Loosely parses a budget cell — strips currency symbols/commas/won
+    signs and whitespace, since real spreadsheets format numbers
+    inconsistently (e.g. '₩1,000', '1000.0', ' 1,000 ')."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    cleaned = re.sub(r"[^\d.\-]", "", text)
+    if not cleaned or cleaned in ("-", "."):
+        return None
+    try:
+        return int(round(float(cleaned)))
+    except ValueError:
+        return None
+
+
+def read_budget_rows(filename, file_obj):
+    """Reads an uploaded .xlsx/.xlsm/.csv file into a list of
+    {creative_name, current_budget, new_budget} dicts, using find_budget_columns
+    for flexible header matching instead of assuming a fixed column order."""
+    ext = os.path.splitext(filename)[1].lower()
+    if ext in (".xlsx", ".xlsm"):
+        try:
+            import openpyxl
+        except ImportError:
+            raise RowError("엑셀(.xlsx) 파일을 읽으려면 pip install openpyxl 이 필요합니다 (webapp/requirements.txt에 포함되어 있습니다).")
+        try:
+            workbook = openpyxl.load_workbook(file_obj, read_only=True, data_only=True)
+        except Exception as e:  # noqa: BLE001
+            raise RowError(f"엑셀 파일을 열지 못했습니다: {e}")
+        all_rows = list(workbook.active.iter_rows(values_only=True))
+    elif ext == ".csv":
+        text = file_obj.read().decode("utf-8-sig")
+        all_rows = list(csv.reader(io.StringIO(text)))
+    elif ext == ".xls":
+        raise RowError("옛 .xls 형식은 지원하지 않습니다 — 엑셀에서 '다른 이름으로 저장 → .xlsx'로 저장한 뒤 다시 올려주세요.")
+    else:
+        raise RowError(f"지원하지 않는 파일 형식입니다: '{ext or '(확장자 없음)'}' — .xlsx 또는 .csv 파일을 올려주세요.")
+
+    if not all_rows:
+        raise RowError("파일에 내용이 없습니다.")
+    header, data_rows = all_rows[0], all_rows[1:]
+    positions = find_budget_columns(header)
+
+    def cell(row, idx):
+        return row[idx] if idx < len(row) else None
+
+    results = []
+    for row in data_rows:
+        if row is None or all(c in (None, "") for c in row):
+            continue
+        creative_name = (str(cell(row, positions["creative_name"]) or "")).strip()
+        if not creative_name:
+            continue
+        results.append({
+            "creative_name": creative_name,
+            "current_budget": parse_budget_amount(cell(row, positions["current_budget"])),
+            "new_budget": parse_budget_amount(cell(row, positions["new_budget"])),
+        })
+    if not results:
+        raise RowError("헤더 아래에 실제 데이터 행이 없습니다.")
+    return results
 
 
 def parse_bulk_row(cols):
@@ -389,7 +502,7 @@ def submit():
 @app.route("/submit_bulk", methods=["POST"])
 def submit_bulk():
     text = request.form.get("bulk_text", "")
-    rows = [(i, line.split("\t")) for i, line in enumerate(text.splitlines(), start=1) if line.strip()]
+    rows = list(enumerate(split_bulk_rows(text), start=1))
 
     token = os.environ.get("META_ACCESS_TOKEN")
     if not rows:
@@ -481,7 +594,7 @@ def preview_bulk():
     parses — never calls Meta/Shopify — so the page can show what each row
     will do before the user commits to running it."""
     text = request.form.get("bulk_text", "")
-    rows = [(i, line.split("\t")) for i, line in enumerate(text.splitlines(), start=1) if line.strip()]
+    rows = list(enumerate(split_bulk_rows(text), start=1))
 
     preview = []
     for lineno, cols in rows:
@@ -500,10 +613,13 @@ def preview_bulk():
             "daily_budget": row["daily_budget"],
             "website_url": row["website_url"],
             "creative_name": row["creative_name"],
+            "headline": row["headline"],
+            "primary_text": row["primary_text"],
             "start": row["start_iso"] or "즉시",
             "end": row["end_iso"] or "없음",
             "status": "즉시 활성화" if row["after_status"] == "ACTIVE" else "일시중지",
             "shopify_handle": row["shopify_source_handle"] or "-",
+            "shopify_title": row["shopify_title"] or None,
             "warning": row["warning"],
         })
 
@@ -629,6 +745,124 @@ def upload_creative():
 def delete_upload(upload_id):
     remove_upload(upload_id)
     return {"ok": True}
+
+
+@app.route("/budget_lookup", methods=["POST"])
+def budget_lookup():
+    """Reads the uploaded 소재/기존예산/변경예산 file, finds every Meta campaign
+    whose name contains both the 채널 and 제품군 keywords, then matches each
+    file row's 소재명 against the ad (or creative) names inside just those
+    campaigns — never calls Meta to change anything, only looks things up, so
+    the results can be reviewed before /apply_budget_changes is ever called."""
+    channel = request.form.get("channel", "").strip()
+    product_group = request.form.get("product_group", "").strip()
+    file = request.files.get("budget_file")
+
+    if not channel:
+        return {"ok": False, "error": "채널을 선택해주세요."}, 400
+    if not file or not file.filename:
+        return {"ok": False, "error": "엑셀(.xlsx) 또는 CSV 파일을 선택해주세요."}, 400
+
+    token = os.environ.get("META_ACCESS_TOKEN")
+    if not token:
+        return {"ok": False, "error": "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다. 터미널에서 export/set 하고 서버를 다시 시작하세요."}, 400
+
+    try:
+        rows = read_budget_rows(file.filename, file.stream)
+    except RowError as e:
+        return {"ok": False, "error": str(e)}, 400
+
+    keywords = [channel, product_group] if product_group else [channel]
+    cache = {}
+    try:
+        campaigns = meta_lib.find_matching_campaigns(token, CANDIDATE_ACCOUNT_IDS, keywords, cache=cache)
+    except meta_lib.MetaApiError as e:
+        return {"ok": False, "error": str(e)}, 400
+
+    if not campaigns:
+        return {
+            "ok": True, "campaigns": [], "matches": [],
+            "not_found": [r["creative_name"] for r in rows],
+            "message": f"'{' / '.join(keywords)}' 키워드를 모두 포함하는 캠페인을 찾지 못했습니다.",
+        }
+
+    all_ads = []
+    try:
+        for c in campaigns:
+            for ad in meta_lib.list_campaign_ads(token, c["id"], cache=cache):
+                all_ads.append({**ad, "_campaign_name": c["name"]})
+    except meta_lib.MetaApiError as e:
+        return {"ok": False, "error": str(e)}, 400
+
+    matches, not_found, seen = [], [], set()
+    for row in rows:
+        needle = row["creative_name"].lower()
+        found_ads = [
+            ad for ad in all_ads
+            if needle in (ad.get("name") or "").lower()
+            or needle in ((ad.get("creative") or {}).get("name") or "").lower()
+        ]
+        if not found_ads:
+            not_found.append(row["creative_name"])
+            continue
+        for ad in found_ads:
+            adset = ad.get("adset") or {}
+            adset_id = adset.get("id")
+            # Several ads can share one ad set (budget lives on the ad set, not
+            # the ad) — only offer each ad set once per matched creative name.
+            dedupe_key = (row["creative_name"], adset_id)
+            if not adset_id or dedupe_key in seen:
+                continue
+            seen.add(dedupe_key)
+            live_budget = int(adset["daily_budget"]) // 100 if adset.get("daily_budget") else None
+            matches.append({
+                "creative_name": row["creative_name"],
+                "campaign_name": ad["_campaign_name"],
+                "adset_id": adset_id,
+                "adset_name": adset.get("name", ""),
+                "ad_name": ad.get("name", ""),
+                "file_current_budget": row["current_budget"],
+                "live_current_budget": live_budget,
+                "mismatch": (row["current_budget"] is not None and live_budget is not None
+                             and row["current_budget"] != live_budget),
+                "new_budget": row["new_budget"],
+            })
+
+    return {
+        "ok": True,
+        "campaigns": [{"id": c["id"], "name": c["name"]} for c in campaigns],
+        "matches": matches,
+        "not_found": not_found,
+    }
+
+
+@app.route("/apply_budget_changes", methods=["POST"])
+def apply_budget_changes():
+    """Actually writes the selected ad sets' daily budgets to Meta — only
+    ever called after the user has reviewed /budget_lookup's results and
+    explicitly picked which rows to apply, never automatically."""
+    token = os.environ.get("META_ACCESS_TOKEN")
+    if not token:
+        return {"ok": False, "error": "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."}, 400
+
+    payload = request.get_json(silent=True) or {}
+    items = payload.get("items", [])
+    if not items:
+        return {"ok": False, "error": "반영할 항목이 없습니다."}, 400
+
+    results = []
+    for item in items:
+        adset_id = item.get("adset_id")
+        new_budget = item.get("new_budget")
+        if not adset_id or new_budget is None:
+            results.append({"adset_id": adset_id, "ok": False, "error": "adset_id 또는 new_budget이 없습니다."})
+            continue
+        try:
+            meta_lib.update_adset_budget(token, adset_id, new_budget)
+            results.append({"adset_id": adset_id, "ok": True})
+        except meta_lib.MetaApiError as e:
+            results.append({"adset_id": adset_id, "ok": False, "error": str(e)})
+    return {"ok": True, "results": results}
 
 
 if __name__ == "__main__":
