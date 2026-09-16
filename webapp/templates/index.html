@@ -105,6 +105,7 @@
   .field-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);}
   @media (max-width:560px){.field-row{grid-template-columns:1fr;}}
   .inline-add-row{display:flex;gap:var(--sp-2);margin-top:var(--sp-2);}
+  .inline-add-row[hidden]{display:none;}
   .inline-add-row input{flex:1;}
 
   input[type=text],input[type=number],input[type=url],textarea,select{
@@ -205,6 +206,7 @@
   .bulk-actions{display:flex;gap:var(--sp-3);flex-wrap:wrap;}
 
   .bulk-preview{margin-top:var(--sp-5);border-top:1px solid var(--border);padding-top:var(--sp-4);}
+  .step-label{font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--accent);margin-bottom:var(--sp-3);}
   .bulk-preview-summary{font-size:var(--fs-sm);font-weight:600;color:var(--text-muted);margin-bottom:var(--sp-3);}
   .preview-row{padding:var(--sp-3) var(--sp-4);}
   .preview-copy{margin-top:var(--sp-2);font-size:var(--fs-xs);color:var(--text-muted);line-height:1.6;white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word;}
@@ -214,6 +216,7 @@
   .record-note-text{flex:1;min-width:0;overflow-wrap:break-word;word-break:break-word;}
 
   .field-actions-right{display:flex;justify-content:flex-end;margin-top:var(--sp-2);}
+  .field-actions-right[hidden]{display:none;}
   .budget-match-row{display:flex;gap:var(--sp-3);align-items:flex-start;cursor:pointer;}
   .budget-match-row input[type=checkbox]{margin-top:3px;flex:none;width:16px;height:16px;}
   .budget-match-body{flex:1;min-width:0;}
@@ -420,6 +423,7 @@
   <div class="panel" id="panel-budget" hidden>
     <h2>메타 예산 조정</h2>
     <p class="hint">채널·제품군으로 대상 캠페인을 찾고, 업로드한 파일의 소재명을 그 캠페인들 안에서만 찾아 예산을 반영합니다.</p>
+    <div class="step-label">1단계 · 조건 입력 및 파일 첨부</div>
     <div class="field-row">
       <div class="field">
         <label>채널 *</label>
@@ -451,11 +455,12 @@
       <button type="button" class="primary" id="budget-lookup-btn">조회</button>
     </div>
     <div class="bulk-preview" id="budget-results" hidden>
+      <div class="step-label">2단계 · 결과 확인 및 반영</div>
       <div class="bulk-preview-summary" id="budget-results-summary"></div>
       <div class="record-list" id="budget-results-list"></div>
       <div id="budget-not-found" hidden></div>
       <div class="field-actions-right" id="budget-apply-actions" hidden>
-        <button type="button" class="primary" id="budget-apply-btn">선택 항목 예산 반영</button>
+        <button type="button" class="primary" id="budget-apply-btn">적용</button>
       </div>
     </div>
   </div>
@@ -690,15 +695,15 @@
       channelAddRow.hidden = true;
     }
 
+    function syncChannelAddRow(focusInput) {
+      channelAddRow.hidden = channelSelect.value !== "__add__";
+      if (!channelAddRow.hidden && focusInput) {
+        channelNewInput.focus();
+      }
+    }
     if (channelSelect) {
-      channelSelect.addEventListener("change", function () {
-        if (channelSelect.value === "__add__") {
-          channelAddRow.hidden = false;
-          channelNewInput.focus();
-        } else {
-          channelAddRow.hidden = true;
-        }
-      });
+      syncChannelAddRow(false); // enforce the correct state on load, not just reactively on change
+      channelSelect.addEventListener("change", function () { syncChannelAddRow(true); });
     }
     if (channelAddBtn) {
       channelAddBtn.addEventListener("click", confirmNewChannel);
