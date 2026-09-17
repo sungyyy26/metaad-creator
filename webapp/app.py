@@ -11,6 +11,7 @@ Run (every time after that — no need to re-export anything):
     python webapp/app.py
 """
 import csv
+import hashlib
 import io
 import json
 import os
@@ -51,8 +52,8 @@ BULK_COLUMNS = [
     "일일 예산 (필수)",
     "웹사이트 URL (필수)",
     "소재 (필수)",
-    "헤드라인 (실제 문구를 입력하세요 — 자동 생성이 필요하면 '카피 생성' 탭에서 만든 문구를 붙여넣어주세요)",
-    "기본 텍스트 (실제 문구를 입력하세요 — 자동 생성이 필요하면 '카피 생성' 탭에서 만든 문구를 붙여넣어주세요)",
+    "헤드라인 (실제 문구를 입력하거나, '소재'가 EQQUALBERRY 소재명 규칙을 따르면 '생성'이라고 입력해 자동 작성)",
+    "기본 텍스트 (실제 문구를 입력하거나, '소재'가 EQQUALBERRY 소재명 규칙을 따르면 '생성'이라고 입력해 자동 작성)",
     "시작 (비워두면 즉시; 형식 YYYY/MM/DD H(:MM)AM/PM, 예: 2026/09/08 12AM — 해당 광고 계정의 Meta 시간대 기준)",
     "종료 (비워두면 종료일 없음; 형식은 시작과 동일, 예: 2026/09/08 11:59PM)",
     "생성 후 상태 (더 이상 사용되지 않음 — 값을 적어도 무시됩니다: 광고는 항상 즉시 활성화, 새로 만들어지는 광고 세트는 항상 일시중지 상태로 생성됩니다)",
@@ -74,7 +75,9 @@ MIN_BULK_COLS = 7  # through "소재" — everything required is in the first 7
 # Tokens people commonly type to mean "leave this blank" (a spreadsheet habit) —
 # treated as empty rather than as a literal value (e.g. a Shopify handle "-").
 BLANK_TOKENS = {"-", "--", "—", "n/a", "na", "없음", "none"}
-GENERATE_TOKENS = {"생성", "generate"}
+# '작성' included because that's what people actually type here in practice —
+# same intent as '생성'/'generate' ("write this for me").
+GENERATE_TOKENS = {"생성", "generate", "작성"}
 
 
 def is_blank(value):
@@ -83,6 +86,48 @@ def is_blank(value):
 
 def is_generate_placeholder(value):
     return (value or "").strip().lower() in GENERATE_TOKENS
+
+
+def _select_copy_variant(candidates, creative_name, salt, used):
+    """Deterministically picks one of copy_generator's (up to 3) candidate
+    strings for creative_name, spread via a hash of the full 소재명 instead
+    of always index 0 — so a batch of near-identical 소재 (same product/부위/
+    고민) doesn't get byte-identical copy on every row. `used` is a set
+    shared across one bulk batch (or None for a single manual submit); once a
+    candidate is picked it's added to `used`, and later rows skip forward
+    past anything already taken. If every candidate in this batch is already
+    used, it's fine to repeat — there's no more variety on offer for this
+    소재명."""
+    if not candidates:
+        return ""
+    start = int(hashlib.sha1(f"{salt}:{creative_name}".encode("utf-8")).hexdigest(), 16) % len(candidates)
+    for offset in range(len(candidates)):
+        candidate = candidates[(start + offset) % len(candidates)]
+        if used is None or candidate not in used:
+            if used is not None:
+                used.add(candidate)
+            return candidate
+    return candidates[start]
+
+
+def _resolve_generated_copy(headline, primary_text, creative_name, used_headlines=None, used_primary_texts=None):
+    """If either field is a '생성' placeholder, fills it in from
+    copy_generator using creative_name (the 소재 field) — entirely offline
+    template substitution, no Meta/Claude call. Returns (headline,
+    primary_text, error) — error is None on success, or a Korean message the
+    caller should surface (leaving headline/primary_text unresolved) when
+    creative_name doesn't match a known 소재명 pattern."""
+    if not (is_generate_placeholder(headline) or is_generate_placeholder(primary_text)):
+        return headline, primary_text, None
+    try:
+        generated = copy_generator.generate(creative_name)
+    except copy_generator.CopyGenerationError as e:
+        return headline, primary_text, str(e)
+    if is_generate_placeholder(headline):
+        headline = _select_copy_variant(generated["headlines"], creative_name, "headline", used_headlines)
+    if is_generate_placeholder(primary_text):
+        primary_text = _select_copy_variant(generated["primary_texts"], creative_name, "primary", used_primary_texts)
+    return headline, primary_text, None
 
 
 def parse_schedule_datetime(value):
@@ -234,13 +279,8 @@ def parse_bulk_row(cols):
 
     headline, primary_text = get(7), get(8)
     for label, value in (("헤드라인", headline), ("기본 텍스트", primary_text)):
-        if is_generate_placeholder(value):
-            raise RowError(
-                f"{label}에 '생성'이 입력되어 있습니다 — 이 페이지는 자동 생성을 지원하지 않습니다. "
-                f"'카피 생성' 탭에서 만든 문구를 복사해 붙여넣어주세요."
-            )
         if is_blank(value):
-            raise RowError(f"{label}가 비어있습니다 — 실제 문구를 입력해주세요.")
+            raise RowError(f"{label}가 비어있습니다 — 실제 문구를 입력하거나 '생성'이라고 입력해주세요.")
 
     try:
         start_iso = parse_schedule_datetime(get(9)) if not is_blank(get(9)) else None
@@ -468,6 +508,9 @@ def generate_copy_endpoint():
 def submit():
     form = request.form
     headline, primary_text = form.get("headline", ""), form.get("primary_text", "")
+    headline, primary_text, generation_error = _resolve_generated_copy(
+        headline, primary_text, form.get("creative_name", "")
+    )
     entry = new_entry(
         type="setting",
         campaign=form.get("campaign_id", ""),
@@ -480,17 +523,14 @@ def submit():
     upsert(entry)
 
     token = os.environ.get("META_ACCESS_TOKEN")
-    generate_field = next((label for label, v in (("헤드라인", headline), ("기본 텍스트", primary_text))
-                           if is_generate_placeholder(v)), None)
     if not token:
         entry["status"] = "error"
         entry["error"] = "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다. 터미널에서 export/set 하고 서버를 다시 시작하세요."
         upsert(entry)
         message = {"kind": "err", "text": entry["error"]}
-    elif generate_field:
+    elif generation_error:
         entry["status"] = "error"
-        entry["error"] = (f"{generate_field}에 '생성'이 입력되어 있습니다 — 이 페이지는 자동 생성을 지원하지 않습니다. "
-                          f"'카피 생성' 탭에서 만든 문구를 복사해 붙여넣어주세요.")
+        entry["error"] = f"'생성' 자동 카피 실패: {generation_error}"
         upsert(entry)
         message = {"kind": "err", "text": entry["error"]}
     else:
@@ -544,6 +584,11 @@ def submit_bulk():
         # one this same batch just made.
         meta_cache = {}
         batch_adsets = {}
+        # Shared across the whole batch so rows with near-identical 소재명
+        # (same product/부위/고민) don't all get auto-generated byte-identical
+        # copy — see _select_copy_variant.
+        used_headlines = set()
+        used_primary_texts = set()
         for lineno, cols in rows:
             try:
                 row = parse_bulk_row(cols)
@@ -551,6 +596,20 @@ def submit_bulk():
                 fail += 1
                 details.append(f"{lineno}행: {e}")
                 continue
+
+            headline, primary_text, gen_err = _resolve_generated_copy(
+                row["headline"], row["primary_text"], row["creative_name"], used_headlines, used_primary_texts
+            )
+            if gen_err:
+                fail += 1
+                details.append(f"{lineno}행 ({row['new_ad_name']}): '생성' 자동 카피 실패 — {gen_err}")
+                continue
+            generated = headline != row["headline"] or primary_text != row["primary_text"]
+            row["headline"], row["primary_text"] = headline, primary_text
+            if generated:
+                row["warning"] = " / ".join(w for w in (
+                    row["warning"], "헤드라인/기본 텍스트 자동 생성됨 (검수 후 게재를 권장합니다)",
+                ) if w)
 
             entry = new_entry(
                 type="setting",
@@ -625,12 +684,28 @@ def preview_bulk():
     rows = list(enumerate(split_bulk_rows(text), start=1))
 
     preview = []
+    used_headlines = set()
+    used_primary_texts = set()
     for lineno, cols in rows:
         try:
             row = parse_bulk_row(cols)
         except RowError as e:
             preview.append({"lineno": lineno, "ok": False, "error": str(e)})
             continue
+
+        headline, primary_text, gen_err = _resolve_generated_copy(
+            row["headline"], row["primary_text"], row["creative_name"], used_headlines, used_primary_texts
+        )
+        if gen_err:
+            preview.append({"lineno": lineno, "ok": False, "error": f"'생성' 자동 카피 실패 — {gen_err}"})
+            continue
+        generated = headline != row["headline"] or primary_text != row["primary_text"]
+        row["headline"], row["primary_text"] = headline, primary_text
+        if generated:
+            row["warning"] = " / ".join(w for w in (
+                row["warning"], "헤드라인/기본 텍스트 자동 생성됨 (검수 후 게재를 권장합니다)",
+            ) if w)
+
         preview.append({
             "lineno": lineno,
             "ok": True,

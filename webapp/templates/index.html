@@ -20,6 +20,7 @@
     --border:#d2d2d7; --border-strong:#c6c6c8;
     --text:#1d1d1f; --text-muted:#6e6e73; --text-faint:#86868b;
     --accent:#0071e3; --accent-hover:#0077ed; --accent-contrast:#ffffff; --accent-soft:#e8f2fd;
+    --accent-green:#1f9d55; --accent-green-contrast:#ffffff;
     --status-done-bg:#e3f7e9; --status-done-fg:#1a7f42;
     --status-error-bg:#fdecec; --status-error-fg:#c53030;
     --status-processing-bg:#eef4ff; --status-processing-fg:#2f5fce;
@@ -40,6 +41,7 @@
       --border:#38383a; --border-strong:#48484a;
       --text:#f5f5f7; --text-muted:#98989d; --text-faint:#6e6e73;
       --accent:#2997ff; --accent-hover:#5aabff; --accent-contrast:#ffffff; --accent-soft:#0a2a4a;
+      --accent-green:#30d158; --accent-green-contrast:#04150a;
       --status-done-bg:#0f2e1c; --status-done-fg:#4ade80;
       --status-error-bg:#3a1414; --status-error-fg:#f87171;
       --status-processing-bg:#0f1f3d; --status-processing-fg:#7fb1ff;
@@ -53,6 +55,7 @@
     --border:#38383a; --border-strong:#48484a;
     --text:#f5f5f7; --text-muted:#98989d; --text-faint:#6e6e73;
     --accent:#2997ff; --accent-hover:#5aabff; --accent-contrast:#ffffff; --accent-soft:#0a2a4a;
+    --accent-green:#30d158; --accent-green-contrast:#04150a;
     --status-done-bg:#0f2e1c; --status-done-fg:#4ade80;
     --status-error-bg:#3a1414; --status-error-fg:#f87171;
     --status-processing-bg:#0f1f3d; --status-processing-fg:#7fb1ff;
@@ -98,6 +101,8 @@
   .tab-btn,.mode-btn,.top-btn{border:none;background:transparent;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-muted);padding:7px 18px;border-radius:980px;cursor:pointer;transition:background .15s,color .15s;white-space:nowrap;}
   .tab-btn.active,.mode-btn.active,.top-btn.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.08);}
   .tab-btn:focus-visible,.mode-btn:focus-visible,.top-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  #top-toggle .top-btn[data-top="ads"].active{background:var(--accent);color:var(--accent-contrast);box-shadow:none;}
+  #top-toggle .top-btn[data-top="shopify"].active{background:var(--accent-green);color:var(--accent-green-contrast);box-shadow:none;}
   .tab-panel[hidden]{display:none;}
 
   fieldset{border:0;margin:0 0 var(--sp-5);padding:0;}
@@ -261,6 +266,122 @@
   .copy-icon-btn:hover{background:var(--surface-3);color:var(--accent);}
   .copy-icon-btn.copied{color:var(--status-done-fg);border-color:var(--status-done-fg);}
   .copy-icon-btn svg{width:14px;height:14px;pointer-events:none;}
+
+  /* ============================================================
+     쇼피파이 편집 (.sf-app) — ported 1:1 from the standalone
+     shopify-editor Node app's dark UI (public/style.css), scoped
+     under its own --sf-* tokens/class names so it never bleeds
+     into the rest of this dashboard's light Apple-ish theme.
+     ============================================================ */
+  .sf-app{
+    --sf-paper:#000000; --sf-panel:#1c1c1e; --sf-ink:#f5f5f7; --sf-ink-dim:#98989d; --sf-line:#38383a;
+    --sf-accent:#0a84ff; --sf-accent-ink:#ffffff; --sf-accent-soft:#0e2a4d;
+    --sf-pending:#ffb340; --sf-pending-bg:#3a2a10;
+    --sf-processing:#5ac8dd; --sf-processing-bg:#0c2e33;
+    --sf-done:#32d74b; --sf-done-bg:#0e2e17;
+    --sf-error:#ff453a; --sf-error-bg:#3a1210;
+    --sf-shadow:0 1px 2px rgba(0,0,0,.4),0 14px 32px -16px rgba(0,0,0,.6);
+    background:var(--sf-paper);color:var(--sf-ink);
+    font-family:"Noto Sans KR",-apple-system,sans-serif;font-size:14px;line-height:1.55;
+    border-radius:var(--radius-lg);margin-bottom:var(--sp-5);overflow:hidden;
+  }
+  .sf-app *{box-sizing:border-box;}
+  .sf-wrap{max-width:1180px;margin:0 auto;padding:40px 24px 56px;}
+  .sf-top{margin-bottom:32px;display:flex;justify-content:space-between;align-items:flex-start;gap:20px;}
+  .sf-eyebrow{font-family:"Gothic A1",sans-serif;font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--sf-accent);margin:0 0 10px;}
+  .sf-h1{font-family:"Gothic A1",sans-serif;font-weight:800;font-size:30px;letter-spacing:-.02em;margin:0 0 8px;color:var(--sf-ink);}
+  .sf-sub{color:var(--sf-ink-dim);margin:0;max-width:64ch;font-size:14.5px;line-height:1.6;}
+  .sf-logo{color:var(--sf-ink);flex-shrink:0;margin-top:6px;}
+
+  .sf-tabs{display:flex;gap:4px;border-bottom:1px solid var(--sf-line);margin-bottom:28px;}
+  .sf-tab-btn{font-family:"Gothic A1",sans-serif;font-weight:600;font-size:14px;color:var(--sf-ink-dim);background:none;border:none;border-bottom:2px solid transparent;padding:10px 4px 14px;margin-right:24px;cursor:pointer;}
+  .sf-tab-btn .sf-step-no{font-family:"IBM Plex Mono",monospace;font-weight:500;color:var(--sf-ink-dim);margin-right:6px;opacity:.7;}
+  .sf-tab-btn.active{color:var(--sf-ink);border-bottom-color:var(--sf-accent);}
+  .sf-tab-btn.active .sf-step-no{color:var(--sf-accent);opacity:1;}
+  .sf-tab-btn:disabled{color:var(--sf-line);cursor:not-allowed;}
+  .sf-tab-btn:disabled .sf-step-no{color:var(--sf-line);}
+
+  .sf-panel{background:var(--sf-panel);border:1px solid var(--sf-line);border-radius:20px;box-shadow:var(--sf-shadow);padding:28px;display:flex;flex-direction:column;gap:22px;}
+  .sf-panel-head{display:flex;align-items:baseline;gap:9px;border-bottom:1px solid var(--sf-line);padding-bottom:16px;}
+  .sf-panel-num{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--sf-accent);background:var(--sf-accent-soft);border-radius:6px;padding:3px 7px;}
+  .sf-panel-title{font-family:"Gothic A1",sans-serif;font-weight:700;font-size:17px;letter-spacing:-.01em;}
+  .sf-panel-hint{font-size:12.5px;color:var(--sf-ink-dim);margin:-8px 0 0;}
+  .sf-app code{font-family:"IBM Plex Mono",monospace;background:var(--sf-paper);border:1px solid var(--sf-line);border-radius:4px;padding:.1em .4em;}
+
+  .sf-field{display:flex;flex-direction:column;gap:8px;}
+  .sf-lbl{font-family:"Gothic A1",sans-serif;font-weight:600;font-size:12.5px;color:var(--sf-ink-dim);}
+  .sf-app input[type=text],.sf-app textarea,.sf-app select{font:inherit;font-size:14px;color:var(--sf-ink);background:var(--sf-paper);border:1px solid var(--sf-line);border-radius:12px;padding:11px 14px;width:100%;}
+  .sf-app input[type=text]:focus,.sf-app textarea:focus,.sf-app select:focus{outline:2px solid var(--sf-accent);outline-offset:1px;}
+  .sf-app input::placeholder,.sf-app textarea::placeholder{color:var(--sf-ink-dim);opacity:.65;}
+  .sf-app textarea{min-height:70px;resize:vertical;}
+
+  .sf-chiprow{display:flex;flex-wrap:wrap;gap:8px;}
+  .sf-chip{font-family:"Gothic A1",sans-serif;font-weight:600;font-size:12.5px;border:1px solid var(--sf-line);background:var(--sf-panel);color:var(--sf-ink-dim);border-radius:999px;padding:8px 16px;cursor:pointer;user-select:none;position:relative;opacity:.65;}
+  .sf-chip input{position:absolute;opacity:0;pointer-events:none;}
+  .sf-chip:has(input:checked){background:var(--sf-accent);border-color:var(--sf-accent);color:var(--sf-accent-ink);opacity:1;}
+  .sf-chip:focus-within{outline:2px solid var(--sf-accent);outline-offset:1px;}
+
+  .sf-btn-secondary{font-family:"Gothic A1",sans-serif;font-weight:600;font-size:13px;background:var(--sf-panel);color:var(--sf-accent);border:1px solid var(--sf-line);border-radius:980px;padding:9px 18px;cursor:pointer;}
+  .sf-btn-secondary:hover{background:var(--sf-accent-soft);border-color:var(--sf-accent-soft);}
+  .sf-submit{font-family:"Gothic A1",sans-serif;font-weight:700;font-size:13px;background:var(--sf-accent);color:var(--sf-accent-ink);border:none;border-radius:980px;padding:9px 20px;cursor:pointer;transition:filter .12s,transform .05s;}
+  .sf-submit:disabled{opacity:.4;cursor:not-allowed;}
+  .sf-submit:not(:disabled):hover{filter:brightness(1.08);}
+  .sf-select-all{font-family:"Gothic A1",sans-serif;font-weight:600;font-size:12.5px;color:var(--sf-accent);background:none;border:none;cursor:pointer;padding:0;}
+
+  .sf-results-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;}
+  .sf-results-head h3{font-family:"Gothic A1",sans-serif;font-weight:700;font-size:15px;margin:0;color:var(--sf-ink);}
+  .sf-count-badge{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--sf-ink-dim);}
+  .sf-results-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+  @media (max-width:900px){.sf-results-grid{grid-template-columns:repeat(2,1fr);}}
+  @media (max-width:560px){.sf-results-grid{grid-template-columns:1fr;}}
+  .sf-result-card{background:var(--sf-panel);border:1px solid var(--sf-line);border-radius:14px;padding:14px;display:flex;gap:11px;align-items:flex-start;min-width:0;}
+  .sf-result-card:has(.sf-result-check){cursor:pointer;}
+  .sf-result-card:has(.sf-result-check:checked){border-color:var(--sf-accent);box-shadow:0 0 0 1.5px var(--sf-accent);}
+  .sf-result-check{margin-top:3px;flex-shrink:0;width:17px;height:17px;accent-color:var(--sf-accent);cursor:pointer;}
+  .sf-result-info{min-width:0;display:flex;flex-direction:column;gap:4px;flex:1;}
+  .sf-result-title{font-family:"Gothic A1",sans-serif;font-weight:600;font-size:13.5px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;}
+  .sf-result-handle{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--sf-ink-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .sf-result-tags{font-size:11.5px;color:var(--sf-ink-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .sf-r-badge{font-family:"IBM Plex Mono",monospace;font-size:10.5px;border-radius:999px;padding:1px 8px;display:inline-block;width:fit-content;}
+  .sf-r-active{color:var(--sf-done);background:var(--sf-done-bg);}
+  .sf-r-draft{color:var(--sf-pending);background:var(--sf-pending-bg);}
+  .sf-r-unlisted{color:var(--sf-processing);background:var(--sf-processing-bg);}
+
+  .sf-actions{display:flex;align-items:center;justify-content:space-between;margin-top:4px;gap:12px;flex-wrap:wrap;}
+  .sf-hint-req{font-size:12.5px;color:var(--sf-ink-dim);}
+  .sf-divider{border:none;border-top:1px solid var(--sf-line);margin:0;}
+  .sf-empty{color:var(--sf-ink-dim);font-size:13px;padding:16px 0;margin:0;}
+
+  .sf-preview-row{background:var(--sf-panel);border:1px solid var(--sf-line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
+  .sf-preview-row:last-child{margin-bottom:0;}
+  .sf-preview-row .sf-result-title{-webkit-line-clamp:unset;}
+  .sf-item-status{font-family:"IBM Plex Mono",monospace;font-size:10.5px;border-radius:999px;padding:1px 8px;display:inline-block;}
+  .sf-item-apply{color:var(--sf-done);background:var(--sf-done-bg);}
+  .sf-item-skip{color:var(--sf-pending);background:var(--sf-pending-bg);}
+  .sf-item-error{color:var(--sf-error);background:var(--sf-error-bg);}
+  .sf-detail-row{font-size:12.5px;color:var(--sf-ink-dim);}
+  .sf-detail-row .sf-ex-before{text-decoration:line-through;}
+  .sf-detail-row .sf-ex-arrow{margin:0 6px;}
+  .sf-detail-row .sf-ex-after{color:var(--sf-ink);font-weight:600;}
+
+  .sf-history{margin-top:40px;}
+  .sf-history-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;}
+  .sf-history-head h2{font-family:"Gothic A1",sans-serif;font-weight:800;font-size:19px;letter-spacing:-.01em;margin:0;color:var(--sf-ink);}
+  .sf-job{background:var(--sf-panel);border:1px solid var(--sf-line);border-radius:14px;box-shadow:var(--sf-shadow);padding:12px 16px;margin-bottom:8px;display:flex;flex-direction:column;gap:6px;}
+  .sf-job-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+  .sf-job-top-left{display:flex;align-items:center;gap:8px;}
+  .sf-job-time{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--sf-ink-dim);}
+  .sf-job-del{background:none;border:none;color:var(--sf-ink-dim);cursor:pointer;font-size:15px;line-height:1;padding:2px 4px;border-radius:4px;}
+  .sf-job-del:hover{color:var(--sf-error);background:var(--sf-error-bg);}
+  .sf-status-pill{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.03em;border-radius:999px;padding:3px 10px;white-space:nowrap;}
+  .sf-status-done{color:var(--sf-done);background:var(--sf-done-bg);}
+  .sf-status-error{color:var(--sf-error);background:var(--sf-error-bg);}
+  .sf-status-incomplete{color:var(--sf-pending);background:var(--sf-pending-bg);}
+  .sf-disclosure{display:flex;align-items:center;gap:6px;font-family:"Gothic A1",sans-serif;font-weight:700;font-size:14px;color:var(--sf-ink);background:none;border:none;padding:0;cursor:pointer;width:100%;text-align:left;}
+  .sf-caret{font-family:"IBM Plex Mono",monospace;color:var(--sf-accent);transition:transform .15s;margin-left:auto;}
+  .sf-disclosure[aria-expanded="true"] .sf-caret{transform:rotate(180deg);}
+  .sf-disclosure-body{margin-top:10px;}
+  .sf-result-line{font-size:12px;color:var(--sf-ink-dim);border-top:1px solid var(--sf-line);padding-top:8px;}
 </style>
 </head>
 <body>
@@ -353,11 +474,12 @@
           <div class="field">
             <label>헤드라인 *</label>
             <input type="text" name="headline" required>
-            <span class="field-hint">실제 문구를 입력하세요 — 자동 생성이 필요하면 "카피 생성" 탭에서 만든 문구를 복사해 붙여넣어주세요.</span>
+            <span class="field-hint">실제 문구를 입력하거나, 위 "소재"가 EQQUALBERRY 소재명 규칙(예: n-srm_ao_da_ig_fface-wrnk-timerewind_ksh_20260916-1)을 따르면 "생성"이라고 입력해 자동으로 채울 수 있습니다.</span>
           </div>
           <div class="field">
             <label>기본 텍스트 *</label>
             <textarea name="primary_text" required></textarea>
+            <span class="field-hint">헤드라인과 마찬가지로 "생성"이라고 입력하면 소재명 기준으로 자동 작성됩니다.</span>
           </div>
         </fieldset>
         <fieldset>
@@ -503,7 +625,7 @@
   </div>
 
   <div class="panel" id="panel-copy" hidden>
-    <h2>EQQUALBERRY 소재 카피 생성기</h2>
+    <h2>소재 카피 생성기</h2>
     <p class="hint">소재명을 입력하면 제품·부위·고민 코드를 해석해 헤드라인·기본 텍스트 후보를 만듭니다 (로컬에서 바로 생성 — Meta/Claude 호출 없음). 마음에 드는 후보를 클릭하면 클립보드로 복사됩니다.</p>
     <div class="field">
       <label>소재명</label>
@@ -515,108 +637,161 @@
     <div id="copy-gen-result" hidden></div>
   </div>
 
-  <div class="panel" id="panel-shopify" hidden>
-    <h2>쇼피파이 상품 일괄 편집</h2>
-    <p class="hint">조건에 맞는 상품을 검색해 제목·설명(HTML)·태그를 한 번에 수정합니다. 검색은 최근 수정한 상품 최대 250개까지 조회됩니다 (미디어/이미지 수정은 아직 지원하지 않습니다).</p>
+  <div class="sf-app" id="panel-shopify" hidden>
+    <div class="sf-wrap">
+      <header class="sf-top">
+        <div>
+          <p class="sf-eyebrow">EQB · Product Ops</p>
+          <h1 class="sf-h1">쇼피파이 일괄 편집기</h1>
+          <p class="sf-sub">Step 1에서 조건을 검색하고, Step 2에서 수정사항을 입력한 뒤 적용할 상품을 고르고, Step 3에서 최종 확인 후 적용합니다. 제목·설명(HTML)·태그를 한 번에 수정할 수 있고, 검색은 최근 수정한 상품 최대 250개까지 조회됩니다 (미디어/이미지 수정은 아직 지원하지 않습니다).</p>
+        </div>
+        <svg class="sf-logo" viewBox="0 0 220 100" width="56" height="25" aria-label="EQB">
+          <rect x="4" y="10" width="140" height="80" rx="40" fill="none" stroke="currentColor" stroke-width="7"/>
+          <rect x="76" y="10" width="140" height="80" rx="40" fill="none" stroke="currentColor" stroke-width="7"/>
+          <text x="44" y="61" font-size="30" font-weight="700" text-anchor="middle" fill="currentColor">EQ</text>
+          <text x="181" y="61" font-size="30" font-weight="700" text-anchor="middle" fill="currentColor">B</text>
+        </svg>
+      </header>
 
-    <div id="sf-step1">
-      <div class="step-label">1단계 · 조건 검색</div>
-      <div class="field-row">
-        <div class="field">
-          <label>제목</label>
-          <input type="text" id="sf-title" placeholder="쉼표로 여러 값, *로 제외 (예: Amazon, *UK)">
-        </div>
-        <div class="field">
-          <label>태그</label>
-          <input type="text" id="sf-tags" placeholder="쉼표로 여러 값 (하나라도 포함), *로 제외">
-        </div>
+      <div class="sf-tabs" id="sf-tabs">
+        <button type="button" class="sf-tab-btn active" data-sf-step="1"><span class="sf-step-no">01</span>조건</button>
+        <button type="button" class="sf-tab-btn" data-sf-step="2" disabled><span class="sf-step-no">02</span>수정사항 · 선택</button>
+        <button type="button" class="sf-tab-btn" data-sf-step="3" disabled><span class="sf-step-no">03</span>최종 확인</button>
       </div>
-      <div class="field-row">
-        <div class="field">
-          <label>템플릿</label>
-          <input type="text" id="sf-template" placeholder="예: landing-amazon (*로 제외 가능)">
-        </div>
-        <div class="field">
-          <label>상태</label>
-          <div class="radio-group">
-            <label><input type="checkbox" class="sf-status" value="ACTIVE"> 활성</label>
-            <label><input type="checkbox" class="sf-status" value="DRAFT"> 초안</label>
-            <label><input type="checkbox" class="sf-status" value="UNLISTED"> 미게시</label>
+
+      <div class="sf-step-content" data-sf-step-content="1">
+        <div class="sf-panel" id="sf-step1">
+          <div class="sf-panel-head"><span class="sf-panel-num">01</span><span class="sf-panel-title">조건</span></div>
+          <p class="sf-panel-hint">아래 중 하나 이상 입력하세요.</p>
+          <div class="sf-field">
+            <span class="sf-lbl">상태 (복수 선택 가능)</span>
+            <div class="sf-chiprow">
+              <label class="sf-chip"><input type="checkbox" class="sf-status" value="ACTIVE">활성</label>
+              <label class="sf-chip"><input type="checkbox" class="sf-status" value="DRAFT">초안</label>
+              <label class="sf-chip"><input type="checkbox" class="sf-status" value="UNLISTED">미게시</label>
+            </div>
+          </div>
+          <label class="sf-field"><span class="sf-lbl">제목</span><input type="text" id="sf-title" placeholder="쉼표로 여러 값, *로 제외 (예: Amazon, *UK)"></label>
+          <label class="sf-field"><span class="sf-lbl">태그</span><input type="text" id="sf-tags" placeholder="쉼표로 구분 (하나라도 포함, *로 제외)"></label>
+          <label class="sf-field"><span class="sf-lbl">URL 핸들 (여러 개 가능)</span><textarea id="sf-handles" rows="3" placeholder="한 줄에 하나씩, 핸들 또는 전체 URL 붙여넣기"></textarea></label>
+          <label class="sf-field"><span class="sf-lbl">템플릿</span><input type="text" id="sf-template" placeholder="예: landing-amazon (*로 제외 가능)"></label>
+          <p class="sf-panel-hint" style="margin:-8px 0 0;">제목/태그/템플릿은 쉼표로 여러 값을 입력할 수 있고, 값 앞에 <code>*</code>를 붙이면 그 값이 포함된 상품은 제외합니다 (예: "Amazon, *UK" → 제목에 Amazon은 포함하고 UK는 포함하지 않는 상품).</p>
+          <div class="sf-actions">
+            <span class="sf-hint-req"></span>
+            <button type="button" class="sf-submit" id="sf-search-btn">조건 검색</button>
+          </div>
+          <div id="sf-search-summary"></div>
+          <div id="sf-search-list" class="sf-results-grid"></div>
+          <div class="sf-actions" id="sf-to-step2-actions" hidden>
+            <span class="sf-hint-req"></span>
+            <button type="button" class="sf-submit" id="sf-to-step2-btn">다음: 수정사항 입력 →</button>
           </div>
         </div>
       </div>
-      <div class="field">
-        <label>URL 핸들</label>
-        <textarea id="sf-handles" placeholder="핸들 또는 전체 URL — 줄바꿈 또는 쉼표로 여러 개"></textarea>
-      </div>
-      <div class="field-actions-right">
-        <button type="button" class="primary" id="sf-search-btn">조건 검색</button>
-      </div>
-      <div id="sf-search-summary"></div>
-      <div class="record-list" id="sf-search-list"></div>
-      <div class="field-actions-right" id="sf-to-step2-actions" hidden>
-        <button type="button" class="primary" id="sf-to-step2-btn">다음 · 수정사항 입력</button>
-      </div>
-    </div>
 
-    <div id="sf-step2" hidden>
-      <div class="step-label">2단계 · 수정사항 입력 및 선택</div>
-      <div class="field">
-        <label>제목</label>
-        <input type="text" id="sf-m-title" placeholder="입력한 상품만 변경 (비워두면 건드리지 않음, 이미 같은 값이면 자동 건너뜀)">
-      </div>
-      <div class="field">
-        <label>설명 (HTML)</label>
-        <textarea id="sf-m-description" placeholder="비워두면 건드리지 않음"></textarea>
-      </div>
-      <div class="field">
-        <label>태그</label>
-        <select id="sf-m-tagmode">
-          <option value="">변경 안 함</option>
-          <option value="add">추가</option>
-          <option value="replace">교체</option>
-          <option value="remove">삭제</option>
-        </select>
-        <div id="sf-m-tags-add" hidden>
-          <span class="field-hint">추가할 태그 (쉼표로 여러 개)</span>
-          <input type="text" id="sf-m-tags-value-add">
-        </div>
-        <div id="sf-m-tags-remove" hidden>
-          <span class="field-hint">삭제할 태그 (쉼표로 여러 개)</span>
-          <input type="text" id="sf-m-tags-value-remove">
-        </div>
-        <div id="sf-m-tags-replace" hidden>
-          <div class="field-row">
-            <div class="field">
-              <span class="field-hint">기존 태그 (쉼표로 여러 개, 또는 "전체" 입력 시 태그 전체를 교체)</span>
-              <input type="text" id="sf-m-tags-old">
+      <div class="sf-step-content" data-sf-step-content="2" hidden>
+        <div class="sf-panel">
+          <div class="sf-panel-head"><span class="sf-panel-num">02</span><span class="sf-panel-title">수정사항 · 선택</span></div>
+          <p class="sf-panel-hint">채운 항목만 적용됩니다.</p>
+          <label class="sf-field"><span class="sf-lbl">제목</span><input type="text" id="sf-m-title" placeholder="비워두면 건드리지 않음 (이미 같은 값이면 자동 건너뜀)"></label>
+          <label class="sf-field"><span class="sf-lbl">설명 (HTML)</span><textarea id="sf-m-description" placeholder="비워두면 건드리지 않음"></textarea></label>
+          <div class="sf-field">
+            <span class="sf-lbl">태그</span>
+            <select id="sf-m-tagmode">
+              <option value="">변경 안 함</option>
+              <option value="add">추가</option>
+              <option value="replace">교체</option>
+              <option value="remove">삭제</option>
+            </select>
+            <div id="sf-m-tags-add" hidden class="sf-field" style="margin-top:10px;">
+              <span class="sf-lbl">추가할 태그 (쉼표로 여러 개)</span>
+              <input type="text" id="sf-m-tags-value-add">
             </div>
-            <div class="field">
-              <span class="field-hint">변경할 태그 (기존 태그와 같은 개수로, 쉼표 구분)</span>
-              <input type="text" id="sf-m-tags-new">
+            <div id="sf-m-tags-remove" hidden class="sf-field" style="margin-top:10px;">
+              <span class="sf-lbl">삭제할 태그 (쉼표로 여러 개)</span>
+              <input type="text" id="sf-m-tags-value-remove">
             </div>
+            <div id="sf-m-tags-replace" hidden style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;">
+              <label class="sf-field" style="flex:1;min-width:200px;">
+                <span class="sf-lbl">기존 태그 (쉼표로 여러 개, 또는 "전체" 입력 시 전체 교체)</span>
+                <input type="text" id="sf-m-tags-old">
+              </label>
+              <label class="sf-field" style="flex:1;min-width:200px;">
+                <span class="sf-lbl">변경할 태그 (기존 태그와 같은 개수로, 쉼표 구분)</span>
+                <input type="text" id="sf-m-tags-new">
+              </label>
+            </div>
+          </div>
+          <hr class="sf-divider">
+          <div class="sf-results-head">
+            <h3>실제로 적용할 상품 선택</h3>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <span class="sf-count-badge"><span id="sf-selected-count">0</span>개 선택됨</span>
+              <button type="button" class="sf-select-all" id="sf-select-all-btn">전체 선택/해제</button>
+            </div>
+          </div>
+          <div id="sf-select-list" class="sf-results-grid"></div>
+          <div class="sf-actions">
+            <button type="button" class="sf-btn-secondary" id="sf-back-to-1-btn">← 이전</button>
+            <button type="button" class="sf-submit" id="sf-preview-btn">다음: 미리보기 →</button>
           </div>
         </div>
       </div>
-      <div class="step-label" style="margin-top:var(--sp-5);">실제로 적용할 상품 선택 (<span id="sf-selected-count">0</span>개 선택됨)</div>
-      <div class="field-actions-right" style="justify-content:flex-start;margin-bottom:var(--sp-2);">
-        <button type="button" class="secondary" id="sf-select-all-btn">전체 선택/해제</button>
-      </div>
-      <div class="record-list" id="sf-select-list"></div>
-      <div class="field-actions-right">
-        <button type="button" class="secondary" id="sf-back-to-1-btn">이전</button>
-        <button type="button" class="primary" id="sf-preview-btn">다음 · 미리보기</button>
-      </div>
-    </div>
 
-    <div id="sf-step3" hidden>
-      <div class="step-label">3단계 · 최종 확인</div>
-      <div id="sf-preview-summary"></div>
-      <div class="record-list" id="sf-preview-list"></div>
-      <div class="field-actions-right">
-        <button type="button" class="secondary" id="sf-back-to-2-btn">이전</button>
-        <button type="button" class="primary" id="sf-apply-btn">최종 확인 · 적용 실행</button>
+      <div class="sf-step-content" data-sf-step-content="3" hidden>
+        <div class="sf-panel">
+          <div class="sf-panel-head"><span class="sf-panel-num">03</span><span class="sf-panel-title">최종 확인</span></div>
+          <p class="sf-panel-hint">선택한 상품마다 무엇이 적용/건너뜀/오류가 될지 실제 API로 미리 계산해서 보여줍니다.</p>
+          <div id="sf-preview-summary"></div>
+          <div id="sf-preview-list"></div>
+          <div class="sf-actions">
+            <button type="button" class="sf-btn-secondary" id="sf-back-to-2-btn">← 이전</button>
+            <button type="button" class="sf-submit" id="sf-apply-btn">최종 확인 · 적용 실행</button>
+          </div>
+        </div>
       </div>
+
+      <section class="sf-history">
+        <div class="sf-history-head">
+          <h2>작업 내역</h2>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span class="sf-count-badge">{{ shopify_items|length }}건</span>
+            {% if shopify_items %}
+              <form method="post" action="/delete_all_requests">
+                <input type="hidden" name="type" value="shopify">
+                <button type="submit" class="sf-btn-secondary">전체 삭제</button>
+              </form>
+            {% endif %}
+          </div>
+        </div>
+        <div id="sf-job-list">
+          {% if shopify_items %}
+            {% for it in shopify_items %}
+            <div class="sf-job">
+              <div class="sf-job-top">
+                <div class="sf-job-top-left">
+                  <span class="sf-job-time">{{ it.submittedAt }}</span>
+                  <span class="sf-status-pill sf-status-{{ it.status }}">{{ {'done':'완료','error':'오류','incomplete':'일부 실패'}.get(it.status, it.status) }}</span>
+                </div>
+                <button type="button" class="sf-job-del delete-btn" title="기록 삭제 (실제 상품은 되돌아가지 않음)" data-delete-url="/delete/{{ it.id }}">✕</button>
+              </div>
+              <button type="button" class="sf-disclosure sf-job-disclosure" aria-expanded="false">
+                <span style="font-weight:400;color:var(--sf-ink-dim);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ it.conditionsSummary or "조건 없음" }}</span>
+                <span class="sf-caret">▾</span>
+              </button>
+              <div class="sf-disclosure-body" hidden>
+                <div class="sf-result-line">{{ it.summary }}</div>
+                {% for r in it.results if r.overall == 'error' %}
+                  <div class="sf-result-line" style="color:var(--sf-error);">{{ r.title }}: {{ r.error }}</div>
+                {% endfor %}
+              </div>
+            </div>
+            {% endfor %}
+          {% else %}
+            <p class="sf-empty">아직 적용된 쇼피파이 편집 작업이 없습니다.</p>
+          {% endif %}
+        </div>
+      </section>
     </div>
   </div>
 
@@ -717,40 +892,6 @@
     {% endif %}
   </div>
 
-  <div class="panel" id="panel-shopify-history" hidden>
-    <div class="panel-header">
-      <h2>쇼피파이 편집 기록</h2>
-      {% if shopify_items %}
-        <form method="post" action="/delete_all_requests" id="delete-all-shopify-form">
-          <input type="hidden" name="type" value="shopify">
-          <button type="submit" class="delete-all-btn">전체 삭제</button>
-        </form>
-      {% endif %}
-    </div>
-    <p class="hint">이 컴퓨터에서 적용한 쇼피파이 편집 작업들 (webapp/requests.json에 저장됨).</p>
-    {% if shopify_items %}
-    <div class="record-list" id="shopify-record-list">
-      {% for it in shopify_items %}
-      <div class="record-row">
-        <button type="button" class="delete-btn" data-delete-url="/delete/{{ it.id }}" title="기록 삭제 (실제 상품은 되돌아가지 않음)">×</button>
-        <div class="record-top">
-          <span class="pill {{ it.status }}">{{ {'done':'완료','error':'오류','incomplete':'일부 실패'}.get(it.status, it.status) }}</span>
-          <span class="record-time">{{ it.submittedAt }}</span>
-        </div>
-        {% if it.conditionsSummary %}<div class="record-campaign">{{ it.conditionsSummary }}</div>{% endif %}
-        <div class="record-result">{{ it.summary }}</div>
-        {% for r in it.results if r.overall == 'error' %}
-          <div class="record-note err"><span class="record-note-text">{{ r.title }}: {{ r.error }}</span></div>
-        {% endfor %}
-      </div>
-      {% endfor %}
-    </div>
-    <div class="pagination" id="shopify-history-pagination" hidden></div>
-    {% else %}
-      <div class="empty">아직 적용된 쇼피파이 편집 작업이 없습니다.</div>
-    {% endif %}
-  </div>
-
   {% if uploads %}
   <div class="panel">
     <h2>업로드 기록</h2>
@@ -819,7 +960,6 @@
 
       document.getElementById("page-header-ads").hidden = isShopify;
       document.getElementById("panel-shopify").hidden = !isShopify;
-      document.getElementById("panel-shopify-history").hidden = !isShopify;
 
       if (isShopify) {
         document.getElementById("panel-setting").hidden = true;
@@ -908,7 +1048,6 @@
 
   setupPagination("request-record-list", "request-pagination");
   setupPagination("budget-record-list", "budget-history-pagination");
-  setupPagination("shopify-record-list", "shopify-history-pagination");
 
   var deleteAllForm = document.getElementById("delete-all-form");
   if (deleteAllForm) {
@@ -1424,10 +1563,19 @@
   })();
 
   (function () {
-    var step1 = document.getElementById("sf-step1");
-    var step2 = document.getElementById("sf-step2");
-    var step3 = document.getElementById("sf-step3");
-    if (!step1) return;
+    var app = document.getElementById("panel-shopify");
+    if (!app) return;
+    var tabBtns = Array.prototype.slice.call(app.querySelectorAll(".sf-tab-btn"));
+    var stepContents = Array.prototype.slice.call(app.querySelectorAll(".sf-step-content"));
+
+    app.querySelectorAll(".sf-job-disclosure").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var body = btn.nextElementSibling;
+        var open = btn.getAttribute("aria-expanded") === "true";
+        btn.setAttribute("aria-expanded", String(!open));
+        body.hidden = open;
+      });
+    });
 
     function escapeHtml(s) {
       return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
@@ -1439,23 +1587,32 @@
     var selected = new Set();   // ids currently checked in step 2
 
     function showStep(n) {
-      step1.hidden = n !== 1;
-      step2.hidden = n !== 2;
-      step3.hidden = n !== 3;
+      tabBtns.forEach(function (b) { b.classList.toggle("active", Number(b.getAttribute("data-sf-step")) === n); });
+      stepContents.forEach(function (el) { el.hidden = Number(el.getAttribute("data-sf-step-content")) !== n; });
     }
+    tabBtns.forEach(function (b) {
+      b.addEventListener("click", function () { if (!b.disabled) showStep(Number(b.getAttribute("data-sf-step"))); });
+    });
+    function setTabsEnabled(enabled) { tabBtns[1].disabled = !enabled; tabBtns[2].disabled = !enabled; }
 
-    function renderCandidateRow(p) {
+    var STATUS_BADGE_CLASS = { ACTIVE: "sf-r-active", DRAFT: "sf-r-draft", UNLISTED: "sf-r-unlisted" };
+
+    function candidateCard(p, selectable) {
       var tagsText = (p.tags || []).join(", ") || "(태그 없음)";
-      return '<label class="record-row preview-row sf-candidate-row">' +
-        '<input type="checkbox" class="sf-candidate-check" data-id="' + escapeHtml(p.id) + '"' +
-          (selected.has(p.id) ? " checked" : "") + '>' +
-        '<div class="sf-candidate-body">' +
-          '<div class="record-main"><span class="pill done">' + escapeHtml(p.statusLabel) + '</span> ' + escapeHtml(p.title) + '</div>' +
-          '<div class="record-result mono">/' + escapeHtml(p.handle) + (p.template ? " · " + escapeHtml(p.template) : "") + '</div>' +
-          '<div class="record-result">태그: ' + escapeHtml(tagsText) + '</div>' +
+      var checkbox = selectable
+        ? '<input type="checkbox" class="sf-result-check" data-id="' + escapeHtml(p.id) + '"' + (selected.has(p.id) ? " checked" : "") + '>'
+        : "";
+      var tag = selectable ? "label" : "div";
+      return '<' + tag + ' class="sf-result-card">' + checkbox +
+        '<div class="sf-result-info">' +
+          '<span class="sf-r-badge ' + (STATUS_BADGE_CLASS[p.status] || "") + '">' + escapeHtml(p.statusLabel) + '</span>' +
+          '<span class="sf-result-title">' + escapeHtml(p.title) + '</span>' +
+          '<span class="sf-result-handle">/' + escapeHtml(p.handle) + (p.template ? " · " + escapeHtml(p.template) : "") + '</span>' +
+          '<span class="sf-result-tags">' + escapeHtml(tagsText) + '</span>' +
         '</div>' +
-      '</label>';
+      '</' + tag + '>';
     }
+    function renderCandidateRow(p) { return candidateCard(p, true); }
 
     function updateSelectedCount() {
       var el = document.getElementById("sf-selected-count");
@@ -1465,12 +1622,12 @@
     function renderSelectList() {
       var listEl = document.getElementById("sf-select-list");
       listEl.innerHTML = candidates.map(renderCandidateRow).join("") ||
-        '<div class="empty">조회된 상품이 없습니다.</div>';
+        '<p class="sf-empty">조회된 상품이 없습니다.</p>';
       updateSelectedCount();
     }
 
     document.getElementById("sf-select-list").addEventListener("change", function (e) {
-      var check = e.target.closest(".sf-candidate-check");
+      var check = e.target.closest(".sf-result-check");
       if (!check) return;
       var id = check.getAttribute("data-id");
       if (check.checked) selected.add(id); else selected.delete(id);
@@ -1511,7 +1668,7 @@
         .then(function (r) { return r.json(); })
         .then(function (data) {
           if (!data.ok) {
-            summaryEl.innerHTML = '<div class="record-note err">' + escapeHtml(data.error || "조회에 실패했습니다.") + '</div>';
+            summaryEl.innerHTML = '<p class="sf-empty" style="color:var(--sf-error);">' + escapeHtml(data.error || "조회에 실패했습니다.") + '</p>';
             searchListEl.innerHTML = "";
             toStep2Actions.hidden = true;
             candidates = [];
@@ -1519,13 +1676,14 @@
           }
           candidates = data.products;
           selected = new Set(candidates.map(function (p) { return p.id; })); // 기본 전체 선택
-          summaryEl.innerHTML = '<div class="bulk-preview-summary">' + data.count + '건 조회됨</div>';
-          searchListEl.innerHTML = candidates.map(renderCandidateRow).join("") ||
-            '<div class="empty">조건에 맞는 상품이 없습니다.</div>';
+          summaryEl.innerHTML = '<div class="sf-results-head"><h3>조회 결과</h3><span class="sf-count-badge">' + data.count + '건</span></div>';
+          searchListEl.innerHTML = candidates.map(function (p) { return candidateCard(p, false); }).join("") ||
+            '<p class="sf-empty">조건에 맞는 상품이 없습니다.</p>';
           toStep2Actions.hidden = candidates.length === 0;
+          setTabsEnabled(candidates.length > 0);
         })
         .catch(function () {
-          summaryEl.innerHTML = '<div class="record-note err">조회 중 오류가 발생했습니다.</div>';
+          summaryEl.innerHTML = '<p class="sf-empty" style="color:var(--sf-error);">조회 중 오류가 발생했습니다.</p>';
         })
         .finally(function () {
           searchBtn.disabled = false;
@@ -1576,11 +1734,11 @@
     }
 
     function renderPreviewRow(r) {
-      var badge = r.overall === "apply" ? '<span class="pill done">적용</span>'
-        : r.overall === "error" ? '<span class="pill error">오류</span>'
-        : '<span class="pill incomplete">건너뜀</span>';
+      var badge = r.overall === "apply" ? '<span class="sf-item-status sf-item-apply">적용</span>'
+        : r.overall === "error" ? '<span class="sf-item-status sf-item-error">오류</span>'
+        : '<span class="sf-item-status sf-item-skip">건너뜀</span>';
       var lines = (r.parts || []).map(function (p) {
-        return '<div class="record-result">' + escapeHtml(p.field) + ': ' + escapeHtml(p.reason) + '</div>';
+        return '<div class="sf-detail-row">' + escapeHtml(p.field) + ': ' + escapeHtml(p.reason) + '</div>';
       }).join("");
       var detailLines = "";
       if (r.detail) {
@@ -1588,13 +1746,16 @@
           var d = r.detail[field];
           var before = Array.isArray(d.before) ? d.before.join(", ") : d.before;
           var after = Array.isArray(d.after) ? d.after.join(", ") : d.after;
-          detailLines += '<div class="record-result mono">' + escapeHtml(field) + ': ' + escapeHtml(before) + ' → ' + escapeHtml(after) + '</div>';
+          detailLines += '<div class="sf-detail-row">' + escapeHtml(field) + ': ' +
+            '<span class="sf-ex-before">' + escapeHtml(before) + '</span>' +
+            '<span class="sf-ex-arrow">→</span>' +
+            '<span class="sf-ex-after">' + escapeHtml(after) + '</span></div>';
         });
       }
-      var errLine = r.error ? '<div class="record-note err"><span class="record-note-text">' + escapeHtml(r.error) + '</span></div>' : "";
-      return '<div class="record-row preview-row">' +
-        '<div class="record-main">' + badge + ' ' + escapeHtml(r.title) + '</div>' +
-        '<div class="record-result mono">/' + escapeHtml(r.handle) + '</div>' +
+      var errLine = r.error ? '<div class="sf-detail-row" style="color:var(--sf-error);">' + escapeHtml(r.error) + '</div>' : "";
+      return '<div class="sf-preview-row">' +
+        '<div><span class="sf-result-title">' + escapeHtml(r.title) + '</span> ' + badge + '</div>' +
+        '<div class="sf-result-handle">/' + escapeHtml(r.handle) + '</div>' +
         lines + detailLines + errLine +
       '</div>';
     }
@@ -1623,7 +1784,7 @@
         .then(function (r) { return r.json(); })
         .then(function (data) {
           if (!data.ok) {
-            previewSummaryEl.innerHTML = '<div class="record-note err">' + escapeHtml(data.error || "미리보기에 실패했습니다.") + '</div>';
+            previewSummaryEl.innerHTML = '<p class="sf-empty" style="color:var(--sf-error);">' + escapeHtml(data.error || "미리보기에 실패했습니다.") + '</p>';
             previewListEl.innerHTML = "";
             showStep(3);
             return;
@@ -1631,12 +1792,12 @@
           var applyCount = data.results.filter(function (r) { return r.overall === "apply"; }).length;
           var skipCount = data.results.filter(function (r) { return r.overall === "skip"; }).length;
           var errCount = data.results.filter(function (r) { return r.overall === "error"; }).length;
-          previewSummaryEl.innerHTML = '<div class="bulk-preview-summary">적용 ' + applyCount + '건 · 건너뜀 ' + skipCount + '건 · 오류 ' + errCount + '건 (총 ' + data.results.length + '건)</div>';
+          previewSummaryEl.innerHTML = '<div class="sf-results-head"><h3>미리보기</h3><span class="sf-count-badge">적용 ' + applyCount + '건 · 건너뜀 ' + skipCount + '건 · 오류 ' + errCount + '건 (총 ' + data.results.length + '건)</span></div>';
           previewListEl.innerHTML = data.results.map(renderPreviewRow).join("");
           showStep(3);
         })
         .catch(function () {
-          previewSummaryEl.innerHTML = '<div class="record-note err">미리보기 중 오류가 발생했습니다.</div>';
+          previewSummaryEl.innerHTML = '<p class="sf-empty" style="color:var(--sf-error);">미리보기 중 오류가 발생했습니다.</p>';
           previewListEl.innerHTML = "";
           showStep(3);
         })
@@ -1666,7 +1827,7 @@
             alert(data.error || "적용에 실패했습니다.");
             return;
           }
-          previewSummaryEl.innerHTML = '<div class="bulk-preview-summary">적용 완료 — 적용 ' + data.applied + '건 · 건너뜀 ' + data.skipped + '건 · 오류 ' + data.errored + '건 (새로고침하면 아래 "쇼피파이 편집 기록"에서도 확인할 수 있습니다)</div>';
+          previewSummaryEl.innerHTML = '<div class="sf-results-head"><h3>적용 완료</h3><span class="sf-count-badge">적용 ' + data.applied + '건 · 건너뜀 ' + data.skipped + '건 · 오류 ' + data.errored + '건 (새로고침하면 아래 "작업 내역"에서도 확인할 수 있습니다)</span></div>';
           previewListEl.innerHTML = data.results.map(renderPreviewRow).join("");
           alert("적용 완료 — 적용 " + data.applied + "건 · 건너뜀 " + data.skipped + "건 · 오류 " + data.errored + "건");
         })
