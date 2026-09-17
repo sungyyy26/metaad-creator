@@ -141,10 +141,17 @@ def generate(creative_name):
 
     primary_texts = [tpl.format(**fmt) for tpl in product["body_templates"]][:3]
 
+    part_entry = _PART_BY_CODE.get(parsed["part_code"])
+    concern_entry_raw = _CONCERN_BY_CODE.get(parsed["concern_code"])
+
     return {
         "product_code": parsed["product_code"],
         "product_name_ko": product["name_ko"],
         "product_short_ko": product["short_ko"],
+        "part_ko": part_entry["ko"] if part_entry else None,
+        "part_en": part_entry["en"] if part_entry else None,
+        "concern_ko": concern_entry_raw["ko"] if concern_entry_raw else None,
+        "concern_en": concern_entry_raw["en"] if concern_entry_raw else None,
         "headlines": headlines,
         "primary_texts": primary_texts,
         "cta": product["cta"],

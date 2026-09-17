@@ -254,6 +254,19 @@
   }
   .retry-btn:hover{background:var(--status-error-fg);color:#fff;}
   .retry-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+  .copy-result-summary{font-size:var(--fs-sm);font-weight:600;color:var(--accent);margin-bottom:var(--sp-4);}
+  .copy-candidate-group{margin-bottom:var(--sp-4);}
+  .copy-candidate-group:last-child{margin-bottom:0;}
+  .copy-candidate-group-label{font-size:var(--fs-2xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-faint);margin-bottom:var(--sp-2);}
+  .copy-candidate-item{display:flex;align-items:flex-start;gap:var(--sp-3);background:var(--surface-2);border-radius:var(--radius-md);padding:var(--sp-3) var(--sp-4);margin-bottom:var(--sp-2);}
+  .copy-candidate-item:last-child{margin-bottom:0;}
+  .copy-candidate-index{font-size:var(--fs-2xs);font-weight:700;color:var(--text-faint);background:var(--surface);border-radius:999px;width:20px;height:20px;flex:none;display:inline-flex;align-items:center;justify-content:center;}
+  .copy-candidate-text{flex:1;text-align:left;white-space:pre-wrap;font-size:var(--fs-base);}
+  .copy-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;flex:none;padding:0;border-radius:50%;background:transparent;border:1px solid var(--border-strong);color:var(--text-faint);cursor:pointer;transition:background .12s,color .12s,border-color .12s;}
+  .copy-icon-btn:hover{background:var(--surface-3);color:var(--accent);}
+  .copy-icon-btn.copied{color:var(--status-done-fg);border-color:var(--status-done-fg);}
+  .copy-icon-btn svg{width:14px;height:14px;pointer-events:none;}
 </style>
 </head>
 <body>
@@ -271,6 +284,7 @@
     <div class="mode-toggle">
       <button type="button" class="mode-btn active" data-mode="setting">광고 셋팅</button>
       <button type="button" class="mode-btn" data-mode="budget">예산 조정</button>
+      <button type="button" class="mode-btn" data-mode="copy">카피 생성</button>
     </div>
   </div>
 
@@ -495,6 +509,19 @@
     </div>
   </div>
 
+  <div class="panel" id="panel-copy" hidden>
+    <h2>EQQUALBERRY 소재 카피 생성기</h2>
+    <p class="hint">소재명을 입력하면 제품·부위·고민 코드를 해석해 헤드라인·기본 텍스트 후보를 만듭니다 (로컬에서 바로 생성 — Meta/Claude 호출 없음). 마음에 드는 후보를 클릭하면 클립보드로 복사됩니다.</p>
+    <div class="field">
+      <label>소재명</label>
+      <input type="text" id="copy_creative_name_input" placeholder="예: n-srm_ao_da_ig_fface-wrnk-timerewind_ksh_20260916-1">
+    </div>
+    <div class="field-actions-right">
+      <button type="button" class="primary" id="copy-generate-btn">카피 생성</button>
+    </div>
+    <div id="copy-gen-result" hidden></div>
+  </div>
+
   <div class="panel" id="panel-setting-history">
     <div class="panel-header">
       <h2>요청 기록</h2>
@@ -642,6 +669,7 @@
       var mode = btn.getAttribute("data-mode");
       document.getElementById("panel-setting").hidden = mode !== "setting";
       document.getElementById("panel-budget").hidden = mode !== "budget";
+      document.getElementById("panel-copy").hidden = mode !== "copy";
       document.getElementById("panel-setting-history").hidden = mode !== "setting";
       document.getElementById("panel-budget-history").hidden = mode !== "budget";
     });
@@ -1196,6 +1224,106 @@
       var targetId = candidate.getAttribute("data-target");
       var targetEl = document.getElementById(targetId);
       if (targetEl) targetEl.value = candidate.getAttribute("data-value");
+    });
+  })();
+
+  (function () {
+    var btn = document.getElementById("copy-generate-btn");
+    var input = document.getElementById("copy_creative_name_input");
+    var resultEl = document.getElementById("copy-gen-result");
+    if (!btn || !input) return;
+
+    var ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+    var ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>';
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, function (c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+      });
+    }
+
+    function copyText(text, iconBtn) {
+      function done() {
+        iconBtn.innerHTML = ICON_CHECK;
+        iconBtn.classList.add("copied");
+        setTimeout(function () {
+          iconBtn.innerHTML = ICON_COPY;
+          iconBtn.classList.remove("copied");
+        }, 1400);
+      }
+      function fallback() {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand("copy"); done(); } catch (e) { /* ignore */ }
+        document.body.removeChild(ta);
+      }
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(done).catch(fallback);
+      } else {
+        fallback();
+      }
+    }
+
+    function renderGroup(label, items) {
+      var rows = items.map(function (text, i) {
+        return '<div class="copy-candidate-item">' +
+          '<span class="copy-candidate-index">' + (i + 1) + '</span>' +
+          '<span class="copy-candidate-text">' + escapeHtml(text) + '</span>' +
+          '<button type="button" class="copy-icon-btn" data-copy-text="' + escapeHtml(text).replace(/"/g, "&quot;") + '" aria-label="복사" title="복사">' + ICON_COPY + '</button>' +
+          '</div>';
+      }).join("");
+      return '<div class="copy-candidate-group"><div class="copy-candidate-group-label">' + escapeHtml(label) + '</div>' + rows + '</div>';
+    }
+
+    btn.addEventListener("click", function () {
+      var creativeName = input.value.trim();
+      if (!creativeName) {
+        resultEl.innerHTML = '<div class="record-note err">먼저 소재명을 입력해주세요.</div>';
+        resultEl.hidden = false;
+        return;
+      }
+      btn.disabled = true;
+      var originalLabel = btn.textContent;
+      btn.textContent = "생성 중…";
+      fetch("/generate_copy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ creative_name: creativeName }),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data.ok) {
+            resultEl.innerHTML = '<div class="record-note err">' + escapeHtml(data.error || "생성에 실패했습니다.") + '</div>';
+            resultEl.hidden = false;
+            return;
+          }
+          var summaryParts = ["제품: " + data.product_short_ko + " (" + data.product_code + ")"];
+          if (data.part_ko) summaryParts.push("부위: " + data.part_ko);
+          if (data.concern_ko) summaryParts.push("고민: " + data.concern_ko);
+          resultEl.innerHTML =
+            '<div class="copy-result-summary">' + escapeHtml(summaryParts.join(" · ")) + '</div>' +
+            renderGroup("헤드라인 후보", data.headlines) +
+            renderGroup("기본 텍스트 후보", data.primary_texts);
+          resultEl.hidden = false;
+        })
+        .catch(function () {
+          resultEl.innerHTML = '<div class="record-note err">카피 생성 요청을 보내지 못했습니다.</div>';
+          resultEl.hidden = false;
+        })
+        .finally(function () {
+          btn.disabled = false;
+          btn.textContent = originalLabel;
+        });
+    });
+
+    resultEl.addEventListener("click", function (e) {
+      var iconBtn = e.target.closest(".copy-icon-btn");
+      if (!iconBtn) return;
+      copyText(iconBtn.getAttribute("data-copy-text"), iconBtn);
     });
   })();
 </script>
