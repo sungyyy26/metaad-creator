@@ -1,0 +1,346 @@
+{
+  "category": [
+    {
+      "code": "body",
+      "ko": "몸",
+      "en": "Body",
+      "note": ""
+    },
+    {
+      "code": "face",
+      "ko": "얼굴",
+      "en": "Face",
+      "note": ""
+    },
+    {
+      "code": "prdt",
+      "ko": "제품",
+      "en": "product",
+      "note": ""
+    }
+  ],
+  "part": [
+    {
+      "code": "armp",
+      "ko": "겨드랑이",
+      "en": "Armpit",
+      "category": "Body",
+      "note": ""
+    },
+    {
+      "code": "elbow",
+      "ko": "팔꿈치",
+      "en": "Elbow",
+      "category": "Body",
+      "note": ""
+    },
+    {
+      "code": "hip",
+      "ko": "엉덩이",
+      "en": "Hip",
+      "category": "Body",
+      "note": ""
+    },
+    {
+      "code": "groin",
+      "ko": "사타구니",
+      "en": "Groin",
+      "category": "Body",
+      "note": ""
+    },
+    {
+      "code": "chest",
+      "ko": "가슴",
+      "en": "Chest",
+      "category": "Body",
+      "note": ""
+    },
+    {
+      "code": "back",
+      "ko": "등",
+      "en": "Back",
+      "category": "Body",
+      "note": ""
+    },
+    {
+      "code": "farm",
+      "ko": "팔뚝",
+      "en": "Forearm",
+      "category": "Body",
+      "note": ""
+    },
+    {
+      "code": "calf",
+      "ko": "종아리",
+      "en": "Calf",
+      "category": "Body",
+      "note": ""
+    },
+    {
+      "code": "thigh",
+      "ko": "허벅지",
+      "en": "Thigh",
+      "category": "Body",
+      "note": ""
+    },
+    {
+      "code": "hand",
+      "ko": "손",
+      "en": "Hand",
+      "category": "Body",
+      "note": ""
+    },
+    {
+      "code": "belly",
+      "ko": "배",
+      "en": "Belly",
+      "category": "Body",
+      "note": ""
+    },
+    {
+      "code": "neck",
+      "ko": "목",
+      "en": "Neck",
+      "category": "Body",
+      "note": ""
+    },
+    {
+      "code": "knee",
+      "ko": "무릎",
+      "en": "Knee",
+      "category": "Body",
+      "note": ""
+    },
+    {
+      "code": "ankle",
+      "ko": "복숭아뼈",
+      "en": "Ankle",
+      "category": "Body",
+      "note": ""
+    },
+    {
+      "code": "heel",
+      "ko": "발꿈치",
+      "en": "Heel",
+      "category": "Body",
+      "note": ""
+    },
+    {
+      "code": "toe",
+      "ko": "발가락",
+      "en": "Toe",
+      "category": "Body",
+      "note": ""
+    },
+    {
+      "code": "eye",
+      "ko": "눈",
+      "en": "Eye",
+      "category": "Face",
+      "note": ""
+    },
+    {
+      "code": "lip",
+      "ko": "입술",
+      "en": "Lip",
+      "category": "Face",
+      "note": ""
+    },
+    {
+      "code": "phlm",
+      "ko": "인중",
+      "en": "Philtrum",
+      "category": "Face",
+      "note": ""
+    },
+    {
+      "code": "cheek",
+      "ko": "볼",
+      "en": "Cheek",
+      "category": "Face",
+      "note": ""
+    },
+    {
+      "code": "glbla",
+      "ko": "미간",
+      "en": "Glabella",
+      "category": "Face",
+      "note": ""
+    },
+    {
+      "code": "full",
+      "ko": "전신",
+      "en": "Fullbody",
+      "category": "Body",
+      "note": ""
+    },
+    {
+      "code": "fface",
+      "ko": "얼굴",
+      "en": "Face",
+      "category": "Face",
+      "note": ""
+    },
+    {
+      "code": "sglsh",
+      "ko": "제품단품",
+      "en": "one shot",
+      "category": "product",
+      "note": "제품 단품"
+    },
+    {
+      "code": "mixsh",
+      "ko": "제품혼합",
+      "en": "mixed shot",
+      "category": "product",
+      "note": "제품혼합(세럼+크림)"
+    },
+    {
+      "code": "grpsh",
+      "ko": "제품떼샷",
+      "en": "group shot",
+      "category": "product",
+      "note": "2개 이상"
+    }
+  ],
+  "concern": [
+    {
+      "code": "color",
+      "ko": "착색",
+      "en": "Discoloration",
+      "note": ""
+    },
+    {
+      "code": "krtpl",
+      "ko": "모공각화증",
+      "en": "Keratosis Pilaris",
+      "note": ""
+    },
+    {
+      "code": "wrnk",
+      "ko": "주름",
+      "en": "Wrinkle",
+      "note": ""
+    },
+    {
+      "code": "elst",
+      "ko": "탄력",
+      "en": "Elasticity",
+      "note": ""
+    },
+    {
+      "code": "white",
+      "ko": "미백",
+      "en": "Whitening",
+      "note": ""
+    },
+    {
+      "code": "hydr",
+      "ko": "수분",
+      "en": "Hydration",
+      "note": ""
+    },
+    {
+      "code": "glow",
+      "ko": "광채",
+      "en": "Glow/Radiance",
+      "note": ""
+    },
+    {
+      "code": "pacne",
+      "ko": "여드름 흔적",
+      "en": "Postacne",
+      "note": ""
+    },
+    {
+      "code": "spot",
+      "ko": "기미",
+      "en": "Darkspot",
+      "note": ""
+    },
+    {
+      "code": "smark",
+      "ko": "튼살",
+      "en": "Stretch Marks",
+      "note": ""
+    },
+    {
+      "code": "puff",
+      "ko": "붓기",
+      "en": "Puffiness",
+      "note": ""
+    },
+    {
+      "code": "pore",
+      "ko": "모공",
+      "en": "Pores",
+      "note": ""
+    },
+    {
+      "code": "flaky",
+      "ko": "스킨프렙_각질",
+      "en": "Flaky Skin",
+      "note": ""
+    },
+    {
+      "code": "dehyd",
+      "ko": "스킨프렙_건조",
+      "en": "Dehydrate",
+      "note": ""
+    },
+    {
+      "code": "retburn",
+      "ko": "홍조_레티놀번",
+      "en": "Retinol Burn",
+      "note": ""
+    },
+    {
+      "code": "sunburn",
+      "ko": "홍조_썬번",
+      "en": "Sunburn",
+      "note": ""
+    },
+    {
+      "code": "rosacea",
+      "ko": "홍조_주사 피부염",
+      "en": "Rosacea",
+      "note": ""
+    },
+    {
+      "code": "barr",
+      "ko": "홍조_장벽 손상/자극",
+      "en": "Barrier",
+      "note": "화끈거림, 따가움, 민감, 붉어짐, 건조 를 통합하는 홍조"
+    },
+    {
+      "code": "savedc",
+      "ko": "달러할인",
+      "en": "",
+      "note": "Ex : save $20"
+    },
+    {
+      "code": "percdc",
+      "ko": "퍼센트할인",
+      "en": "",
+      "note": "Ex : 37% OFF"
+    },
+    {
+      "code": "time",
+      "ko": "시간임박",
+      "en": "",
+      "note": "Ex : only today"
+    },
+    {
+      "code": "benefit",
+      "ko": "혜택 강조",
+      "en": "",
+      "note": "Ex : 1+1, 1+2, 시크릿 링크 등"
+    },
+    {
+      "code": "hook",
+      "ko": "카피 강조",
+      "en": "",
+      "note": "Ex : B&A 없는 소재"
+    }
+  ]
+}

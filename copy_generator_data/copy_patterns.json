@@ -1,0 +1,170 @@
+{
+  "_source": "Patterns derived from live EQQUALBERRY_AMAZON_US Meta ad creatives (headline/body) fetched via Meta MCP, 2026-09-16.",
+  "products": {
+    "v-srm": {
+      "name_ko": "비타민 브라이트닝 세럼",
+      "short_ko": "비타민 세럼",
+      "name_en": "Vitamin Illuminating Serum",
+      "cta": "SHOP_NOW",
+      "hero_ingredient": "encapsulated Vitamin C, Niacinamide, Arbutin, and TXA",
+      "headline_shapes": [
+        "✨ Your Glow Starts Here",
+        "Target {concern} & Unlock Your Glow | Vitamin Serum",
+        "{part} Radiance Starts Here ✨",
+        "Say Goodbye to {concern}, Hello Glow"
+      ],
+      "body_templates": [
+        "✨ THE VITAMIN C SERUM FOR REAL RADIANCE ✨\nDull, tired-looking skin? One serum. Two weeks of consistent use.\n\nThe Vitamin Illuminating Serum combines {hero_ingredient} to visibly fade the look of {concern_lower} and even out your skin tone.\n\n💛 Fast-absorbing capsule formula\n💛 Lightweight and non-sticky\n💛 Visibly more radiant skin in as little as 2 weeks\n\nREVEAL YOUR GLOW, ONE DROP AT A TIME →",
+        "Say Goodbye to {concern}!\n\nUnlock your natural glow with our lightweight daily serum, packed with vitamin C, niacinamide & arbutin.\nNon-sticky, fast-absorbing and easy to layer into your routine.\nShop now on Amazon!",
+        "Get ready to glow!\nBrighten up with our daily even-tone care, featuring niacinamide, arbutin & antioxidants that target {concern_lower}. Even-looking complexion, no heavy feel!\nShop now on Amazon!"
+      ]
+    },
+    "n-srm": {
+      "name_ko": "나드 펩타이드 부스팅 세럼",
+      "short_ko": "나드 세럼",
+      "name_en": "NAD+ Peptide Boosting Serum",
+      "cta": "SHOP_NOW",
+      "hero_ingredient": "NAD+ and peptides, the same science behind cellular longevity",
+      "headline_shapes": [
+        "Smooth {concern} Fast",
+        "Say Goodbye to {part} {concern}",
+        "{concern}? Meet Your Firming Fix ✨",
+        "The {part} Serum Everyone Wants",
+        "Real Results for {part} {concern} ✨"
+      ],
+      "body_templates": [
+        "Give Your {part} the Firming Care It Deserves. 💗\n\nOur NAD+ Peptide Boosting Serum helps soften the look of {concern_lower} while supporting firmer, smoother-looking skin. Lightweight, non-sticky, and made for daily {care_scope} care.\n\nPowered by {hero_ingredient} for skin that looks beautifully renewed. ✨\n\n*Individual results may vary.",
+        "{part} {concern} bothering you? This NAD+ serum targets it at the cellular level for a firmer, smoother look. See the transformation — shop now.",
+        "Real customers are seeing real change with our NAD+ Peptide Boosting Serum — formulated to visibly smooth {concern_lower} on the {part_lower}, using the same NAD+ and peptide science behind cellular longevity.\n\nLightweight and fast-absorbing for daily use.\n*Individual results may vary."
+      ]
+    },
+    "n-crm": {
+      "name_ko": "나드 펩타이드 부스팅 크림",
+      "short_ko": "나드 크림",
+      "name_en": "NAD+ Peptide Boosting Cream",
+      "cta": "SHOP_NOW",
+      "hero_ingredient": "NAD+ and peptides, the same science behind cellular longevity",
+      "headline_shapes": [
+        "Face & Neck: One NAD+ Cream ✨",
+        "Smooth {concern}, All Over Your {part}",
+        "Bye Bye {part} {concern} ✨",
+        "{part} Day, Every Day ✨",
+        "The Before You Won't Believe ✨"
+      ],
+      "body_templates": [
+        "Give Your {part} the Firming Care It Deserves. 💗\n\nOur NAD+ Peptide Boosting Cream helps soften the look of {concern_lower} while supporting smoother, firmer-looking skin. Lightweight, non-sticky, and made for daily {care_scope} care.\n\nPowered by {hero_ingredient} for skin that looks beautifully renewed. ✨\n\n*Individual results may vary.",
+        "Documenting the change — our NAD+ Peptide Cream for {part} works with NAD+ and peptides to visibly firm and smooth {concern_lower}.\n\nLightweight, fast-absorbing, made for daily use.\n*Individual results may vary.",
+        "See the remarkable difference — our NAD+ Peptide Cream for {part} visibly firms and smooths with NAD+ and peptides, the same science behind cellular longevity.\n\nLightweight, fast-absorbing, made for daily use.\n*Individual results may vary."
+      ]
+    },
+    "b-srm": {
+      "name_ko": "바쿠치올 플럼핑 세럼",
+      "short_ko": "바쿠치올 세럼",
+      "name_en": "Bakuchiol Plumping Serum",
+      "cta": "SHOP_NOW",
+      "hero_ingredient": "0.5% bakuchiol",
+      "headline_shapes": [
+        "🏆AMAZON'S #1 {concern_upper} SERUM",
+        "Smooth {concern} With Bakuchiol"
+      ],
+      "body_templates": [
+        "{concern}, visibly smoothed ✨\n\nPowered by {hero_ingredient}, this gentle retinol alternative helps visibly smooth the appearance of {concern_lower} while leaving skin looking plump and refreshed.\n\nDon't just take our word for it—see why Amazon shoppers love this purple serum 💜",
+        "Amazon's #1 Plumping Serum🪻\n\nVisibly smooth and plump your skin\nwith {hero_ingredient}.\n\nShop now and say goodbye to {concern_lower}.",
+        "{concern} showing up? Not anymore.\n\nMinimize the look of {concern_lower} and smooth uneven texture with EQQUALBERRY's purple serum 💜\n\nShop now on Amazon!"
+      ]
+    }
+  },
+  "asin_map": {
+    "BA00021": "b-srm"
+  },
+  "concern_copy": {
+    "color": {"noun": "Discoloration", "adj": "Discoloration"},
+    "krtpl": {"noun": "Keratosis Pilaris Bumps", "adj": "Rough, Bumpy Texture"},
+    "wrnk": {"noun": "Wrinkles", "adj": "Fine Lines & Wrinkles"},
+    "elst": {"noun": "Loose, Sagging Skin", "adj": "Firmness"},
+    "white": {"noun": "Uneven Tone", "adj": "Uneven Tone"},
+    "hydr": {"noun": "Dryness", "adj": "Hydration"},
+    "glow": {"noun": "Dullness", "adj": "Glow"},
+    "pacne": {"noun": "Post-Acne Marks", "adj": "Post-Acne Marks"},
+    "spot": {"noun": "Dark Spots", "adj": "Dark Spots"},
+    "smark": {"noun": "Stretch Marks", "adj": "Stretch Marks"},
+    "puff": {"noun": "Puffiness", "adj": "Puffiness"},
+    "pore": {"noun": "Pores", "adj": "Pores"},
+    "flaky": {"noun": "Flaky Skin", "adj": "Flaky Skin"},
+    "dehyd": {"noun": "Dehydration", "adj": "Dehydration"},
+    "retburn": {"noun": "Retinol Irritation", "adj": "Retinol Irritation"},
+    "sunburn": {"noun": "Sun-Stressed Skin", "adj": "Sun-Stressed Skin"},
+    "rosacea": {"noun": "Redness", "adj": "Redness"},
+    "barr": {"noun": "Redness & Sensitivity", "adj": "Redness & Sensitivity"}
+  },
+  "part_display": {
+    "armp": "Underarms",
+    "elbow": "Elbows",
+    "hip": "Hips",
+    "groin": "Groin",
+    "chest": "Chest",
+    "back": "Back",
+    "farm": "Forearms",
+    "calf": "Calves",
+    "thigh": "Thighs",
+    "hand": "Hands",
+    "belly": "Belly",
+    "neck": "Neck",
+    "knee": "Knees",
+    "ankle": "Ankles",
+    "heel": "Heels",
+    "toe": "Toes",
+    "eye": "Eye Area",
+    "lip": "Lips",
+    "phlm": "Philtrum",
+    "cheek": "Cheeks",
+    "glbla": "Frown Lines",
+    "full": "All Over",
+    "fface": "Face"
+  },
+  "part_singular": {
+    "armp": "Underarm",
+    "elbow": "Elbow",
+    "hip": "Hip",
+    "groin": "Groin",
+    "chest": "Chest",
+    "back": "Back",
+    "farm": "Forearm",
+    "calf": "Calf",
+    "thigh": "Thigh",
+    "hand": "Hand",
+    "belly": "Belly",
+    "neck": "Neck",
+    "knee": "Knee",
+    "ankle": "Ankle",
+    "heel": "Heel",
+    "toe": "Toe",
+    "eye": "Eye",
+    "lip": "Lip",
+    "phlm": "Philtrum",
+    "cheek": "Cheek",
+    "glbla": "Frown Line",
+    "full": "Full Body",
+    "fface": "Face"
+  },
+  "care_scope": {
+    "default": "face",
+    "body_parts": ["armp", "elbow", "hip", "groin", "chest", "back", "farm", "calf", "thigh", "hand", "belly", "knee", "ankle", "heel", "toe", "full"],
+    "body_label": "face and body"
+  },
+  "hook_shapes": {
+    "review": {"headline": "The {part} Serum Reviewers Love"},
+    "bna": {"headline": "The Before & After Is Real"},
+    "pov": {"headline": "POV: You Finally Found a Fix for {concern}"},
+    "viral": {"headline": "The {part} Fix Everyone's Obsessed With"}
+  },
+  "platform_map": {
+    "ig": "이미지 (Image)",
+    "vd": "동영상 (Video)",
+    "tt": "틱톡 UGC 영상 (TikTok UGC Video)"
+  },
+  "adtype_map": {
+    "da": "Display Ad",
+    "pa": "Partnership Ad"
+  }
+}
