@@ -1,0 +1,1331 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>광고 에딧 데스크</title>
+<script>
+(function () {
+  try {
+    var saved = localStorage.getItem("theme-preference");
+    if (saved === "light" || saved === "dark") {
+      document.documentElement.setAttribute("data-theme", saved);
+    }
+  } catch (e) {}
+})();
+</script>
+<style>
+  :root{
+    --bg:#f5f5f7; --surface:#ffffff; --surface-2:#fbfbfd; --surface-3:#f0f0f2;
+    --border:#d2d2d7; --border-strong:#c6c6c8;
+    --text:#1d1d1f; --text-muted:#6e6e73; --text-faint:#86868b;
+    --accent:#0071e3; --accent-hover:#0077ed; --accent-contrast:#ffffff; --accent-soft:#e8f2fd;
+    --status-done-bg:#e3f7e9; --status-done-fg:#1a7f42;
+    --status-error-bg:#fdecec; --status-error-fg:#c53030;
+    --status-processing-bg:#eef4ff; --status-processing-fg:#2f5fce;
+    --status-incomplete-bg:#fdf1da; --status-incomplete-fg:#96650a;
+    --radius-lg:20px; --radius-md:12px; --radius-sm:8px;
+    --shadow: 0 2px 10px rgba(0,0,0,0.04), 0 12px 32px -16px rgba(0,0,0,0.12);
+
+    /* Type scale — every font-size in the page pulls from this set. */
+    --fs-2xs:11px; --fs-xs:12px; --fs-sm:13px; --fs-base:15px; --fs-md:16px; --fs-lg:19px; --fs-xl:28px;
+    /* Spacing scale — sibling gaps and section rhythm use these, not one-off values. */
+    --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px; --sp-7:40px; --sp-8:56px;
+    --font-ui:-apple-system,BlinkMacSystemFont,"SF Pro Display","SF Pro Text","Helvetica Neue",Arial,sans-serif;
+    --font-mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#000000; --surface:#1c1c1e; --surface-2:#242426; --surface-3:#2c2c2e;
+      --border:#38383a; --border-strong:#48484a;
+      --text:#f5f5f7; --text-muted:#98989d; --text-faint:#6e6e73;
+      --accent:#2997ff; --accent-hover:#5aabff; --accent-contrast:#ffffff; --accent-soft:#0a2a4a;
+      --status-done-bg:#0f2e1c; --status-done-fg:#4ade80;
+      --status-error-bg:#3a1414; --status-error-fg:#f87171;
+      --status-processing-bg:#0f1f3d; --status-processing-fg:#7fb1ff;
+      --status-incomplete-bg:#3d2e0a; --status-incomplete-fg:#f2b84c;
+      --shadow: 0 2px 10px rgba(0,0,0,0.3), 0 12px 32px -16px rgba(0,0,0,0.6);
+    }
+  }
+  /* Explicit dark selection wins even when the OS itself is in light mode. */
+  :root[data-theme="dark"]{
+    --bg:#000000; --surface:#1c1c1e; --surface-2:#242426; --surface-3:#2c2c2e;
+    --border:#38383a; --border-strong:#48484a;
+    --text:#f5f5f7; --text-muted:#98989d; --text-faint:#6e6e73;
+    --accent:#2997ff; --accent-hover:#5aabff; --accent-contrast:#ffffff; --accent-soft:#0a2a4a;
+    --status-done-bg:#0f2e1c; --status-done-fg:#4ade80;
+    --status-error-bg:#3a1414; --status-error-fg:#f87171;
+    --status-processing-bg:#0f1f3d; --status-processing-fg:#7fb1ff;
+    --status-incomplete-bg:#3d2e0a; --status-incomplete-fg:#f2b84c;
+    --shadow: 0 2px 10px rgba(0,0,0,0.3), 0 12px 32px -16px rgba(0,0,0,0.6);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font-family:var(--font-ui);font-size:var(--fs-base);
+    -webkit-font-smoothing:antialiased;
+  }
+  #app{max-width:880px;margin:0 auto;padding:var(--sp-8) 22px 100px;}
+
+  .eyebrow{font-size:var(--fs-xs);font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--accent);}
+  h1{font-size:var(--fs-xl);font-weight:700;letter-spacing:-0.015em;margin:var(--sp-2) 0 var(--sp-2);text-wrap:balance;}
+  .subtitle{color:var(--text-muted);font-size:var(--fs-md);line-height:1.5;margin:0 0 var(--sp-6);max-width:60ch;}
+
+  .page-header{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--sp-4);flex-wrap:wrap;}
+  .page-header-left{flex:1;min-width:240px;}
+  .mode-toggle{flex:none;margin-top:2px;}
+
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:28px 30px;margin-bottom:var(--sp-5);}
+  .panel h2{font-size:var(--fs-lg);font-weight:600;letter-spacing:-0.01em;margin:0 0 var(--sp-1);}
+  .panel .hint{color:var(--text-muted);font-size:var(--fs-sm);margin:0 0 var(--sp-5);}
+  .panel-header{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);margin-bottom:var(--sp-1);}
+  .panel-header h2{margin:0;}
+  #delete-all-form{margin:0;flex:none;}
+  .delete-all-btn{
+    font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);background:transparent;
+    border:1px solid var(--border-strong);border-radius:980px;padding:6px 14px;cursor:pointer;
+    white-space:nowrap;transition:background .12s,color .12s,border-color .12s;
+  }
+  .delete-all-btn:hover{background:var(--status-error-bg);color:var(--status-error-fg);border-color:var(--status-error-bg);}
+  .delete-all-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .field-hint{display:block;font-size:var(--fs-xs);color:var(--text-faint);margin-top:var(--sp-1);line-height:1.5;}
+  .field-hint.tight{margin-top:calc(var(--sp-2) * -1);margin-bottom:var(--sp-3);}
+
+  .tabs,.mode-toggle{display:inline-flex;background:var(--surface-3);border-radius:980px;padding:3px;margin-bottom:var(--sp-5);}
+  .mode-toggle{margin-bottom:0;}
+  .tab-btn,.mode-btn{border:none;background:transparent;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-muted);padding:7px 18px;border-radius:980px;cursor:pointer;transition:background .15s,color .15s;white-space:nowrap;}
+  .tab-btn.active,.mode-btn.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.08);}
+  .tab-btn:focus-visible,.mode-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .tab-panel[hidden]{display:none;}
+
+  fieldset{border:0;margin:0 0 var(--sp-5);padding:0;}
+  legend{font-size:var(--fs-2xs);font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--text-faint);border-bottom:1px solid var(--border);padding-bottom:var(--sp-2);margin-bottom:var(--sp-4);width:100%;}
+  .field{margin-bottom:var(--sp-3);}
+  .field label{display:block;font-size:var(--fs-sm);font-weight:600;margin-bottom:5px;}
+  .field-row{display:grid;grid-template-columns:1fr 1fr;gap:var(--sp-3);}
+  @media (max-width:560px){.field-row{grid-template-columns:1fr;}}
+  .inline-add-row{display:flex;gap:var(--sp-2);margin-top:var(--sp-2);}
+  .inline-add-row[hidden]{display:none;}
+  .inline-add-row input{flex:1;}
+
+  input[type=text],input[type=number],input[type=url],textarea,select{
+    width:100%;font:inherit;font-size:var(--fs-base);color:var(--text);background:var(--surface-2);
+    border:1px solid var(--border-strong);border-radius:var(--radius-sm);padding:10px 12px;
+    transition:border-color .12s,box-shadow .12s;
+  }
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 4px color-mix(in srgb, var(--accent) 16%, transparent);}
+  textarea{min-height:76px;resize:vertical;}
+  textarea.bulk-textarea{min-height:150px;font-family:var(--font-mono);font-size:var(--fs-sm);}
+  .budget-wrap{position:relative;}
+  .budget-wrap .prefix{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text-muted);}
+  .budget-wrap input{padding-left:23px;}
+  .file-input-wrap{display:flex;align-items:center;gap:var(--sp-3);flex-wrap:wrap;}
+  .file-input-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;}
+  .file-input-btn{display:inline-flex;align-items:center;font-weight:600;font-size:var(--fs-sm);background:var(--surface-2);color:var(--text);border:1px solid var(--border-strong);border-radius:980px;padding:9px 18px;cursor:pointer;transition:background .12s,border-color .12s;}
+  .file-input-btn:hover{background:var(--surface-3);}
+  .file-input-name{font-size:var(--fs-sm);color:var(--text-muted);}
+  .radio-group{display:flex;gap:var(--sp-4);}
+  .radio-group label{display:flex;align-items:center;gap:6px;font-size:var(--fs-sm);font-weight:500;}
+
+  details.columns{border:1px dashed var(--border-strong);border-radius:var(--radius-md);padding:2px 16px;margin-bottom:var(--sp-4);}
+  details.columns summary{cursor:pointer;padding:11px 0;font-weight:600;font-size:var(--fs-sm);color:var(--text);}
+  details.columns ol{margin:0 0 var(--sp-3);padding-left:20px;font-size:var(--fs-xs);color:var(--text-muted);line-height:1.7;}
+
+  button.primary{
+    font-weight:600;font-size:var(--fs-base);background:var(--accent);color:var(--accent-contrast);
+    border:none;border-radius:980px;padding:12px 24px;cursor:pointer;transition:background .12s;
+  }
+  button.primary:hover{background:var(--accent-hover);}
+  button.primary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+  .banner{position:relative;border-radius:var(--radius-md);padding:14px 40px 14px 18px;margin-bottom:var(--sp-5);font-size:var(--fs-sm);font-weight:600;}
+  .banner-close{position:absolute;top:10px;right:12px;border:none;background:transparent;color:inherit;font-size:var(--fs-md);font-weight:700;line-height:1;cursor:pointer;opacity:0.6;padding:2px 4px;}
+  .banner-close:hover{opacity:1;}
+  .banner.ok{background:var(--status-done-bg);color:var(--status-done-fg);}
+  .banner.err{background:var(--status-error-bg);color:var(--status-error-fg);}
+  .banner ul{margin:var(--sp-2) 0 0;padding-left:18px;font-weight:500;font-size:var(--fs-xs);}
+
+  .record-list{display:flex;flex-direction:column;gap:var(--sp-3);}
+
+  .pagination{display:flex;justify-content:center;gap:var(--sp-2);margin-top:var(--sp-4);}
+  .pagination[hidden]{display:none;}
+  .page-btn{
+    min-width:32px;height:32px;padding:0 8px;border:1px solid var(--border-strong);
+    background:var(--surface-2);color:var(--text-muted);border-radius:8px;font-size:var(--fs-sm);
+    font-weight:600;cursor:pointer;transition:background .12s,color .12s,border-color .12s;
+  }
+  .page-btn:hover{background:var(--surface-3);}
+  .page-btn.active{background:var(--accent);color:var(--accent-contrast);border-color:var(--accent);}
+  .page-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .record-row{position:relative;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--sp-4) 44px var(--sp-4) var(--sp-4);transition:border-color .12s;}
+  .record-row:hover{border-color:var(--border-strong);}
+  .record-top{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-4);margin-bottom:var(--sp-2);}
+  .record-left{display:flex;align-items:center;gap:var(--sp-3);min-width:0;}
+  .record-time{font-size:var(--fs-xs);color:var(--text-faint);white-space:nowrap;}
+  .record-meta{margin-left:auto;font-size:var(--fs-xs);color:var(--text-muted);white-space:nowrap;}
+  .record-budget{font-size:var(--fs-xs);color:var(--text-muted);white-space:nowrap;}
+  .record-label{font-size:0.82em;font-weight:700;color:var(--text-faint);margin-right:3px;}
+  .record-campaign{font-size:var(--fs-2xs);color:var(--text-faint);margin-bottom:3px;overflow-wrap:break-word;word-break:break-word;}
+  .record-main{font-family:var(--font-mono);font-size:var(--fs-sm);line-height:1.55;overflow-wrap:break-word;word-break:break-word;color:var(--text);}
+  .record-main .adset{color:var(--text-muted);}
+  .record-main .arrow{color:var(--text-faint);margin:0 7px;font-family:inherit;}
+  .record-main .adname{font-weight:600;}
+  .record-result{margin-top:var(--sp-2);font-size:var(--fs-xs);line-height:1.6;overflow-wrap:break-word;}
+  .record-result a{margin-right:var(--sp-4);white-space:nowrap;}
+  .record-note{margin-top:var(--sp-1);}
+  .record-note.warn{color:var(--status-incomplete-fg);}
+  .record-note.err{color:var(--status-error-fg);}
+
+  .budget-batch-list{display:flex;flex-direction:column;gap:var(--sp-3);margin-top:var(--sp-2);}
+  .budget-batch-item{padding-top:var(--sp-2);border-top:1px solid var(--border);}
+  .budget-batch-item:first-child{padding-top:0;border-top:none;}
+  .record-row .delete-btn{position:absolute;top:12px;right:12px;}
+
+  .pill{font-size:var(--fs-2xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:3px 9px;border-radius:980px;white-space:nowrap;flex:none;}
+  .pill.done{background:var(--status-done-bg);color:var(--status-done-fg);}
+  .pill.error{background:var(--status-error-bg);color:var(--status-error-fg);}
+  .pill.processing{background:var(--status-processing-bg);color:var(--status-processing-fg);}
+  .pill.incomplete{background:var(--status-incomplete-bg);color:var(--status-incomplete-fg);}
+
+  .type-tag{font-size:var(--fs-2xs);font-weight:600;letter-spacing:.02em;padding:3px 9px;border-radius:980px;white-space:nowrap;flex:none;background:var(--surface-3);color:var(--text-muted);}
+  .type-tag.budget{background:var(--accent-soft);color:var(--accent);}
+
+  a{color:var(--accent);font-weight:600;text-decoration:none;}
+  a:hover{text-decoration:underline;}
+  .mono{font-family:var(--font-mono);}
+  .empty{color:var(--text-faint);text-align:center;padding:var(--sp-6);font-size:var(--fs-sm);border:1px dashed var(--border);border-radius:var(--radius-md);}
+  .delete-btn{border:1px solid var(--border-strong);background:var(--surface-2);color:var(--text-muted);font-size:var(--fs-sm);font-weight:700;line-height:1;border-radius:7px;width:24px;height:24px;padding:0;cursor:pointer;transition:background .12s,color .12s,border-color .12s;}
+  .delete-btn:hover{background:var(--status-error-bg);color:var(--status-error-fg);border-color:var(--status-error-bg);}
+  .delete-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .delete-btn:disabled{opacity:.5;cursor:default;}
+
+  .theme-toggle{
+    position:fixed;top:20px;right:20px;z-index:10;
+    width:38px;height:38px;padding:0;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--surface);border:1px solid var(--border);color:var(--text-muted);
+    cursor:pointer;box-shadow:var(--shadow);transition:color .12s,border-color .12s;
+  }
+  .theme-toggle:hover{color:var(--text);border-color:var(--border-strong);}
+  .theme-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .theme-toggle svg{width:18px;height:18px;}
+  .theme-toggle .ic-moon{display:none;}
+  .theme-toggle.is-dark .ic-sun{display:none;}
+  .theme-toggle.is-dark .ic-moon{display:block;}
+
+  button.secondary{
+    font-weight:600;font-size:var(--fs-base);background:var(--surface-2);color:var(--text);
+    border:1px solid var(--border-strong);border-radius:980px;padding:12px 24px;cursor:pointer;
+    transition:background .12s,border-color .12s;
+  }
+  button.secondary:hover{background:var(--surface-3);}
+  button.secondary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  button.secondary:disabled{opacity:.6;cursor:default;}
+  .bulk-actions{display:flex;gap:var(--sp-3);flex-wrap:wrap;}
+  .copy-generate-result{margin-top:var(--sp-3);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--sp-4);}
+  .copy-generate-error{color:var(--status-error-fg);font-size:var(--fs-sm);}
+  .copy-candidate-group{margin-bottom:var(--sp-3);}
+  .copy-candidate-group:last-child{margin-bottom:0;}
+  .copy-candidate-group-label{font-size:var(--fs-2xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-faint);margin-bottom:var(--sp-2);}
+  .copy-candidate{display:block;width:100%;text-align:left;background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius-sm);padding:var(--sp-2) var(--sp-3);margin-bottom:var(--sp-2);cursor:pointer;font-size:var(--fs-sm);color:var(--text);white-space:pre-wrap;transition:border-color .12s,background .12s;}
+  .copy-candidate:last-child{margin-bottom:0;}
+  .copy-candidate:hover{border-color:var(--accent);background:var(--accent-soft);}
+
+  .bulk-preview{margin-top:var(--sp-5);border-top:1px solid var(--border);padding-top:var(--sp-4);}
+  .step-label{font-size:var(--fs-xs);font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--accent);margin-bottom:var(--sp-3);}
+  .bulk-preview-summary{font-size:var(--fs-sm);font-weight:600;color:var(--text-muted);margin-bottom:var(--sp-3);}
+  .preview-row{padding:var(--sp-3) var(--sp-4);}
+  .preview-copy{margin-top:var(--sp-2);font-size:var(--fs-xs);color:var(--text-muted);line-height:1.6;white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word;}
+  .preview-copy .record-label{color:var(--text-faint);}
+
+  .record-note.err{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap;}
+  .record-note-text{flex:1;min-width:0;overflow-wrap:break-word;word-break:break-word;}
+
+  .field-actions-right{display:flex;justify-content:flex-end;margin-top:var(--sp-2);}
+  .field-actions-right[hidden]{display:none;}
+  .budget-match-row{display:flex;gap:var(--sp-3);align-items:flex-start;cursor:pointer;}
+  .budget-match-row input[type=checkbox]{margin-top:3px;flex:none;width:16px;height:16px;}
+  .budget-match-body{flex:1;min-width:0;}
+  .retry-form{margin:0;flex:none;}
+  .retry-btn{
+    font-size:var(--fs-2xs);font-weight:700;background:transparent;color:var(--status-error-fg);
+    border:1px solid var(--status-error-fg);border-radius:980px;padding:2px 10px;cursor:pointer;
+    white-space:nowrap;transition:background .12s,color .12s;
+  }
+  .retry-btn:hover{background:var(--status-error-fg);color:#fff;}
+  .retry-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+  .copy-result-summary{font-size:var(--fs-sm);font-weight:600;color:var(--accent);margin-bottom:var(--sp-4);}
+  .copy-candidate-group{margin-bottom:var(--sp-4);}
+  .copy-candidate-group:last-child{margin-bottom:0;}
+  .copy-candidate-group-label{font-size:var(--fs-2xs);font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text-faint);margin-bottom:var(--sp-2);}
+  .copy-candidate-item{display:flex;align-items:flex-start;gap:var(--sp-3);background:var(--surface-2);border-radius:var(--radius-md);padding:var(--sp-3) var(--sp-4);margin-bottom:var(--sp-2);}
+  .copy-candidate-item:last-child{margin-bottom:0;}
+  .copy-candidate-index{font-size:var(--fs-2xs);font-weight:700;color:var(--text-faint);background:var(--surface);border-radius:999px;width:20px;height:20px;flex:none;display:inline-flex;align-items:center;justify-content:center;}
+  .copy-candidate-text{flex:1;text-align:left;white-space:pre-wrap;font-size:var(--fs-base);}
+  .copy-icon-btn{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;flex:none;padding:0;border-radius:50%;background:transparent;border:1px solid var(--border-strong);color:var(--text-faint);cursor:pointer;transition:background .12s,color .12s,border-color .12s;}
+  .copy-icon-btn:hover{background:var(--surface-3);color:var(--accent);}
+  .copy-icon-btn.copied{color:var(--status-done-fg);border-color:var(--status-done-fg);}
+  .copy-icon-btn svg{width:14px;height:14px;pointer-events:none;}
+</style>
+</head>
+<body>
+<button type="button" id="theme-toggle" class="theme-toggle" aria-label="다크 모드로 전환" title="라이트/다크 모드 전환">
+  <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path></svg>
+  <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+</button>
+<div id="app">
+  <div class="page-header">
+    <div class="page-header-left">
+      <div class="eyebrow">Boosters · 메타 광고 · 로컬 실행</div>
+      <h1>광고 에딧 데스크</h1>
+      <p class="subtitle">기존 광고 세트를 알려주시면 타겟팅을 복제하고, 소재를 매칭해 새 광고 세트와 광고를 즉시 생성합니다. 이 페이지는 내 컴퓨터에서만 열리고, 제출 즉시 Meta API를 직접 호출합니다 (승인 대기열 없음).</p>
+    </div>
+    <div class="mode-toggle">
+      <button type="button" class="mode-btn active" data-mode="setting">광고 셋팅</button>
+      <button type="button" class="mode-btn" data-mode="budget">예산 조정</button>
+      <button type="button" class="mode-btn" data-mode="copy">카피 생성</button>
+    </div>
+  </div>
+
+  {% if message %}
+    <div class="banner {{ message.kind }}" id="flash-banner">
+      <button type="button" class="banner-close" id="flash-banner-close" aria-label="닫기">×</button>
+      {{ message.text }}
+      {% if message.details %}
+        <ul>{% for d in message.details %}<li>{{ d }}</li>{% endfor %}</ul>
+      {% endif %}
+    </div>
+  {% endif %}
+
+  <div class="panel" id="panel-setting">
+    <div class="tabs">
+      <button type="button" class="tab-btn active" data-tab="bulk">대량 업로드</button>
+      <button type="button" class="tab-btn" data-tab="manual">수동 입력</button>
+      <button type="button" class="tab-btn" data-tab="upload">소재 업로드</button>
+    </div>
+
+    <div class="tab-panel" id="tab-manual" hidden>
+      <h2>새 광고 요청</h2>
+      <p class="hint">달라지는 부분만 입력하세요 — 나머지는 복제할 광고 세트에서 그대로 가져옵니다.</p>
+      <form method="post" action="/submit">
+        <fieldset>
+          <legend>소스</legend>
+          <div class="field">
+            <label>캠페인 (이름 또는 ID) *</label>
+            <input type="text" name="campaign_id" required placeholder="예: [이퀄베리][Amazon(USA)][US]_n-srm_cv_ao_da_2  또는 120210000000000000">
+            <span class="field-hint">캠페인 이름을 그대로 입력해도 되고, 숫자 ID를 알면 그걸 써도 됩니다. 어느 광고 계정에 속해있는지는 자동으로 찾습니다 — 아래 "광고 계정"에서 직접 지정할 수도 있어요.</span>
+          </div>
+          <div class="field">
+            <label>복제할 광고 세트 이름</label>
+            <input type="text" name="source_adset_name" placeholder="캠페인 내 광고 세트 이름 그대로">
+            <span class="field-hint">비워두면 새 세트를 만드는 대신, 아래 "새 광고 세트 이름"에 적은 이름의 (이미 있는) 광고 세트에 광고만 추가합니다.</span>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>광고 세트 &amp; 예산</legend>
+          <div class="field-row">
+            <div class="field">
+              <label>새 광고 세트 이름 *</label>
+              <input type="text" name="new_adset_name" required>
+            </div>
+            <div class="field">
+              <label>새 광고 이름 *</label>
+              <input type="text" name="new_ad_name" required>
+            </div>
+          </div>
+          <div class="field">
+            <label>일일 예산 (USD) *</label>
+            <div class="budget-wrap"><span class="prefix">$</span>
+              <input type="number" name="daily_budget" min="1" step="1" required>
+            </div>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>광고</legend>
+          <div class="field">
+            <label>웹사이트 URL *</label>
+            <input type="url" name="website_url" required placeholder="https://…">
+          </div>
+          <div class="field">
+            <label>소재 (라이브러리 파일명 일부) *</label>
+            <input type="text" name="creative_name" id="creative_name_input" required>
+            <span class="field-hint">EQQUALBERRY 소재명 규칙(예: n-srm_ao_da_ig_fface-wrnk-timerewind_ksh_20260916-1)을 따르는 이름이면 아래 "카피 생성"으로 헤드라인/기본 텍스트를 자동으로 채울 수 있습니다.</span>
+          </div>
+          <div class="field">
+            <button type="button" class="secondary" id="generate-copy-btn">카피 생성</button>
+            <span class="field-hint">위 "소재" 값을 소재명으로 해석해 헤드라인·기본 텍스트 후보를 만듭니다 (로컬에서 바로 생성 — Meta/Claude 호출 없음). 아래에서 후보를 클릭하면 해당 칸에 채워집니다.</span>
+            <div class="copy-generate-result" id="copy-generate-result" hidden></div>
+          </div>
+          <div class="field">
+            <label>헤드라인 *</label>
+            <input type="text" name="headline" id="headline_input" required>
+            <span class="field-hint">실제 문구를 입력하거나, 위 "카피 생성" 후보를 클릭해 채워주세요. 또는 이 칸에 "생성"이라고만 입력하면 제출 시 자동으로 채워집니다.</span>
+          </div>
+          <div class="field">
+            <label>기본 텍스트 *</label>
+            <textarea name="primary_text" id="primary_text_input" required></textarea>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>고급 설정</legend>
+          <div class="field">
+            <label>광고 계정</label>
+            <select name="account_override">
+              <option value="">자동 감지 (캠페인이 속한 계정을 찾아서 사용)</option>
+              {% for id, label in accounts.items() %}
+                <option value="{{ id }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="field">
+            <label>생성 후 상태</label>
+            <span class="field-hint">광고는 생성 즉시 <strong>활성화</strong>됩니다. 다만 새로 만들어지는 광고 세트는 항상 <strong>일시중지</strong> 상태로 생성되어, 광고 세트를 직접 켜기 전까지는 실제로 노출되지 않습니다 (안전장치).</span>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Shopify 브릿지 페이지 (선택)</legend>
+          <p class="hint field-hint tight">복제할 상품의 핸들을 비워두면 브릿지 페이지를 만들지 않습니다. 새 페이지의 URL 핸들은 위의 "새 광고 이름"과 자동으로 동일하게 설정됩니다.</p>
+          <div class="field">
+            <label>복제할 상품의 핸들</label>
+            <input type="text" name="shopify_source_handle" placeholder="예: vitamin-illuminating-serum — 상품 URL의 /products/ 뒤 부분 (제목 아님)">
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <label>제목 재지정</label>
+              <input type="text" name="shopify_title_override" placeholder="비워두면 원본 제목 그대로">
+            </div>
+            <div class="field">
+              <label>태그 재지정</label>
+              <input type="text" name="shopify_tags_override" placeholder="쉼표로 구분, 비워두면 원본 태그 그대로">
+            </div>
+          </div>
+          <div class="field">
+            <label>테마 템플릿 재지정</label>
+            <input type="text" name="shopify_template_override" placeholder="비워두면 원본 템플릿 그대로">
+          </div>
+          <div class="field">
+            <label>아마존 어트리뷰션 링크 재지정</label>
+            <input type="text" name="shopify_amazon_override" placeholder="비워두면 원본 링크 그대로">
+          </div>
+        </fieldset>
+        <button type="submit" class="primary">지금 생성하기</button>
+      </form>
+    </div>
+
+    <div class="tab-panel" id="tab-bulk">
+      <h2>대량 업로드</h2>
+      <p class="hint">스프레드시트에서 복사한 행을 붙여넣으세요 — 광고 1건당 한 줄, 열은 Tab으로 구분, 아래 순서 그대로.</p>
+      <p class="field-hint tight">칸 안에 공백이나 줄바꿈이 있어도 괜찮습니다 — 엑셀·구글시트에서 셀을 그대로 복사해 붙여넣으면 헤드라인·기본 텍스트·Shopify 제목의 여러 줄 문구까지 정확히 인식됩니다. "행 미리보기"로 실제로 어떻게 읽혔는지 확인해보세요.</p>
+      <details class="columns">
+        <summary>열 순서 보기</summary>
+        <ol>
+          {% for col in bulk_columns %}<li>{{ col }}</li>{% endfor %}
+        </ol>
+      </details>
+      <form method="post" action="/submit_bulk" id="bulk-form">
+        <div class="field">
+          <textarea class="bulk-textarea" name="bulk_text" id="bulk_text" placeholder="[캠페인]	[복제할 광고 세트 — 광고만 추가하려면 비움]	[새 광고 세트 이름]	[새 광고 이름]	[예산]	[URL]	[소재]	[헤드라인]	[기본 텍스트]	[시작 — 비우면 즉시]	[종료 — 비우면 없음]	[생성 후 상태 — 더 이상 사용 안 함, 비워두세요]	[Shopify 핸들 — 선택]	[제목 재지정]	[태그 재지정]	[템플릿 재지정]	[아마존 링크 재지정]"></textarea>
+        </div>
+        <div class="bulk-actions">
+          <button type="button" class="secondary" id="bulk-preview-btn">행 미리보기</button>
+          <button type="submit" class="primary">전체 행 실행</button>
+        </div>
+      </form>
+      <div class="bulk-preview" id="bulk-preview" hidden>
+        <div class="bulk-preview-summary" id="bulk-preview-summary"></div>
+        <div class="record-list" id="bulk-preview-rows"></div>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="tab-upload" hidden>
+      <h2>Meta 소재 라이브러리에 업로드</h2>
+      <p class="hint">내 컴퓨터의 영상/이미지 파일을 광고 계정의 소재 라이브러리에 바로 올립니다 (공개 URL 필요 없음). 올린 뒤 "소재" 칸에 이 파일명을 적으면 광고 생성 시 자동으로 매칭됩니다.</p>
+      <form method="post" action="/upload_creative" enctype="multipart/form-data">
+        <div class="field">
+          <label>파일 *</label>
+          <div class="file-input-wrap">
+            <label class="file-input-btn" for="creative_file_input">파일 선택</label>
+            <input type="file" name="creative_file" id="creative_file_input" accept="video/*,image/*" required class="file-input-hidden">
+            <span class="file-input-name" id="creative_file_name">선택된 파일 없음</span>
+          </div>
+        </div>
+        <div class="field">
+          <label>광고 계정 *</label>
+          <select name="upload_account_id" required>
+            {% for id, label in accounts.items() %}
+              <option value="{{ id }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="primary">업로드</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-budget" hidden>
+    <h2>메타 예산 조정</h2>
+    <p class="hint">채널·제품군으로 대상 캠페인을 찾고, 업로드한 파일의 소재명을 그 캠페인들 안에서만 찾아 예산을 반영합니다.</p>
+    <div class="step-label">1단계 · 조건 입력 및 파일 첨부</div>
+    <div class="field-row">
+      <div class="field">
+        <label>채널 *</label>
+        <select id="budget_channel">
+          <option value="Amazon">Amazon</option>
+          <option value="Boots">Boots</option>
+          <option value="__add__">+ 새 채널 추가</option>
+        </select>
+        <div class="inline-add-row" id="budget_channel_add_row" hidden>
+          <input type="text" id="budget_channel_new" placeholder="새 채널 이름 입력">
+          <button type="button" class="secondary" id="budget_channel_add_btn">추가</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>제품군</label>
+        <input type="text" id="budget_product_group" placeholder="예: v-srm (비워두면 채널만으로 검색)">
+      </div>
+    </div>
+    <div class="field">
+      <label>예산 파일 (.xlsx 또는 .csv) *</label>
+      <div class="file-input-wrap">
+        <label class="file-input-btn" for="budget_file_input">파일 선택</label>
+        <input type="file" id="budget_file_input" accept=".xlsx,.xlsm,.csv" class="file-input-hidden">
+        <span class="file-input-name" id="budget_file_name">선택된 파일 없음</span>
+      </div>
+      <span class="field-hint">헤더 이름은 자유롭게 써도 됩니다 — 소재/소재명/광고명, 기존/기존예산/현재/현재예산, 변경/변경예산/제안/제안예산 중 하나로만 인식되면 됩니다.</span>
+    </div>
+    <div class="field-actions-right">
+      <button type="button" class="primary" id="budget-lookup-btn">조회</button>
+    </div>
+    <div class="bulk-preview" id="budget-results" hidden>
+      <div class="step-label">2단계 · 결과 확인 및 반영</div>
+      <div class="bulk-preview-summary" id="budget-results-summary"></div>
+      <div class="record-list" id="budget-results-list"></div>
+      <div id="budget-conflicts" hidden></div>
+      <div id="budget-not-found" hidden></div>
+      <div class="field-actions-right" id="budget-apply-actions" hidden>
+        <button type="button" class="primary" id="budget-apply-btn">적용</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" id="panel-copy" hidden>
+    <h2>EQQUALBERRY 소재 카피 생성기</h2>
+    <p class="hint">소재명을 입력하면 제품·부위·고민 코드를 해석해 헤드라인·기본 텍스트 후보를 만듭니다 (로컬에서 바로 생성 — Meta/Claude 호출 없음). 마음에 드는 후보를 클릭하면 클립보드로 복사됩니다.</p>
+    <div class="field">
+      <label>소재명</label>
+      <input type="text" id="copy_creative_name_input" placeholder="예: n-srm_ao_da_ig_fface-wrnk-timerewind_ksh_20260916-1">
+    </div>
+    <div class="field-actions-right">
+      <button type="button" class="primary" id="copy-generate-btn">카피 생성</button>
+    </div>
+    <div id="copy-gen-result" hidden></div>
+  </div>
+
+  <div class="panel" id="panel-setting-history">
+    <div class="panel-header">
+      <h2>요청 기록</h2>
+      {% if setting_items %}
+        <form method="post" action="/delete_all_requests" id="delete-all-form">
+          <input type="hidden" name="type" value="setting">
+          <button type="submit" class="delete-all-btn">전체 삭제</button>
+        </form>
+      {% endif %}
+    </div>
+    <p class="hint">이 컴퓨터에서 제출한 광고 셋팅 요청들 (webapp/requests.json에 저장됨).</p>
+    {% if setting_items %}
+    <div class="record-list" id="request-record-list">
+      {% for it in setting_items %}
+      <div class="record-row">
+        <button type="button" class="delete-btn" data-delete-url="/delete/{{ it.id }}" title="기록 삭제 (실제 광고는 삭제되지 않음)">×</button>
+        <div class="record-top">
+          <span class="pill {{ it.status }}">{{ {'done':'완료','error':'오류','processing':'처리중','incomplete':'미완료'}.get(it.status, it.status) }}</span>
+          <span class="record-time">{{ it.submittedAt }}</span>
+          <span class="record-budget mono">${{ it.budget }}/일</span>
+        </div>
+        {% if it.campaign %}<div class="record-campaign"><span class="record-label">C:</span>{{ it.campaign }}</div>{% endif %}
+        <div class="record-main"><span class="record-label">AS:</span><span class="adset">{{ it.adSetName }}</span><span class="arrow">→</span><span class="record-label">AD:</span><span class="adname">{{ it.adName }}</span></div>
+        {% if it.result or it.resultShopifyUrl or it.status in ('incomplete', 'error') %}
+        <div class="record-result">
+          {% if it.result %}
+            <a href="{{ it.result.ads_manager_url }}" target="_blank" rel="noopener">Ads Manager →</a>
+          {% endif %}
+          {% if it.resultShopifyUrl %}
+            <a href="{{ it.resultShopifyUrl }}" target="_blank" rel="noopener">Shopify 페이지 →</a>
+          {% endif %}
+          {% if it.status == 'incomplete' and it.shopifyError %}
+            <div class="record-note warn">Shopify: {{ it.shopifyError }}</div>
+          {% elif it.status == 'error' %}
+            <div class="record-note err">
+              <span class="record-note-text">{{ it.error }}</span>
+              {% if it.input %}
+                <form method="post" action="/retry/{{ it.id }}" class="retry-form">
+                  <button type="submit" class="retry-btn">재시도</button>
+                </form>
+              {% endif %}
+            </div>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <div class="pagination" id="request-pagination" hidden></div>
+    {% else %}
+      <div class="empty">아직 제출된 요청이 없습니다.</div>
+    {% endif %}
+  </div>
+
+  <div class="panel" id="panel-budget-history" hidden>
+    <div class="panel-header">
+      <h2>예산 조정 기록</h2>
+      {% if budget_items %}
+        <form method="post" action="/delete_all_requests" id="delete-all-budget-form">
+          <input type="hidden" name="type" value="budget">
+          <button type="submit" class="delete-all-btn">전체 삭제</button>
+        </form>
+      {% endif %}
+    </div>
+    <p class="hint">이 컴퓨터에서 적용한 예산 조정들 (webapp/requests.json에 저장됨). 한 번의 "적용" 클릭에 포함된 광고 세트가 여러 개여도 기록은 1건입니다.</p>
+    {% if budget_items %}
+    <div class="record-list" id="budget-record-list">
+      {% for it in budget_items %}
+      <div class="record-row">
+        <button type="button" class="delete-btn" data-delete-url="/delete/{{ it.id }}" title="기록 삭제 (실제 예산은 되돌아가지 않음)">×</button>
+        <div class="record-top">
+          <span class="pill {{ it.status }}">{{ {'done':'완료','error':'오류','incomplete':'일부 실패'}.get(it.status, it.status) }}</span>
+          <span class="record-time">{{ it.submittedAt }}</span>
+          <span class="record-budget mono">{{ it.changes|length }}건</span>
+        </div>
+        <div class="budget-batch-list">
+          {% for sub in it.changes %}
+          <div class="budget-batch-item">
+            {% if sub.campaign_name %}<div class="record-campaign"><span class="record-label">C:</span>{{ sub.campaign_name }}</div>{% endif %}
+            <div class="record-main"><span class="record-label">AS:</span><span class="adset">{{ sub.adSetName }}</span></div>
+            <div class="record-result">소재: {{ sub.creativeNames|join(", ") }}</div>
+            <div class="record-result mono">현재 ${{ sub.liveCurrentBudget if sub.liveCurrentBudget is not none else '?' }} → 변경 ${{ sub.newBudget }}</div>
+            {% if not sub.ok %}
+              <div class="record-note err"><span class="record-note-text">{{ sub.error }}</span></div>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    <div class="pagination" id="budget-history-pagination" hidden></div>
+    {% else %}
+      <div class="empty">아직 적용된 예산 조정이 없습니다.</div>
+    {% endif %}
+  </div>
+
+  {% if uploads %}
+  <div class="panel">
+    <h2>업로드 기록</h2>
+    <p class="hint">이 컴퓨터에서 올린 소재들 (webapp/uploads.json에 저장됨).</p>
+    <div class="record-list">
+      {% for u in uploads %}
+      <div class="record-row">
+        <button type="button" class="delete-btn" data-delete-url="/delete_upload/{{ u.id }}" title="기록 삭제 (실제 업로드된 소재는 삭제되지 않음)">×</button>
+        <div class="record-top">
+          <div class="record-left">
+            <span class="pill {{ u.status }}">{{ {'done':'완료','error':'오류','incomplete':'미완료'}.get(u.status, u.status) }}</span>
+            <span class="record-time">{{ u.submittedAt }}</span>
+          </div>
+          <span class="record-meta">{{ accounts.get(u.accountId, u.accountId) }}</span>
+        </div>
+        <div class="record-main">{{ u.filename }}</div>
+        {% if u.result or u.status == 'error' %}
+        <div class="record-result">
+          {% if u.result %}
+            {{ u.result.kind }} · <span class="mono">{{ u.result.asset_id }}</span>
+          {% elif u.status == 'error' %}
+            <span class="record-note err" style="margin-top:0;">{{ u.error }}</span>
+          {% endif %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+<script>
+  document.querySelectorAll(".tab-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll(".tab-btn").forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      var target = btn.getAttribute("data-tab");
+      document.getElementById("tab-manual").hidden = target !== "manual";
+      document.getElementById("tab-bulk").hidden = target !== "bulk";
+      document.getElementById("tab-upload").hidden = target !== "upload";
+    });
+  });
+
+  document.querySelectorAll(".mode-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll(".mode-btn").forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      var mode = btn.getAttribute("data-mode");
+      document.getElementById("panel-setting").hidden = mode !== "setting";
+      document.getElementById("panel-budget").hidden = mode !== "budget";
+      document.getElementById("panel-copy").hidden = mode !== "copy";
+      document.getElementById("panel-setting-history").hidden = mode !== "setting";
+      document.getElementById("panel-budget-history").hidden = mode !== "budget";
+    });
+  });
+
+  document.querySelectorAll(".delete-btn[data-delete-url]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var url = btn.getAttribute("data-delete-url");
+      btn.disabled = true;
+      fetch(url, { method: "POST" }).then(function (r) {
+        if (r.ok) {
+          var row = btn.closest(".record-row");
+          if (row) row.remove();
+        } else {
+          btn.disabled = false;
+        }
+      }).catch(function () { btn.disabled = false; });
+    });
+  });
+
+  function setupPagination(listId, paginationId) {
+    var PAGE_SIZE = 3;
+    var list = document.getElementById(listId);
+    var pagination = document.getElementById(paginationId);
+    if (!list || !pagination) return;
+
+    var currentPage = 1;
+
+    function getRows() {
+      return Array.prototype.slice.call(list.children).filter(function (el) {
+        return el.classList.contains("record-row");
+      });
+    }
+
+    function render() {
+      var rows = getRows();
+      var totalPages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+      if (currentPage > totalPages) currentPage = totalPages;
+
+      if (rows.length <= PAGE_SIZE) {
+        rows.forEach(function (row) { row.hidden = false; });
+        pagination.hidden = true;
+        pagination.innerHTML = "";
+        return;
+      }
+
+      rows.forEach(function (row, idx) {
+        row.hidden = Math.floor(idx / PAGE_SIZE) !== (currentPage - 1);
+      });
+
+      var html = "";
+      for (var p = 1; p <= totalPages; p++) {
+        html += '<button type="button" class="page-btn' + (p === currentPage ? ' active' : '') +
+          '" data-page="' + p + '">' + p + '</button>';
+      }
+      pagination.innerHTML = html;
+      pagination.hidden = false;
+      pagination.querySelectorAll(".page-btn").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          currentPage = Number(btn.getAttribute("data-page"));
+          render();
+        });
+      });
+    }
+
+    render();
+    // Deleting a row (fetch-based, no page reload) changes the row count
+    // without this script re-running, so re-paginate whenever the list's
+    // children change instead of only on initial load.
+    new MutationObserver(render).observe(list, { childList: true });
+  }
+
+  setupPagination("request-record-list", "request-pagination");
+  setupPagination("budget-record-list", "budget-history-pagination");
+
+  var deleteAllForm = document.getElementById("delete-all-form");
+  if (deleteAllForm) {
+    deleteAllForm.addEventListener("submit", function (e) {
+      if (!confirm("요청 기록을 모두 삭제할까요? (실제 생성된 광고는 삭제되지 않습니다)")) {
+        e.preventDefault();
+      }
+    });
+  }
+
+  var deleteAllBudgetForm = document.getElementById("delete-all-budget-form");
+  if (deleteAllBudgetForm) {
+    deleteAllBudgetForm.addEventListener("submit", function (e) {
+      if (!confirm("예산 조정 기록을 모두 삭제할까요? (실제 반영된 예산은 되돌아가지 않습니다)")) {
+        e.preventDefault();
+      }
+    });
+  }
+
+  var bannerClose = document.getElementById("flash-banner-close");
+  if (bannerClose) {
+    bannerClose.addEventListener("click", function () {
+      document.getElementById("flash-banner").remove();
+    });
+  }
+
+  var fileInput = document.getElementById("creative_file_input");
+  var fileName = document.getElementById("creative_file_name");
+  if (fileInput && fileName) {
+    fileInput.addEventListener("change", function () {
+      fileName.textContent = fileInput.files.length ? fileInput.files[0].name : "선택된 파일 없음";
+    });
+  }
+
+  var budgetFileInput = document.getElementById("budget_file_input");
+  var budgetFileName = document.getElementById("budget_file_name");
+  if (budgetFileInput && budgetFileName) {
+    budgetFileInput.addEventListener("change", function () {
+      budgetFileName.textContent = budgetFileInput.files.length ? budgetFileInput.files[0].name : "선택된 파일 없음";
+    });
+  }
+
+  (function () {
+    var lookupBtn = document.getElementById("budget-lookup-btn");
+    if (!lookupBtn) return;
+    var channelSelect = document.getElementById("budget_channel");
+    var productGroupInput = document.getElementById("budget_product_group");
+    var channelAddRow = document.getElementById("budget_channel_add_row");
+    var channelNewInput = document.getElementById("budget_channel_new");
+    var channelAddBtn = document.getElementById("budget_channel_add_btn");
+    var resultsEl = document.getElementById("budget-results");
+    var summaryEl = document.getElementById("budget-results-summary");
+    var listEl = document.getElementById("budget-results-list");
+    var notFoundEl = document.getElementById("budget-not-found");
+    var conflictsEl = document.getElementById("budget-conflicts");
+    var applyActions = document.getElementById("budget-apply-actions");
+    var applyBtn = document.getElementById("budget-apply-btn");
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, function (c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+      });
+    }
+
+    function fmtBudget(v) {
+      return v === null || v === undefined ? "?" : String(v);
+    }
+
+    // 채널 목록에 "+ 새 채널 추가"를 고르면 직접 입력한 이름을 옵션으로 추가할
+    // 수 있게 한다. 이 브라우저에 저장해두므로 (localStorage) 다음에 열 때도
+    // 다시 입력할 필요 없이 그대로 남아있다.
+    var CHANNEL_STORAGE_KEY = "budget-custom-channels";
+
+    function loadCustomChannels() {
+      try {
+        var raw = localStorage.getItem(CHANNEL_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function saveCustomChannels(list) {
+      try { localStorage.setItem(CHANNEL_STORAGE_KEY, JSON.stringify(list)); } catch (e) {}
+    }
+
+    function addChannelOption(name, select) {
+      var addOption = channelSelect.querySelector('option[value="__add__"]');
+      var option = document.createElement("option");
+      option.value = name;
+      option.textContent = name;
+      channelSelect.insertBefore(option, addOption);
+      if (select) {
+        channelSelect.value = name;
+      }
+      return option;
+    }
+
+    loadCustomChannels().forEach(function (name) { addChannelOption(name, false); });
+
+    function confirmNewChannel() {
+      var name = channelNewInput.value.trim();
+      if (!name) {
+        channelNewInput.focus();
+        return;
+      }
+      var existing = Array.prototype.find.call(channelSelect.options, function (opt) {
+        return opt.value.toLowerCase() === name.toLowerCase() && opt.value !== "__add__";
+      });
+      if (existing) {
+        channelSelect.value = existing.value;
+      } else {
+        addChannelOption(name, true);
+        var stored = loadCustomChannels();
+        stored.push(name);
+        saveCustomChannels(stored);
+      }
+      channelNewInput.value = "";
+      channelAddRow.hidden = true;
+    }
+
+    function syncChannelAddRow(focusInput) {
+      channelAddRow.hidden = channelSelect.value !== "__add__";
+      if (!channelAddRow.hidden && focusInput) {
+        channelNewInput.focus();
+      }
+    }
+    if (channelSelect) {
+      syncChannelAddRow(false); // enforce the correct state on load, not just reactively on change
+      channelSelect.addEventListener("change", function () { syncChannelAddRow(true); });
+    }
+    if (channelAddBtn) {
+      channelAddBtn.addEventListener("click", confirmNewChannel);
+    }
+    if (channelNewInput) {
+      channelNewInput.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          confirmNewChannel();
+        }
+      });
+    }
+
+    function renderMatch(m) {
+      var mismatchNote = m.mismatch
+        ? '<div class="record-note warn">파일의 기존 예산($' + escapeHtml(fmtBudget(m.file_current_budget)) +
+          ')이 실제 Meta 예산($' + escapeHtml(fmtBudget(m.live_current_budget)) + ')과 다릅니다 — 최신 상태인지 확인해주세요.</div>'
+        : '';
+      return '<label class="record-row preview-row budget-match-row">' +
+        '<input type="checkbox" class="budget-apply-check" data-adset-id="' + escapeHtml(m.adset_id) +
+          '" data-new-budget="' + escapeHtml(m.new_budget) +
+          '" data-campaign-name="' + escapeHtml(m.campaign_name) +
+          '" data-adset-name="' + escapeHtml(m.adset_name) +
+          '" data-creative-names="' + escapeHtml(JSON.stringify(m.creative_names)) +
+          '" data-live-budget="' + escapeHtml(m.live_current_budget) +
+          '"' + (m.new_budget != null ? ' checked' : ' disabled') + '>' +
+        '<div class="budget-match-body">' +
+          '<div class="record-campaign"><span class="record-label">C:</span>' + escapeHtml(m.campaign_name) + '</div>' +
+          '<div class="record-main"><span class="record-label">AS:</span><span class="adset">' + escapeHtml(m.adset_name) + '</span></div>' +
+          '<div class="record-result">소재: ' + escapeHtml(m.creative_names.join(", ")) + '</div>' +
+          '<div class="record-result mono">현재 $' + escapeHtml(fmtBudget(m.live_current_budget)) +
+            ' → 변경 $' + escapeHtml(fmtBudget(m.new_budget)) + '</div>' +
+          mismatchNote +
+        '</div>' +
+      '</label>';
+    }
+
+    function renderConflict(c) {
+      var rows = c.values.map(function (v) {
+        return escapeHtml(v.creative_name) + ' (기존 $' + escapeHtml(fmtBudget(v.current_budget)) +
+          ' → 변경 $' + escapeHtml(fmtBudget(v.new_budget)) + ')';
+      }).join(", ");
+      return '<div class="record-row preview-row">' +
+        '<div class="record-campaign"><span class="record-label">C:</span>' + escapeHtml(c.campaign_name) + '</div>' +
+        '<div class="record-main"><span class="record-label">AS:</span><span class="adset">' + escapeHtml(c.adset_name) + '</span></div>' +
+        '<div class="record-note err"><span class="record-note-text">이 광고 세트의 소재들이 서로 다른 예산 값을 가지고 있어 어느 쪽이 맞는지 판단할 수 없습니다: ' +
+          rows + ' — 파일을 확인 후 다시 조회해주세요.</span></div>' +
+      '</div>';
+    }
+
+    lookupBtn.addEventListener("click", function () {
+      if (channelSelect.value === "__add__") {
+        alert("새 채널 이름을 입력하고 '추가'를 눌러주세요.");
+        channelNewInput.focus();
+        return;
+      }
+      var file = budgetFileInput.files[0];
+      if (!file) {
+        alert("파일을 선택해주세요.");
+        return;
+      }
+      var body = new FormData();
+      body.set("channel", channelSelect.value);
+      body.set("product_group", productGroupInput.value);
+      body.set("budget_file", file);
+
+      lookupBtn.disabled = true;
+      var originalLabel = lookupBtn.textContent;
+      lookupBtn.textContent = "조회 중…";
+
+      fetch("/budget_lookup", { method: "POST", body: body })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          resultsEl.hidden = false;
+          if (!data.ok) {
+            summaryEl.textContent = data.error || "조회에 실패했습니다.";
+            listEl.innerHTML = "";
+            notFoundEl.hidden = true;
+            conflictsEl.hidden = true;
+            applyActions.hidden = true;
+            return;
+          }
+          var conflictCount = (data.conflicts || []).length;
+          summaryEl.textContent = data.message ||
+            ("캠페인 " + data.campaigns.length + "개 · 매칭 " + data.matches.length + "건 · 못 찾음 " +
+              data.not_found.length + "건" + (conflictCount ? " · 값 충돌 " + conflictCount + "건" : ""));
+          listEl.innerHTML = data.matches.map(renderMatch).join("") ||
+            '<div class="empty">일치하는 소재를 찾지 못했습니다.</div>';
+          if (conflictCount) {
+            conflictsEl.hidden = false;
+            conflictsEl.innerHTML = data.conflicts.map(renderConflict).join("");
+          } else {
+            conflictsEl.hidden = true;
+            conflictsEl.innerHTML = "";
+          }
+          if (data.not_found.length) {
+            notFoundEl.hidden = false;
+            notFoundEl.innerHTML = '<div class="record-note warn">캠페인 안에서 찾지 못한 소재명: ' +
+              data.not_found.map(escapeHtml).join(", ") + '</div>';
+          } else {
+            notFoundEl.hidden = true;
+            notFoundEl.innerHTML = "";
+          }
+          applyActions.hidden = data.matches.length === 0;
+        })
+        .catch(function () {
+          resultsEl.hidden = false;
+          summaryEl.textContent = "조회 중 오류가 발생했습니다.";
+          listEl.innerHTML = "";
+          applyActions.hidden = true;
+        })
+        .finally(function () {
+          lookupBtn.disabled = false;
+          lookupBtn.textContent = originalLabel;
+        });
+    });
+
+    function resetBudgetPanel() {
+      channelSelect.value = "Amazon";
+      syncChannelAddRow(false);
+      productGroupInput.value = "";
+      budgetFileInput.value = "";
+      budgetFileName.textContent = "선택된 파일 없음";
+      resultsEl.hidden = true;
+      summaryEl.textContent = "";
+      listEl.innerHTML = "";
+      notFoundEl.hidden = true;
+      notFoundEl.innerHTML = "";
+      conflictsEl.hidden = true;
+      conflictsEl.innerHTML = "";
+      applyActions.hidden = true;
+    }
+
+    if (applyBtn) {
+      applyBtn.addEventListener("click", function () {
+        var checks = Array.prototype.filter.call(
+          document.querySelectorAll(".budget-apply-check"), function (c) { return c.checked; });
+        if (!checks.length) {
+          alert("반영할 항목을 선택해주세요.");
+          return;
+        }
+        if (!confirm(checks.length + "건의 Meta 광고 세트 예산을 실제로 변경합니다. 계속할까요?")) return;
+
+        var items = checks.map(function (c) {
+          var liveBudgetAttr = c.getAttribute("data-live-budget");
+          return {
+            adset_id: c.getAttribute("data-adset-id"),
+            new_budget: Number(c.getAttribute("data-new-budget")),
+            campaign_name: c.getAttribute("data-campaign-name"),
+            adset_name: c.getAttribute("data-adset-name"),
+            creative_names: JSON.parse(c.getAttribute("data-creative-names") || "[]"),
+            live_current_budget: (liveBudgetAttr && liveBudgetAttr !== "null") ? Number(liveBudgetAttr) : null,
+          };
+        });
+        applyBtn.disabled = true;
+        var originalLabel = applyBtn.textContent;
+        applyBtn.textContent = "반영 중…";
+        fetch("/apply_budget_changes", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ items: items }),
+        })
+          .then(function (r) { return r.json(); })
+          .then(function (data) {
+            if (!data.ok) {
+              alert(data.error || "예산 반영에 실패했습니다.");
+              return;
+            }
+            var okCount = data.results.filter(function (r) { return r.ok; }).length;
+            var failCount = data.results.length - okCount;
+            var msg = "반영 완료 — 성공 " + okCount + "건 / 실패 " + failCount + "건 (요청 기록에서 확인할 수 있습니다)";
+            if (failCount) {
+              msg += "\n\n" + data.results.filter(function (r) { return !r.ok; })
+                .map(function (r) { return r.adset_id + ": " + r.error; }).join("\n");
+            }
+            alert(msg);
+            resetBudgetPanel();
+          })
+          .catch(function () {
+            alert("예산 반영 중 오류가 발생했습니다.");
+          })
+          .finally(function () {
+            applyBtn.disabled = false;
+            applyBtn.textContent = originalLabel;
+          });
+      });
+    }
+  })();
+
+  (function () {
+    var THEME_KEY = "theme-preference";
+    var root = document.documentElement;
+    var toggle = document.getElementById("theme-toggle");
+    if (!toggle) return;
+
+    function effectiveTheme() {
+      var explicit = root.getAttribute("data-theme");
+      if (explicit === "light" || explicit === "dark") return explicit;
+      return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    }
+    function syncIcon() {
+      toggle.classList.toggle("is-dark", effectiveTheme() === "dark");
+      toggle.setAttribute("aria-label", effectiveTheme() === "dark" ? "라이트 모드로 전환" : "다크 모드로 전환");
+    }
+    syncIcon();
+
+    toggle.addEventListener("click", function () {
+      var next = effectiveTheme() === "dark" ? "light" : "dark";
+      root.setAttribute("data-theme", next);
+      try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
+      syncIcon();
+    });
+  })();
+
+  (function () {
+    var btn = document.getElementById("bulk-preview-btn");
+    var textarea = document.getElementById("bulk_text");
+    var preview = document.getElementById("bulk-preview");
+    var summary = document.getElementById("bulk-preview-summary");
+    var rowsEl = document.getElementById("bulk-preview-rows");
+    if (!btn || !textarea) return;
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, function (c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+      });
+    }
+    function renderRow(row) {
+      if (!row.ok) {
+        return '<div class="record-row preview-row">' +
+          '<div class="record-top"><span class="pill error">' + row.lineno + '행 · 오류</span></div>' +
+          '<div class="record-note err"><span class="record-note-text">' + escapeHtml(row.error) + '</span></div>' +
+          '</div>';
+      }
+      var warn = row.warning ? '<div class="record-note warn">' + escapeHtml(row.warning) + '</div>' : '';
+      var shopify = row.shopify_handle !== '-' ? ' · Shopify: ' + escapeHtml(row.shopify_handle) : '';
+      return '<div class="record-row preview-row">' +
+        '<div class="record-top">' +
+          '<span class="pill done">' + row.lineno + '행</span>' +
+          '<span class="record-meta mono">$' + escapeHtml(row.daily_budget) + '/일 · ' + escapeHtml(row.status) + '</span>' +
+        '</div>' +
+        '<div class="record-campaign"><span class="record-label">C:</span>' + escapeHtml(row.campaign) + '</div>' +
+        '<div class="record-main"><span class="record-label">AS:</span><span class="adset">' + escapeHtml(row.source_adset) + '</span><span class="arrow">→</span>' +
+          escapeHtml(row.new_adset) + ' · <span class="record-label">AD:</span><span class="adname">' + escapeHtml(row.new_ad_name) + '</span></div>' +
+        '<div class="record-result">' + escapeHtml(row.website_url) + shopify + '</div>' +
+        '<div class="preview-copy"><span class="record-label">헤드라인:</span> ' + escapeHtml(row.headline) + '</div>' +
+        '<div class="preview-copy"><span class="record-label">기본 텍스트:</span> ' + escapeHtml(row.primary_text) + '</div>' +
+        (row.shopify_title ? '<div class="preview-copy"><span class="record-label">Shopify 제목:</span> ' + escapeHtml(row.shopify_title) + '</div>' : '') +
+        warn +
+        '</div>';
+    }
+
+    btn.addEventListener("click", function () {
+      var text = textarea.value;
+      if (!text.trim()) {
+        summary.textContent = "붙여넣은 내용이 없습니다.";
+        rowsEl.innerHTML = "";
+        preview.hidden = false;
+        return;
+      }
+      btn.disabled = true;
+      var originalLabel = btn.textContent;
+      btn.textContent = "확인 중…";
+      var body = new URLSearchParams();
+      body.set("bulk_text", text);
+      fetch("/preview_bulk", { method: "POST", body: body })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          summary.textContent = "총 " + data.total + "행 — 정상 " + data.ok_count + "행 / 오류 " + data.error_count + "행";
+          rowsEl.innerHTML = data.rows.map(renderRow).join("");
+          preview.hidden = false;
+        })
+        .catch(function () {
+          summary.textContent = "미리보기를 불러오지 못했습니다.";
+          rowsEl.innerHTML = "";
+          preview.hidden = false;
+        })
+        .finally(function () {
+          btn.disabled = false;
+          btn.textContent = originalLabel;
+        });
+    });
+  })();
+
+  (function () {
+    var btn = document.getElementById("generate-copy-btn");
+    var creativeInput = document.getElementById("creative_name_input");
+    var headlineInput = document.getElementById("headline_input");
+    var primaryTextInput = document.getElementById("primary_text_input");
+    var resultEl = document.getElementById("copy-generate-result");
+    if (!btn || !creativeInput) return;
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, function (c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+      });
+    }
+
+    function renderCandidates(label, items, targetInput) {
+      var buttons = items.map(function (text, i) {
+        return '<button type="button" class="copy-candidate" data-target="' + targetInput +
+          '" data-value="' + escapeHtml(text).replace(/"/g, "&quot;") + '">' + escapeHtml(text) + '</button>';
+      }).join("");
+      return '<div class="copy-candidate-group"><div class="copy-candidate-group-label">' +
+        escapeHtml(label) + '</div>' + buttons + '</div>';
+    }
+
+    btn.addEventListener("click", function () {
+      var creativeName = creativeInput.value.trim();
+      if (!creativeName) {
+        resultEl.innerHTML = '<div class="copy-generate-error">먼저 "소재" 칸에 소재명을 입력해주세요.</div>';
+        resultEl.hidden = false;
+        return;
+      }
+      btn.disabled = true;
+      var originalLabel = btn.textContent;
+      btn.textContent = "생성 중…";
+      fetch("/generate_copy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ creative_name: creativeName }),
+      })
+        .then(function (r) { return r.json().then(function (data) { return { status: r.status, data: data }; }); })
+        .then(function (res) {
+          if (!res.data.ok) {
+            resultEl.innerHTML = '<div class="copy-generate-error">' + escapeHtml(res.data.error || "생성에 실패했습니다.") + '</div>';
+            resultEl.hidden = false;
+            return;
+          }
+          resultEl.innerHTML =
+            renderCandidates("헤드라인 후보 (클릭해서 채우기)", res.data.headlines, "headline_input") +
+            renderCandidates("기본 텍스트 후보 (클릭해서 채우기)", res.data.primary_texts, "primary_text_input");
+          resultEl.hidden = false;
+        })
+        .catch(function () {
+          resultEl.innerHTML = '<div class="copy-generate-error">카피 생성 요청을 보내지 못했습니다.</div>';
+          resultEl.hidden = false;
+        })
+        .finally(function () {
+          btn.disabled = false;
+          btn.textContent = originalLabel;
+        });
+    });
+
+    resultEl && resultEl.addEventListener("click", function (e) {
+      var candidate = e.target.closest(".copy-candidate");
+      if (!candidate) return;
+      var targetId = candidate.getAttribute("data-target");
+      var targetEl = document.getElementById(targetId);
+      if (targetEl) targetEl.value = candidate.getAttribute("data-value");
+    });
+  })();
+
+  (function () {
+    var btn = document.getElementById("copy-generate-btn");
+    var input = document.getElementById("copy_creative_name_input");
+    var resultEl = document.getElementById("copy-gen-result");
+    if (!btn || !input) return;
+
+    var ICON_COPY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+    var ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"></path></svg>';
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, function (c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+      });
+    }
+
+    function copyText(text, iconBtn) {
+      function done() {
+        iconBtn.innerHTML = ICON_CHECK;
+        iconBtn.classList.add("copied");
+        setTimeout(function () {
+          iconBtn.innerHTML = ICON_COPY;
+          iconBtn.classList.remove("copied");
+        }, 1400);
+      }
+      function fallback() {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.select();
+        try { document.execCommand("copy"); done(); } catch (e) { /* ignore */ }
+        document.body.removeChild(ta);
+      }
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(done).catch(fallback);
+      } else {
+        fallback();
+      }
+    }
+
+    function renderGroup(label, items) {
+      var rows = items.map(function (text, i) {
+        return '<div class="copy-candidate-item">' +
+          '<span class="copy-candidate-index">' + (i + 1) + '</span>' +
+          '<span class="copy-candidate-text">' + escapeHtml(text) + '</span>' +
+          '<button type="button" class="copy-icon-btn" data-copy-text="' + escapeHtml(text).replace(/"/g, "&quot;") + '" aria-label="복사" title="복사">' + ICON_COPY + '</button>' +
+          '</div>';
+      }).join("");
+      return '<div class="copy-candidate-group"><div class="copy-candidate-group-label">' + escapeHtml(label) + '</div>' + rows + '</div>';
+    }
+
+    btn.addEventListener("click", function () {
+      var creativeName = input.value.trim();
+      if (!creativeName) {
+        resultEl.innerHTML = '<div class="record-note err">먼저 소재명을 입력해주세요.</div>';
+        resultEl.hidden = false;
+        return;
+      }
+      btn.disabled = true;
+      var originalLabel = btn.textContent;
+      btn.textContent = "생성 중…";
+      fetch("/generate_copy", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ creative_name: creativeName }),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data.ok) {
+            resultEl.innerHTML = '<div class="record-note err">' + escapeHtml(data.error || "생성에 실패했습니다.") + '</div>';
+            resultEl.hidden = false;
+            return;
+          }
+          var summaryParts = ["제품: " + data.product_short_ko + " (" + data.product_code + ")"];
+          if (data.part_ko) summaryParts.push("부위: " + data.part_ko);
+          if (data.concern_ko) summaryParts.push("고민: " + data.concern_ko);
+          resultEl.innerHTML =
+            '<div class="copy-result-summary">' + escapeHtml(summaryParts.join(" · ")) + '</div>' +
+            renderGroup("헤드라인 후보", data.headlines) +
+            renderGroup("기본 텍스트 후보", data.primary_texts);
+          resultEl.hidden = false;
+        })
+        .catch(function () {
+          resultEl.innerHTML = '<div class="record-note err">카피 생성 요청을 보내지 못했습니다.</div>';
+          resultEl.hidden = false;
+        })
+        .finally(function () {
+          btn.disabled = false;
+          btn.textContent = originalLabel;
+        });
+    });
+
+    resultEl.addEventListener("click", function (e) {
+      var iconBtn = e.target.closest(".copy-icon-btn");
+      if (!iconBtn) return;
+      copyText(iconBtn.getAttribute("data-copy-text"), iconBtn);
+    });
+  })();
+</script>
+</body>
+</html>

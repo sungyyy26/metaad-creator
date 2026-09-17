@@ -1,0 +1,5 @@
+webapp/requests.json
+webapp/uploads.json
+__pycache__/
+*.pyc
+.env
