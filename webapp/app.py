@@ -51,8 +51,8 @@ BULK_COLUMNS = [
     "일일 예산 (필수)",
     "웹사이트 URL (필수)",
     "소재 (필수)",
-    "헤드라인 (실제 문구를 입력하거나, '소재'가 EQQUALBERRY 소재명 규칙을 따르면 '생성'이라고 입력해 자동 작성)",
-    "기본 텍스트 (실제 문구를 입력하거나, '소재'가 EQQUALBERRY 소재명 규칙을 따르면 '생성'이라고 입력해 자동 작성)",
+    "헤드라인 (실제 문구를 입력하세요 — 자동 생성이 필요하면 '카피 생성' 탭에서 만든 문구를 붙여넣어주세요)",
+    "기본 텍스트 (실제 문구를 입력하세요 — 자동 생성이 필요하면 '카피 생성' 탭에서 만든 문구를 붙여넣어주세요)",
     "시작 (비워두면 즉시; 형식 YYYY/MM/DD H(:MM)AM/PM, 예: 2026/09/08 12AM — 해당 광고 계정의 Meta 시간대 기준)",
     "종료 (비워두면 종료일 없음; 형식은 시작과 동일, 예: 2026/09/08 11:59PM)",
     "생성 후 상태 (더 이상 사용되지 않음 — 값을 적어도 무시됩니다: 광고는 항상 즉시 활성화, 새로 만들어지는 광고 세트는 항상 일시중지 상태로 생성됩니다)",
@@ -233,14 +233,14 @@ def parse_bulk_row(cols):
         raise RowError(f"예산은 숫자여야 합니다: '{daily_budget}'")
 
     headline, primary_text = get(7), get(8)
-    generated_fields = [label for label, v in (("헤드라인", headline), ("기본 텍스트", primary_text))
-                        if is_generate_placeholder(v)]
-    headline, primary_text, generation_error = _resolve_generated_copy(headline, primary_text, cols[6])
-    if generation_error:
-        raise RowError(f"'생성' 자동 카피 실패 ({', '.join(generated_fields)}): {generation_error}")
     for label, value in (("헤드라인", headline), ("기본 텍스트", primary_text)):
+        if is_generate_placeholder(value):
+            raise RowError(
+                f"{label}에 '생성'이 입력되어 있습니다 — 이 페이지는 자동 생성을 지원하지 않습니다. "
+                f"'카피 생성' 탭에서 만든 문구를 복사해 붙여넣어주세요."
+            )
         if is_blank(value):
-            raise RowError(f"{label}가 비어있습니다 — 실제 문구를 입력하거나 '생성'이라고 입력해주세요.")
+            raise RowError(f"{label}가 비어있습니다 — 실제 문구를 입력해주세요.")
 
     try:
         start_iso = parse_schedule_datetime(get(9)) if not is_blank(get(9)) else None
@@ -251,14 +251,11 @@ def parse_bulk_row(cols):
     after_raw = get(11)
     after_status = "ACTIVE" if (not is_blank(after_raw) and after_raw.strip().lower() in ("active", "활성화")) else "PAUSED"
 
-    warnings = []
-    if generated_fields:
-        warnings.append(f"{', '.join(generated_fields)} 자동 생성됨 (검수 후 게재를 권장합니다)")
+    warning = None
     extra = [v for v in cols[len(BULK_COLUMNS):] if v.strip()]
     if extra:
-        warnings.append(f"열이 {len(BULK_COLUMNS)}개보다 많이 입력되어 뒤쪽 값이 무시됨 "
-                         f"({', '.join(repr(v) for v in extra)}) — 탭이 하나 더 들어갔을 수 있어요.")
-    warning = " / ".join(warnings) or None
+        warning = (f"열이 {len(BULK_COLUMNS)}개보다 많이 입력되어 뒤쪽 값이 무시됨 "
+                   f"({', '.join(repr(v) for v in extra)}) — 탭이 하나 더 들어갔을 수 있어요.")
 
     return dict(
         campaign_id=cols[0],
@@ -448,25 +445,6 @@ def _manual_input_snapshot(form, headline, primary_text):
     }
 
 
-def _resolve_generated_copy(headline, primary_text, creative_name):
-    """If either field is the '생성' placeholder, fills it in from
-    copy_generator using creative_name (the 소재 field). Returns
-    (headline, primary_text, error) — error is None on success, or a Korean
-    message the caller should surface (leaving headline/primary_text
-    unresolved) when creative_name doesn't match a known 소재명 pattern."""
-    if not (is_generate_placeholder(headline) or is_generate_placeholder(primary_text)):
-        return headline, primary_text, None
-    try:
-        generated = copy_generator.generate(creative_name)
-    except copy_generator.CopyGenerationError as e:
-        return headline, primary_text, str(e)
-    if is_generate_placeholder(headline):
-        headline = generated["headlines"][0]
-    if is_generate_placeholder(primary_text):
-        primary_text = generated["primary_texts"][0]
-    return headline, primary_text, None
-
-
 @app.route("/generate_copy", methods=["POST"])
 def generate_copy_endpoint():
     """AJAX endpoint backing the manual-entry form's '카피 생성' button — parses
@@ -488,9 +466,6 @@ def generate_copy_endpoint():
 def submit():
     form = request.form
     headline, primary_text = form.get("headline", ""), form.get("primary_text", "")
-    headline, primary_text, generation_error = _resolve_generated_copy(
-        headline, primary_text, form.get("creative_name", "")
-    )
     entry = new_entry(
         type="setting",
         campaign=form.get("campaign_id", ""),
@@ -503,14 +478,17 @@ def submit():
     upsert(entry)
 
     token = os.environ.get("META_ACCESS_TOKEN")
+    generate_field = next((label for label, v in (("헤드라인", headline), ("기본 텍스트", primary_text))
+                           if is_generate_placeholder(v)), None)
     if not token:
         entry["status"] = "error"
         entry["error"] = "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다. 터미널에서 export/set 하고 서버를 다시 시작하세요."
         upsert(entry)
         message = {"kind": "err", "text": entry["error"]}
-    elif generation_error:
+    elif generate_field:
         entry["status"] = "error"
-        entry["error"] = f"'생성' 자동 카피 실패: {generation_error}"
+        entry["error"] = (f"{generate_field}에 '생성'이 입력되어 있습니다 — 이 페이지는 자동 생성을 지원하지 않습니다. "
+                          f"'카피 생성' 탭에서 만든 문구를 복사해 붙여넣어주세요.")
         upsert(entry)
         message = {"kind": "err", "text": entry["error"]}
     else:
