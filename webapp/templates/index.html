@@ -60,6 +60,7 @@
     --shadow: 0 2px 10px rgba(0,0,0,0.3), 0 12px 32px -16px rgba(0,0,0,0.6);
   }
   *{box-sizing:border-box;}
+  [hidden]{display:none!important;}
   body{
     margin:0;background:var(--bg);color:var(--text);
     font-family:var(--font-ui);font-size:var(--fs-base);
@@ -91,11 +92,12 @@
   .field-hint{display:block;font-size:var(--fs-xs);color:var(--text-faint);margin-top:var(--sp-1);line-height:1.5;}
   .field-hint.tight{margin-top:calc(var(--sp-2) * -1);margin-bottom:var(--sp-3);}
 
-  .tabs,.mode-toggle{display:inline-flex;background:var(--surface-3);border-radius:980px;padding:3px;margin-bottom:var(--sp-5);}
+  .tabs,.mode-toggle,.top-toggle{display:inline-flex;background:var(--surface-3);border-radius:980px;padding:3px;margin-bottom:var(--sp-5);}
   .mode-toggle{margin-bottom:0;}
-  .tab-btn,.mode-btn{border:none;background:transparent;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-muted);padding:7px 18px;border-radius:980px;cursor:pointer;transition:background .15s,color .15s;white-space:nowrap;}
-  .tab-btn.active,.mode-btn.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.08);}
-  .tab-btn:focus-visible,.mode-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .top-toggle{margin-bottom:var(--sp-6);}
+  .tab-btn,.mode-btn,.top-btn{border:none;background:transparent;font:inherit;font-size:var(--fs-sm);font-weight:600;color:var(--text-muted);padding:7px 18px;border-radius:980px;cursor:pointer;transition:background .15s,color .15s;white-space:nowrap;}
+  .tab-btn.active,.mode-btn.active,.top-btn.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.08);}
+  .tab-btn:focus-visible,.mode-btn:focus-visible,.top-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   .tab-panel[hidden]{display:none;}
 
   fieldset{border:0;margin:0 0 var(--sp-5);padding:0;}
@@ -267,7 +269,12 @@
   <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
 </button>
 <div id="app">
-  <div class="page-header">
+  <div class="top-toggle" id="top-toggle">
+    <button type="button" class="top-btn active" data-top="ads">광고 셋팅</button>
+    <button type="button" class="top-btn" data-top="shopify">쇼피파이 편집</button>
+  </div>
+
+  <div class="page-header" id="page-header-ads">
     <div class="page-header-left">
       <div class="eyebrow">Boosters · 메타 광고 · 로컬 실행</div>
       <h1>광고 에딧 데스크</h1>
@@ -508,6 +515,111 @@
     <div id="copy-gen-result" hidden></div>
   </div>
 
+  <div class="panel" id="panel-shopify" hidden>
+    <h2>쇼피파이 상품 일괄 편집</h2>
+    <p class="hint">조건에 맞는 상품을 검색해 제목·설명(HTML)·태그를 한 번에 수정합니다. 검색은 최근 수정한 상품 최대 250개까지 조회됩니다 (미디어/이미지 수정은 아직 지원하지 않습니다).</p>
+
+    <div id="sf-step1">
+      <div class="step-label">1단계 · 조건 검색</div>
+      <div class="field-row">
+        <div class="field">
+          <label>제목</label>
+          <input type="text" id="sf-title" placeholder="쉼표로 여러 값, *로 제외 (예: Amazon, *UK)">
+        </div>
+        <div class="field">
+          <label>태그</label>
+          <input type="text" id="sf-tags" placeholder="쉼표로 여러 값 (하나라도 포함), *로 제외">
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>템플릿</label>
+          <input type="text" id="sf-template" placeholder="예: landing-amazon (*로 제외 가능)">
+        </div>
+        <div class="field">
+          <label>상태</label>
+          <div class="radio-group">
+            <label><input type="checkbox" class="sf-status" value="ACTIVE"> 활성</label>
+            <label><input type="checkbox" class="sf-status" value="DRAFT"> 초안</label>
+            <label><input type="checkbox" class="sf-status" value="UNLISTED"> 미게시</label>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label>URL 핸들</label>
+        <textarea id="sf-handles" placeholder="핸들 또는 전체 URL — 줄바꿈 또는 쉼표로 여러 개"></textarea>
+      </div>
+      <div class="field-actions-right">
+        <button type="button" class="primary" id="sf-search-btn">조건 검색</button>
+      </div>
+      <div id="sf-search-summary"></div>
+      <div class="record-list" id="sf-search-list"></div>
+      <div class="field-actions-right" id="sf-to-step2-actions" hidden>
+        <button type="button" class="primary" id="sf-to-step2-btn">다음 · 수정사항 입력</button>
+      </div>
+    </div>
+
+    <div id="sf-step2" hidden>
+      <div class="step-label">2단계 · 수정사항 입력 및 선택</div>
+      <div class="field">
+        <label>제목</label>
+        <input type="text" id="sf-m-title" placeholder="입력한 상품만 변경 (비워두면 건드리지 않음, 이미 같은 값이면 자동 건너뜀)">
+      </div>
+      <div class="field">
+        <label>설명 (HTML)</label>
+        <textarea id="sf-m-description" placeholder="비워두면 건드리지 않음"></textarea>
+      </div>
+      <div class="field">
+        <label>태그</label>
+        <select id="sf-m-tagmode">
+          <option value="">변경 안 함</option>
+          <option value="add">추가</option>
+          <option value="replace">교체</option>
+          <option value="remove">삭제</option>
+        </select>
+        <div id="sf-m-tags-add" hidden>
+          <span class="field-hint">추가할 태그 (쉼표로 여러 개)</span>
+          <input type="text" id="sf-m-tags-value-add">
+        </div>
+        <div id="sf-m-tags-remove" hidden>
+          <span class="field-hint">삭제할 태그 (쉼표로 여러 개)</span>
+          <input type="text" id="sf-m-tags-value-remove">
+        </div>
+        <div id="sf-m-tags-replace" hidden>
+          <div class="field-row">
+            <div class="field">
+              <span class="field-hint">기존 태그 (쉼표로 여러 개, 또는 "전체" 입력 시 태그 전체를 교체)</span>
+              <input type="text" id="sf-m-tags-old">
+            </div>
+            <div class="field">
+              <span class="field-hint">변경할 태그 (기존 태그와 같은 개수로, 쉼표 구분)</span>
+              <input type="text" id="sf-m-tags-new">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="step-label" style="margin-top:var(--sp-5);">실제로 적용할 상품 선택 (<span id="sf-selected-count">0</span>개 선택됨)</div>
+      <div class="field-actions-right" style="justify-content:flex-start;margin-bottom:var(--sp-2);">
+        <button type="button" class="secondary" id="sf-select-all-btn">전체 선택/해제</button>
+      </div>
+      <div class="record-list" id="sf-select-list"></div>
+      <div class="field-actions-right">
+        <button type="button" class="secondary" id="sf-back-to-1-btn">이전</button>
+        <button type="button" class="primary" id="sf-preview-btn">다음 · 미리보기</button>
+      </div>
+    </div>
+
+    <div id="sf-step3" hidden>
+      <div class="step-label">3단계 · 최종 확인</div>
+      <div id="sf-preview-summary"></div>
+      <div class="record-list" id="sf-preview-list"></div>
+      <div class="field-actions-right">
+        <button type="button" class="secondary" id="sf-back-to-2-btn">이전</button>
+        <button type="button" class="primary" id="sf-apply-btn">최종 확인 · 적용 실행</button>
+      </div>
+    </div>
+  </div>
+
   <div class="panel" id="panel-setting-history">
     <div class="panel-header">
       <h2>요청 기록</h2>
@@ -605,6 +717,40 @@
     {% endif %}
   </div>
 
+  <div class="panel" id="panel-shopify-history" hidden>
+    <div class="panel-header">
+      <h2>쇼피파이 편집 기록</h2>
+      {% if shopify_items %}
+        <form method="post" action="/delete_all_requests" id="delete-all-shopify-form">
+          <input type="hidden" name="type" value="shopify">
+          <button type="submit" class="delete-all-btn">전체 삭제</button>
+        </form>
+      {% endif %}
+    </div>
+    <p class="hint">이 컴퓨터에서 적용한 쇼피파이 편집 작업들 (webapp/requests.json에 저장됨).</p>
+    {% if shopify_items %}
+    <div class="record-list" id="shopify-record-list">
+      {% for it in shopify_items %}
+      <div class="record-row">
+        <button type="button" class="delete-btn" data-delete-url="/delete/{{ it.id }}" title="기록 삭제 (실제 상품은 되돌아가지 않음)">×</button>
+        <div class="record-top">
+          <span class="pill {{ it.status }}">{{ {'done':'완료','error':'오류','incomplete':'일부 실패'}.get(it.status, it.status) }}</span>
+          <span class="record-time">{{ it.submittedAt }}</span>
+        </div>
+        {% if it.conditionsSummary %}<div class="record-campaign">{{ it.conditionsSummary }}</div>{% endif %}
+        <div class="record-result">{{ it.summary }}</div>
+        {% for r in it.results if r.overall == 'error' %}
+          <div class="record-note err"><span class="record-note-text">{{ r.title }}: {{ r.error }}</span></div>
+        {% endfor %}
+      </div>
+      {% endfor %}
+    </div>
+    <div class="pagination" id="shopify-history-pagination" hidden></div>
+    {% else %}
+      <div class="empty">아직 적용된 쇼피파이 편집 작업이 없습니다.</div>
+    {% endif %}
+  </div>
+
   {% if uploads %}
   <div class="panel">
     <h2>업로드 기록</h2>
@@ -658,6 +804,38 @@
       document.getElementById("panel-copy").hidden = mode !== "copy";
       document.getElementById("panel-setting-history").hidden = mode !== "setting";
       document.getElementById("panel-budget-history").hidden = mode !== "budget";
+    });
+  });
+
+  // 좌측 상단 상위 토글 — 광고 셋팅(광고 셋팅/예산 조정/카피 생성 하위 토글 전체) vs
+  // 쇼피파이 편집. 광고 셋팅으로 돌아오면 하위 토글에서 마지막으로 선택돼 있던
+  // 탭을 그대로 복원한다 (항상 광고 셋팅으로 리셋하지 않음).
+  document.querySelectorAll("#top-toggle .top-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll("#top-toggle .top-btn").forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      var top = btn.getAttribute("data-top");
+      var isShopify = top === "shopify";
+
+      document.getElementById("page-header-ads").hidden = isShopify;
+      document.getElementById("panel-shopify").hidden = !isShopify;
+      document.getElementById("panel-shopify-history").hidden = !isShopify;
+
+      if (isShopify) {
+        document.getElementById("panel-setting").hidden = true;
+        document.getElementById("panel-budget").hidden = true;
+        document.getElementById("panel-copy").hidden = true;
+        document.getElementById("panel-setting-history").hidden = true;
+        document.getElementById("panel-budget-history").hidden = true;
+      } else {
+        var activeSubBtn = document.querySelector(".page-header .mode-btn.active") || document.querySelector(".page-header .mode-btn");
+        var subMode = activeSubBtn ? activeSubBtn.getAttribute("data-mode") : "setting";
+        document.getElementById("panel-setting").hidden = subMode !== "setting";
+        document.getElementById("panel-budget").hidden = subMode !== "budget";
+        document.getElementById("panel-copy").hidden = subMode !== "copy";
+        document.getElementById("panel-setting-history").hidden = subMode !== "setting";
+        document.getElementById("panel-budget-history").hidden = subMode !== "budget";
+      }
     });
   });
 
@@ -730,6 +908,7 @@
 
   setupPagination("request-record-list", "request-pagination");
   setupPagination("budget-record-list", "budget-history-pagination");
+  setupPagination("shopify-record-list", "shopify-history-pagination");
 
   var deleteAllForm = document.getElementById("delete-all-form");
   if (deleteAllForm) {
@@ -1241,6 +1420,263 @@
       var iconBtn = e.target.closest(".copy-icon-btn");
       if (!iconBtn) return;
       copyText(iconBtn.getAttribute("data-copy-text"), iconBtn);
+    });
+  })();
+
+  (function () {
+    var step1 = document.getElementById("sf-step1");
+    var step2 = document.getElementById("sf-step2");
+    var step3 = document.getElementById("sf-step3");
+    if (!step1) return;
+
+    function escapeHtml(s) {
+      return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+        return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+      });
+    }
+
+    var candidates = [];        // last search result, [{id, title, handle, statusLabel, tags, template, thumbnail}]
+    var selected = new Set();   // ids currently checked in step 2
+
+    function showStep(n) {
+      step1.hidden = n !== 1;
+      step2.hidden = n !== 2;
+      step3.hidden = n !== 3;
+    }
+
+    function renderCandidateRow(p) {
+      var tagsText = (p.tags || []).join(", ") || "(태그 없음)";
+      return '<label class="record-row preview-row sf-candidate-row">' +
+        '<input type="checkbox" class="sf-candidate-check" data-id="' + escapeHtml(p.id) + '"' +
+          (selected.has(p.id) ? " checked" : "") + '>' +
+        '<div class="sf-candidate-body">' +
+          '<div class="record-main"><span class="pill done">' + escapeHtml(p.statusLabel) + '</span> ' + escapeHtml(p.title) + '</div>' +
+          '<div class="record-result mono">/' + escapeHtml(p.handle) + (p.template ? " · " + escapeHtml(p.template) : "") + '</div>' +
+          '<div class="record-result">태그: ' + escapeHtml(tagsText) + '</div>' +
+        '</div>' +
+      '</label>';
+    }
+
+    function updateSelectedCount() {
+      var el = document.getElementById("sf-selected-count");
+      if (el) el.textContent = String(selected.size);
+    }
+
+    function renderSelectList() {
+      var listEl = document.getElementById("sf-select-list");
+      listEl.innerHTML = candidates.map(renderCandidateRow).join("") ||
+        '<div class="empty">조회된 상품이 없습니다.</div>';
+      updateSelectedCount();
+    }
+
+    document.getElementById("sf-select-list").addEventListener("change", function (e) {
+      var check = e.target.closest(".sf-candidate-check");
+      if (!check) return;
+      var id = check.getAttribute("data-id");
+      if (check.checked) selected.add(id); else selected.delete(id);
+      updateSelectedCount();
+    });
+
+    document.getElementById("sf-select-all-btn").addEventListener("click", function () {
+      if (selected.size === candidates.length) {
+        selected.clear();
+      } else {
+        candidates.forEach(function (p) { selected.add(p.id); });
+      }
+      renderSelectList();
+    });
+
+    // --- Step 1: 조건 검색 ---
+    var searchBtn = document.getElementById("sf-search-btn");
+    var summaryEl = document.getElementById("sf-search-summary");
+    var searchListEl = document.getElementById("sf-search-list");
+    var toStep2Actions = document.getElementById("sf-to-step2-actions");
+
+    searchBtn.addEventListener("click", function () {
+      var statuses = Array.prototype.filter.call(document.querySelectorAll(".sf-status"), function (c) { return c.checked; })
+        .map(function (c) { return c.value; });
+      var body = {
+        title: document.getElementById("sf-title").value,
+        tags: document.getElementById("sf-tags").value,
+        template: document.getElementById("sf-template").value,
+        handles: document.getElementById("sf-handles").value,
+        statuses: statuses,
+      };
+      searchBtn.disabled = true;
+      var originalLabel = searchBtn.textContent;
+      searchBtn.textContent = "검색 중…";
+      fetch("/shopify_search", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data.ok) {
+            summaryEl.innerHTML = '<div class="record-note err">' + escapeHtml(data.error || "조회에 실패했습니다.") + '</div>';
+            searchListEl.innerHTML = "";
+            toStep2Actions.hidden = true;
+            candidates = [];
+            return;
+          }
+          candidates = data.products;
+          selected = new Set(candidates.map(function (p) { return p.id; })); // 기본 전체 선택
+          summaryEl.innerHTML = '<div class="bulk-preview-summary">' + data.count + '건 조회됨</div>';
+          searchListEl.innerHTML = candidates.map(renderCandidateRow).join("") ||
+            '<div class="empty">조건에 맞는 상품이 없습니다.</div>';
+          toStep2Actions.hidden = candidates.length === 0;
+        })
+        .catch(function () {
+          summaryEl.innerHTML = '<div class="record-note err">조회 중 오류가 발생했습니다.</div>';
+        })
+        .finally(function () {
+          searchBtn.disabled = false;
+          searchBtn.textContent = originalLabel;
+        });
+    });
+
+    document.getElementById("sf-to-step2-btn").addEventListener("click", function () {
+      renderSelectList();
+      showStep(2);
+    });
+
+    // --- Step 2: 수정사항 입력 및 선택 ---
+    var tagModeSelect = document.getElementById("sf-m-tagmode");
+    tagModeSelect.addEventListener("change", function () {
+      var mode = tagModeSelect.value;
+      document.getElementById("sf-m-tags-add").hidden = mode !== "add";
+      document.getElementById("sf-m-tags-remove").hidden = mode !== "remove";
+      document.getElementById("sf-m-tags-replace").hidden = mode !== "replace";
+    });
+
+    document.getElementById("sf-back-to-1-btn").addEventListener("click", function () { showStep(1); });
+
+    function collectModifications() {
+      var mods = {
+        title: document.getElementById("sf-m-title").value,
+        description: document.getElementById("sf-m-description").value,
+        tagMode: tagModeSelect.value,
+      };
+      if (mods.tagMode === "add") mods.tagsValue = document.getElementById("sf-m-tags-value-add").value;
+      if (mods.tagMode === "remove") mods.tagsValue = document.getElementById("sf-m-tags-value-remove").value;
+      if (mods.tagMode === "replace") {
+        mods.tagsOld = document.getElementById("sf-m-tags-old").value;
+        mods.tagsNew = document.getElementById("sf-m-tags-new").value;
+      }
+      return mods;
+    }
+
+    function conditionsSummary() {
+      var parts = [];
+      var title = document.getElementById("sf-title").value.trim();
+      var tags = document.getElementById("sf-tags").value.trim();
+      var template = document.getElementById("sf-template").value.trim();
+      if (title) parts.push("제목: " + title);
+      if (tags) parts.push("태그: " + tags);
+      if (template) parts.push("템플릿: " + template);
+      return parts.join(" · ") || "조건 없음";
+    }
+
+    function renderPreviewRow(r) {
+      var badge = r.overall === "apply" ? '<span class="pill done">적용</span>'
+        : r.overall === "error" ? '<span class="pill error">오류</span>'
+        : '<span class="pill incomplete">건너뜀</span>';
+      var lines = (r.parts || []).map(function (p) {
+        return '<div class="record-result">' + escapeHtml(p.field) + ': ' + escapeHtml(p.reason) + '</div>';
+      }).join("");
+      var detailLines = "";
+      if (r.detail) {
+        Object.keys(r.detail).forEach(function (field) {
+          var d = r.detail[field];
+          var before = Array.isArray(d.before) ? d.before.join(", ") : d.before;
+          var after = Array.isArray(d.after) ? d.after.join(", ") : d.after;
+          detailLines += '<div class="record-result mono">' + escapeHtml(field) + ': ' + escapeHtml(before) + ' → ' + escapeHtml(after) + '</div>';
+        });
+      }
+      var errLine = r.error ? '<div class="record-note err"><span class="record-note-text">' + escapeHtml(r.error) + '</span></div>' : "";
+      return '<div class="record-row preview-row">' +
+        '<div class="record-main">' + badge + ' ' + escapeHtml(r.title) + '</div>' +
+        '<div class="record-result mono">/' + escapeHtml(r.handle) + '</div>' +
+        lines + detailLines + errLine +
+      '</div>';
+    }
+
+    var previewListEl = document.getElementById("sf-preview-list");
+    var previewSummaryEl = document.getElementById("sf-preview-summary");
+    var lastMods = null;
+    var lastConditionsSummary = "";
+
+    document.getElementById("sf-preview-btn").addEventListener("click", function () {
+      var ids = Array.from(selected);
+      if (!ids.length) {
+        alert("적용할 상품을 1개 이상 선택해주세요.");
+        return;
+      }
+      lastMods = collectModifications();
+      lastConditionsSummary = conditionsSummary();
+      var btn = this;
+      btn.disabled = true;
+      var originalLabel = btn.textContent;
+      btn.textContent = "계산 중…";
+      fetch("/shopify_preview", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product_ids: ids, modifications: lastMods }),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data.ok) {
+            previewSummaryEl.innerHTML = '<div class="record-note err">' + escapeHtml(data.error || "미리보기에 실패했습니다.") + '</div>';
+            previewListEl.innerHTML = "";
+            showStep(3);
+            return;
+          }
+          var applyCount = data.results.filter(function (r) { return r.overall === "apply"; }).length;
+          var skipCount = data.results.filter(function (r) { return r.overall === "skip"; }).length;
+          var errCount = data.results.filter(function (r) { return r.overall === "error"; }).length;
+          previewSummaryEl.innerHTML = '<div class="bulk-preview-summary">적용 ' + applyCount + '건 · 건너뜀 ' + skipCount + '건 · 오류 ' + errCount + '건 (총 ' + data.results.length + '건)</div>';
+          previewListEl.innerHTML = data.results.map(renderPreviewRow).join("");
+          showStep(3);
+        })
+        .catch(function () {
+          previewSummaryEl.innerHTML = '<div class="record-note err">미리보기 중 오류가 발생했습니다.</div>';
+          previewListEl.innerHTML = "";
+          showStep(3);
+        })
+        .finally(function () {
+          btn.disabled = false;
+          btn.textContent = originalLabel;
+        });
+    });
+
+    // --- Step 3: 최종 확인 · 적용 ---
+    document.getElementById("sf-back-to-2-btn").addEventListener("click", function () { showStep(2); });
+
+    document.getElementById("sf-apply-btn").addEventListener("click", function () {
+      if (!confirm("실제 스토어에 지금 바로 반영됩니다. 되돌릴 수 없습니다 — 계속할까요?")) return;
+      var ids = Array.from(selected);
+      var btn = this;
+      btn.disabled = true;
+      var originalLabel = btn.textContent;
+      btn.textContent = "적용 중…";
+      fetch("/shopify_apply", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product_ids: ids, modifications: lastMods, conditions_summary: lastConditionsSummary }),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data.ok) {
+            alert(data.error || "적용에 실패했습니다.");
+            return;
+          }
+          previewSummaryEl.innerHTML = '<div class="bulk-preview-summary">적용 완료 — 적용 ' + data.applied + '건 · 건너뜀 ' + data.skipped + '건 · 오류 ' + data.errored + '건 (새로고침하면 아래 "쇼피파이 편집 기록"에서도 확인할 수 있습니다)</div>';
+          previewListEl.innerHTML = data.results.map(renderPreviewRow).join("");
+          alert("적용 완료 — 적용 " + data.applied + "건 · 건너뜀 " + data.skipped + "건 · 오류 " + data.errored + "건");
+        })
+        .catch(function () {
+          alert("적용 중 오류가 발생했습니다.");
+        })
+        .finally(function () {
+          btn.disabled = false;
+          btn.textContent = originalLabel;
+        });
     });
   })();
 </script>

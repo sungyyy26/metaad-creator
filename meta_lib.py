@@ -189,7 +189,7 @@ def find_creative_asset(token, account_id, name_query, cache=None):
         library = []
         for endpoint in ("advideos", "adimages"):
             data = api("GET", f"act_{account_id}/{endpoint}", token,
-                       fields="id,name,hash" if endpoint == "adimages" else "id,title",
+                       fields="id,name,hash" if endpoint == "adimages" else "id,title,picture",
                        limit=100)
             library.extend((endpoint, item) for item in data.get("data", []))
         return library
@@ -268,17 +268,28 @@ def duplicate_ad(token, *, campaign_id, candidate_account_ids, source_adset_name
 
     endpoint, asset = find_creative_asset(token, account_id, creative_name, cache=cache)
 
-    link_data = {
-        "link": website_url,
-        "message": primary_text,
-        "name": headline,
-        "call_to_action": json.dumps({"type": cta_type, "value": {"link": website_url}}),
-    }
+    call_to_action = json.dumps({"type": cta_type, "value": {"link": website_url}})
     if endpoint == "advideos":
-        link_data["video_id"] = asset["id"]
+        # Video ads use a distinct `video_data` object instead of `link_data` —
+        # Meta rejects `video_id` inside `link_data` (error_subcode 1443050).
+        video_data = {
+            "video_id": asset["id"],
+            "title": headline,
+            "message": primary_text,
+            "call_to_action": call_to_action,
+        }
+        if asset.get("picture"):
+            video_data["image_url"] = asset["picture"]
+        new_story_spec = {"page_id": page_id, "video_data": video_data}
     else:
-        link_data["image_hash"] = asset["hash"]
-    new_story_spec = {"page_id": page_id, "link_data": link_data}
+        link_data = {
+            "link": website_url,
+            "message": primary_text,
+            "name": headline,
+            "image_hash": asset["hash"],
+            "call_to_action": call_to_action,
+        }
+        new_story_spec = {"page_id": page_id, "link_data": link_data}
     creative = api("POST", f"act_{account_id}/adcreatives", token,
                    name=f"{new_ad_name} - creative",
                    object_story_spec=json.dumps(new_story_spec))

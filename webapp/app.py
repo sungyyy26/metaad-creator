@@ -410,16 +410,18 @@ def run_shopify_bridge(entry, *, new_ad_name, source_handle, title_override=None
 @app.route("/")
 def index():
     all_items = list(reversed(load_requests()))
-    # 광고 셋팅 요청과 예산 조정 요청은 각자의 탭(모드)에서만 보이도록 분리해서
-    # 넘긴다 — 같은 requests.json에 함께 저장되지만 화면에는 따로 뜬다.
+    # 광고 셋팅 / 예산 조정 / 쇼피파이 편집 요청은 각자의 탭(모드)에서만 보이도록
+    # 분리해서 넘긴다 — 같은 requests.json에 함께 저장되지만 화면에는 따로 뜬다.
     setting_items = [it for it in all_items if (it.get("type") or "setting") == "setting"]
     budget_items = [it for it in all_items if it.get("type") == "budget"]
+    shopify_items = [it for it in all_items if it.get("type") == "shopify"]
     uploads = list(reversed(load_uploads()))
     message = session.pop("flash_message", None)
 
     return render_template("index.html", accounts=ACCOUNTS, setting_items=setting_items,
-                            budget_items=budget_items, uploads=uploads,
-                            message=message, bulk_columns=BULK_COLUMNS)
+                            budget_items=budget_items, shopify_items=shopify_items, uploads=uploads,
+                            message=message, bulk_columns=BULK_COLUMNS,
+                            shopify_status_labels=shopify_lib.STATUS_LABELS)
 
 
 def _manual_input_snapshot(form, headline, primary_text):
@@ -729,7 +731,7 @@ def delete_all_requests():
     if entry_type:
         remaining = [it for it in load_requests() if (it.get("type") or "setting") != entry_type]
         _save_json_list(DB_PATH, remaining)
-        label = "예산 조정" if entry_type == "budget" else "광고 셋팅"
+        label = {"budget": "예산 조정", "shopify": "쇼피파이 편집"}.get(entry_type, "광고 셋팅")
         session["flash_message"] = {"kind": "ok", "text": f"{label} 요청 기록을 모두 삭제했습니다."}
     else:
         _save_json_list(DB_PATH, [])
@@ -968,6 +970,122 @@ def apply_budget_changes():
     upsert(entry)
 
     return {"ok": True, "results": results}
+
+
+def _shopify_env():
+    return os.environ.get("SHOPIFY_SHOP"), os.environ.get("SHOPIFY_ACCESS_TOKEN")
+
+
+@app.route("/shopify_search", methods=["POST"])
+def shopify_search():
+    """1단계 조건 검색 — 조회만 하고 아무것도 바꾸지 않는다."""
+    shop, token = _shopify_env()
+    if not shop or not token:
+        return {"ok": False, "error": "SHOPIFY_SHOP / SHOPIFY_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."}, 400
+
+    payload = request.get_json(silent=True) or {}
+    conditions = {
+        "title": payload.get("title", ""),
+        "tags": payload.get("tags", ""),
+        "template": payload.get("template", ""),
+        "statuses": payload.get("statuses") or [],
+        "handles": [h.strip() for h in re.split(r"[,\n]", payload.get("handles", "")) if h.strip()],
+    }
+    if not any(conditions.values()):
+        return {"ok": False, "error": "조건을 하나 이상 입력해주세요."}, 400
+
+    try:
+        products = shopify_lib.search_products(shop, token, conditions)
+    except shopify_lib.ShopifyApiError as e:
+        return {"ok": False, "error": str(e)}, 400
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"예상치 못한 오류: {e}"}, 400
+
+    return {
+        "ok": True,
+        "count": len(products),
+        "products": [
+            {
+                "id": p["id"], "title": p["title"], "handle": p["handle"], "status": p["status"],
+                "statusLabel": shopify_lib.STATUS_LABELS.get(p["status"], p["status"]),
+                "tags": p.get("tags") or [], "template": p.get("templateSuffix") or "",
+                "thumbnail": (p.get("featuredImage") or {}).get("url"),
+            }
+            for p in products
+        ],
+    }
+
+
+@app.route("/shopify_preview", methods=["POST"])
+def shopify_preview():
+    """3단계 최종 확인 — 실제 API 상태를 다시 읽어 무엇이 적용/건너뜀/오류가
+    될지 계산만 하고, 아무것도 쓰지 않는다."""
+    shop, token = _shopify_env()
+    if not shop or not token:
+        return {"ok": False, "error": "SHOPIFY_SHOP / SHOPIFY_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."}, 400
+
+    payload = request.get_json(silent=True) or {}
+    ids = payload.get("product_ids") or []
+    mods = payload.get("modifications") or {}
+    if not ids:
+        return {"ok": False, "error": "선택된 상품이 없습니다."}, 400
+
+    try:
+        products = shopify_lib.fetch_products_by_ids(shop, token, ids)
+    except shopify_lib.ShopifyApiError as e:
+        return {"ok": False, "error": str(e)}, 400
+
+    results = []
+    for p in products:
+        plan = shopify_lib.evaluate_modifications(p, mods)
+        results.append({"id": p["id"], "title": p["title"], "handle": p["handle"], **plan})
+    return {"ok": True, "results": results}
+
+
+@app.route("/shopify_apply", methods=["POST"])
+def shopify_apply():
+    """실제로 스토어에 반영한다 — 반드시 /shopify_preview로 미리 확인한 뒤,
+    사용자가 "최종 확인 · 적용 실행"을 눌렀을 때만 호출된다."""
+    shop, token = _shopify_env()
+    if not shop or not token:
+        return {"ok": False, "error": "SHOPIFY_SHOP / SHOPIFY_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."}, 400
+
+    payload = request.get_json(silent=True) or {}
+    ids = payload.get("product_ids") or []
+    mods = payload.get("modifications") or {}
+    conditions_summary = payload.get("conditions_summary") or ""
+    if not ids:
+        return {"ok": False, "error": "선택된 상품이 없습니다."}, 400
+
+    try:
+        products = shopify_lib.fetch_products_by_ids(shop, token, ids)
+    except shopify_lib.ShopifyApiError as e:
+        return {"ok": False, "error": str(e)}, 400
+
+    results = []
+    for p in products:
+        try:
+            plan = shopify_lib.apply_modifications(shop, token, p, mods)
+        except shopify_lib.ShopifyApiError as e:
+            plan = {"overall": "error", "error": str(e), "parts": [], "detail": {}}
+        except Exception as e:  # noqa: BLE001
+            plan = {"overall": "error", "error": f"예상치 못한 오류: {e}", "parts": [], "detail": {}}
+        results.append({"id": p["id"], "title": p["title"], "handle": p["handle"], **plan})
+
+    applied = sum(1 for r in results if r["overall"] == "apply")
+    skipped = sum(1 for r in results if r["overall"] == "skip")
+    errored = sum(1 for r in results if r["overall"] == "error")
+    overall_status = "error" if errored and applied == 0 else ("incomplete" if errored else "done")
+
+    entry = new_entry(
+        type="shopify", status=overall_status,
+        conditionsSummary=conditions_summary,
+        summary=f"적용 {applied}건 · 건너뜀 {skipped}건 · 오류 {errored}건 (총 {len(results)}건)",
+        results=results,
+    )
+    upsert(entry)
+
+    return {"ok": True, "results": results, "applied": applied, "skipped": skipped, "errored": errored}
 
 
 if __name__ == "__main__":
