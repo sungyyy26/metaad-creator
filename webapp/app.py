@@ -816,40 +816,69 @@ def delete_all_requests():
 
 @app.route("/upload_creative", methods=["POST"])
 def upload_creative():
-    """Uploads a local video/image file straight into a Meta ad account's
-    creative library — no public hosting needed, since this runs on your own
-    machine and can send the file's bytes directly."""
-    file = request.files.get("creative_file")
+    """Uploads one or more local video/image files to a Meta ad account.
+
+    Each file is handled independently so one failed upload does not prevent
+    the remaining selected files from being attempted.  Keep accepting the
+    old singular field name for bookmarks or older cached copies of the UI.
+    """
+    files = [file for file in request.files.getlist("creative_files")
+             if file and file.filename]
+    if not files:
+        files = [file for file in request.files.getlist("creative_file")
+                 if file and file.filename]
     account_id = request.form.get("upload_account_id", "")
-    entry = new_entry(filename=(file.filename if file else ""), accountId=account_id)
-    upsert_upload(entry)
-
     token = os.environ.get("META_ACCESS_TOKEN")
-    if not file or not file.filename:
-        entry["status"] = "error"
-        entry["error"] = "업로드할 파일을 선택해주세요."
-    elif not account_id:
-        entry["status"] = "error"
-        entry["error"] = "업로드할 광고 계정을 선택해주세요."
-    elif not token:
-        entry["status"] = "error"
-        entry["error"] = "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."
-    else:
-        try:
-            result = meta_lib.upload_creative(token, account_id, file.filename, file.stream)
-            entry["status"] = "done"
-            entry["result"] = result
-        except meta_lib.MetaApiError as e:
-            entry["status"] = "error"
-            entry["error"] = str(e)
-        except Exception as e:  # noqa: BLE001
-            entry["status"] = "error"
-            entry["error"] = f"예상치 못한 오류: {e}"
-    upsert_upload(entry)
 
-    message = ({"kind": "ok", "text": f"업로드 완료: {entry['result']['kind']} — {entry['result']['asset_id']}"}
-               if entry["status"] == "done"
-               else {"kind": "err", "text": entry.get("error", "알 수 없는 오류")})
+    if not files:
+        session["flash_message"] = {"kind": "err", "text": "업로드할 파일을 선택해주세요."}
+        return redirect("/")
+
+    entries = []
+    for file in files:
+        entry = new_entry(filename=file.filename, accountId=account_id)
+        upsert_upload(entry)
+
+        if not account_id:
+            entry["status"] = "error"
+            entry["error"] = "업로드할 광고 계정을 선택해주세요."
+        elif not token:
+            entry["status"] = "error"
+            entry["error"] = "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."
+        else:
+            try:
+                result = meta_lib.upload_creative(
+                    token, account_id, file.filename, file.stream
+                )
+                entry["status"] = "done"
+                entry["result"] = result
+            except meta_lib.MetaApiError as e:
+                entry["status"] = "error"
+                entry["error"] = str(e)
+            except Exception as e:  # noqa: BLE001
+                entry["status"] = "error"
+                entry["error"] = f"예상치 못한 오류: {e}"
+
+        upsert_upload(entry)
+        entries.append(entry)
+
+    completed = [entry for entry in entries if entry["status"] == "done"]
+    failed = [entry for entry in entries if entry["status"] == "error"]
+    if not failed:
+        message = {
+            "kind": "ok",
+            "text": f"{len(completed)}개 파일 업로드를 완료했습니다.",
+        }
+    else:
+        message = {
+            "kind": "err",
+            "text": f"업로드 결과: 성공 {len(completed)}개 · 실패 {len(failed)}개",
+            "details": [
+                f"{entry['filename']}: {entry.get('error', '알 수 없는 오류')}"
+                for entry in failed
+            ],
+        }
+
     session["flash_message"] = message
     return redirect("/")
 
