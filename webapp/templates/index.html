@@ -100,7 +100,7 @@
   .field-hint{display:block;font-size:var(--fs-xs);color:var(--text-faint);margin-top:var(--sp-1);line-height:1.5;}
   .field-hint.tight{margin-top:calc(var(--sp-2) * -1);margin-bottom:var(--sp-3);}
 
-  .top-toggle{display:inline-flex;background:var(--surface-3);border-radius:980px;padding:3px;margin-bottom:var(--sp-3);}
+  .top-toggle{display:inline-flex;background:var(--surface-3);border-radius:980px;padding:3px;margin-bottom:28px;}
   .top-btn{border:none;background:transparent;font-family:var(--font-heading);font-size:var(--fs-sm);font-weight:600;color:var(--text-muted);padding:7px 18px;border-radius:980px;cursor:pointer;transition:background .15s,color .15s;white-space:nowrap;}
   .top-btn.active{background:var(--surface);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,0.08);}
   .top-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
@@ -251,10 +251,25 @@
   .bulk-copy-editor label{display:block;font-family:var(--font-heading);font-size:var(--fs-xs);font-weight:700;color:var(--text-faint);margin-bottom:5px;}
   .bulk-copy-editor input,.bulk-copy-editor textarea{font-size:var(--fs-sm);background:var(--surface-2);}
   .bulk-copy-editor textarea{min-height:130px;white-space:pre-wrap;}
-  .budget-table-wrap{overflow:auto;margin-top:var(--sp-3);border:1px solid var(--border);border-radius:var(--radius-md);}
-  .budget-table{width:100%;min-width:1180px;border-collapse:collapse;font-size:var(--fs-xs);}
+  .budget-table-view{position:relative;margin-top:var(--sp-3);}
+  .budget-table-view:fullscreen{background:var(--bg);padding:22px;display:flex;flex-direction:column;}
+  .budget-table-view:fullscreen .budget-table-wrap{flex:1;max-height:none;}
+  .budget-result-tools{display:flex;justify-content:flex-end;align-items:center;gap:7px;margin-bottom:8px;position:relative;}
+  .budget-tool-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:30px;padding:0 10px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);color:var(--text-muted);font:600 var(--fs-xs) var(--font-heading);cursor:pointer;}
+  .budget-tool-btn.icon-only{width:30px;padding:0;}
+  .budget-tool-btn svg{width:14px;height:14px;}
+  .budget-column-menu{position:absolute;right:37px;top:36px;z-index:8;width:190px;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow);}
+  .budget-column-menu label{display:flex;align-items:center;gap:8px;padding:5px 3px;font-size:var(--fs-xs);cursor:pointer;}
+  .budget-column-menu input{accent-color:var(--accent);}
+  .budget-table-wrap{overflow:auto;border:1px solid var(--border);border-radius:var(--radius-md);max-height:68vh;}
+  .budget-table{width:max-content;min-width:100%;border-collapse:collapse;font-size:var(--fs-xs);}
   .budget-table th,.budget-table td{padding:10px 9px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top;}
-  .budget-table th{position:sticky;top:0;background:var(--surface-2);font-family:var(--font-heading);font-weight:700;white-space:nowrap;z-index:1;}
+  .budget-table th{position:sticky;top:0;background:var(--surface-2);font-family:var(--font-heading);font-weight:700;white-space:nowrap;z-index:1;resize:horizontal;overflow:hidden;min-width:72px;max-width:520px;}
+  .budget-table th[data-col="name"]{min-width:260px;}
+  .budget-table th[data-col="note"]{min-width:300px;}
+  .budget-col-resizer{position:absolute;right:0;top:0;width:7px;height:100%;cursor:col-resize;border-right:2px solid transparent;user-select:none;}
+  .budget-table th:hover .budget-col-resizer{border-right-color:var(--accent);}
+  .budget-table .col-hidden{display:none;}
   .budget-table tr:last-child td{border-bottom:0;}
   .budget-table tr[data-bucket="신규"]{border-left:3px solid var(--accent);}
   .budget-table tr[data-bucket="기존"]{border-left:3px solid #8e8e93;}
@@ -480,6 +495,19 @@
       <text x="181" y="61" font-size="30" font-weight="700" text-anchor="middle" fill="currentColor">B</text>
     </svg>
   </div>
+  <div class="page-header" id="page-header-budget" hidden>
+    <div class="page-header-left">
+      <p class="eyebrow">EQB · Meta Ads Ops</p>
+      <h1>메타 예산 조정</h1>
+      <p class="subtitle">활성 광고세트를 조회하고 PDT 기준 Meta CPA·CPM과 Amazon Attribution D.ROAS를 분석해 희망 총예산을 재배분합니다. 변경 예산을 검토·수정한 뒤 적용할 수 있습니다.</p>
+    </div>
+    <svg class="page-logo" viewBox="0 0 220 100" width="56" height="25" aria-label="EQB">
+      <rect x="4" y="10" width="140" height="80" rx="40" fill="none" stroke="currentColor" stroke-width="7"/>
+      <rect x="76" y="10" width="140" height="80" rx="40" fill="none" stroke="currentColor" stroke-width="7"/>
+      <text x="44" y="61" font-size="30" font-weight="700" text-anchor="middle" fill="currentColor">EQ</text>
+      <text x="181" y="61" font-size="30" font-weight="700" text-anchor="middle" fill="currentColor">B</text>
+    </svg>
+  </div>
   {% if message %}
     <div class="banner {{ message.kind }}" id="flash-banner">
       <button type="button" class="banner-close" id="flash-banner-close" aria-label="닫기">×</button>
@@ -499,7 +527,7 @@
     </div>
 
     <div class="tab-panel" id="tab-manual" hidden>
-      <h2>새 광고 요청</h2>
+      <h2>새 광고 생성 요청 [개]</h2>
       <p class="hint">달라지는 부분만 입력하세요 — 나머지는 복제할 광고 세트에서 그대로 가져옵니다.</p>
       <form method="post" action="/submit">
         <fieldset>
@@ -602,7 +630,7 @@
     </div>
 
     <div class="tab-panel" id="tab-bulk">
-      <h2>대량 업로드</h2>
+      <h2>새 광고 생성 요청 [대량]</h2>
       <p class="hint">스프레드시트에서 복사한 행을 붙여넣으세요 — 광고 1건당 한 줄, 열은 Tab으로 구분, 아래 순서 그대로.</p>
       <p class="field-hint tight">칸 안에 공백이나 줄바꿈이 있어도 괜찮습니다 — 엑셀·구글시트에서 셀을 그대로 복사해 붙여넣으면 헤드라인·기본 텍스트·Shopify 제목의 여러 줄 문구까지 정확히 인식됩니다. "행 미리보기"로 실제로 어떻게 읽혔는지 확인해보세요.</p>
       <details class="columns">
@@ -655,8 +683,12 @@
       </form>
     </div>
     <div class="tab-panel" id="tab-copy" hidden>
-      <h2>소재 카피 생성기</h2>
+      <div class="panel-header">
+        <h2>소재 카피 생성기</h2>
+        <button type="button" class="budget-tool-btn" id="copy-refresh-btn">REFRESH</button>
+      </div>
       <p class="hint">소재명을 입력하면 제품·부위·고민 코드를 해석해 매번 다른 순서의 헤드라인·기본 텍스트 후보를 만듭니다.</p>
+      <div id="copy-refresh-result" hidden></div>
       <div class="field"><label>소재명</label><input type="text" id="copy_creative_name_input" placeholder="예: n-srm_ao_da_ig_fface-wrnk-timerewind_ksh_20260916-1"></div>
       <div class="field-actions-right"><button type="button" class="primary" id="copy-generate-btn">카피 생성</button></div>
       <div id="copy-gen-result" hidden></div>
@@ -674,7 +706,7 @@
     <p class="hint">캠페인 조회값을 포함하는 활성 광고세트를 분석하고, CPA·D.ROAS 기준으로 희망 총예산을 재배분합니다.</p>
     <div class="step-label">1단계 · 조회 조건</div>
     <div class="field-row">
-      <div class="field"><label>캠페인 조회 *</label><input type="text" id="budget_campaign_query" placeholder="입력값을 포함하는 캠페인 전체 조회"></div>
+      <div class="field"><label>캠페인 조회 *</label><input type="text" id="budget_campaign_query" placeholder="예: amazon, v-srm, *UK"><span class="field-hint">쉼표 조건은 모두 포함(AND)하며, 앞에 *를 붙인 값은 제외합니다. 대소문자는 구분하지 않습니다.</span></div>
       <div class="field"><label>희망 총예산 (USD) *</label><div class="budget-wrap"><span class="prefix">$</span><input type="number" id="budget_desired_total" min="1" step="1" placeholder="예: 10000"></div></div>
     </div>
     <div class="field">
@@ -684,7 +716,7 @@
         <input type="file" id="droas_file_input" accept=".xlsx,.xlsm,.csv" class="file-input-hidden">
         <span class="file-input-name" id="droas_file_name">선택된 파일 없음</span>
       </div>
-      <span class="field-hint">필수 컬럼: 날짜, 어트리뷰션명, AMZ Sales. 어트리뷰션명은 Meta 광고명과 매칭하며, 광고비는 Meta API에서 같은 기간으로 조회합니다.</span>
+      <span class="field-hint">필수 컬럼: 날짜, 광고명(어트리뷰션명), amz.sales. 첨부 예시처럼 다른 컬럼이 함께 있어도 됩니다. 광고비는 Meta API에서 동일 광고·동일 PDT 기간으로 조회합니다.</span>
     </div>
     <div class="field-actions-right">
       <button type="button" class="primary" id="budget-lookup-btn">조회</button>
@@ -693,7 +725,26 @@
       <div class="step-label">2단계 · 결과 확인 및 반영</div>
       <div class="bulk-preview-summary" id="budget-results-summary"></div>
       <div id="budget-summary-cards" class="budget-summary-grid"></div>
-      <div class="budget-table-wrap"><table class="budget-table"><thead><tr><th>구분</th><th>유형</th><th>소재명</th><th>운영 일수</th><th>D.ROAS (7일)</th><th>CPA (3일)</th><th>CPM (3일)</th><th>현재 예산</th><th>변경 예산</th><th>분류</th><th>비고</th></tr></thead><tbody id="budget-results-list"></tbody></table></div>
+      <div class="budget-table-view" id="budget-table-view">
+        <div class="budget-result-tools">
+          <button type="button" class="budget-tool-btn" id="budget-columns-btn" aria-expanded="false">컬럼</button>
+          <button type="button" class="budget-tool-btn icon-only" id="budget-fullscreen-btn" aria-label="테이블 크게 보기" title="테이블 크게 보기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg></button>
+          <div class="budget-column-menu" id="budget-column-menu" hidden>
+            <label><input type="checkbox" data-budget-column="bucket" checked>구분</label>
+            <label><input type="checkbox" data-budget-column="type" checked>유형</label>
+            <label><input type="checkbox" data-budget-column="name" checked>소재명</label>
+            <label><input type="checkbox" data-budget-column="days" checked>운영 일수</label>
+            <label><input type="checkbox" data-budget-column="droas" checked>D.ROAS</label>
+            <label><input type="checkbox" data-budget-column="cpa" checked>CPA</label>
+            <label><input type="checkbox" data-budget-column="cpm" checked>CPM</label>
+            <label><input type="checkbox" data-budget-column="current" checked>현재 예산</label>
+            <label><input type="checkbox" data-budget-column="suggested" checked>변경 예산</label>
+            <label><input type="checkbox" data-budget-column="class" checked>분류</label>
+            <label><input type="checkbox" data-budget-column="note" checked>비고</label>
+          </div>
+        </div>
+        <div class="budget-table-wrap"><table class="budget-table"><thead><tr><th data-col="bucket">구분</th><th data-col="type">유형</th><th data-col="name">소재명</th><th data-col="days">운영 일수</th><th data-col="droas">D.ROAS (D-7)</th><th data-col="cpa">CPA (D-3)</th><th data-col="cpm">CPM (D-3)</th><th data-col="current">현재 예산</th><th data-col="suggested">변경 예산</th><th data-col="class">분류</th><th data-col="note">비고</th></tr></thead><tbody id="budget-results-list"></tbody></table></div>
+      </div>
       <div class="field-actions-right" id="budget-apply-actions" hidden>
         <button type="button" class="primary" id="budget-apply-btn">적용</button>
       </div>
@@ -1041,7 +1092,8 @@
       document.querySelectorAll("#top-toggle .top-btn").forEach(function (b) { b.classList.remove("active"); });
       btn.classList.add("active");
       var top = btn.getAttribute("data-top");
-      document.getElementById("page-header-ads").hidden = top === "shopify";
+      document.getElementById("page-header-ads").hidden = top !== "ads";
+      document.getElementById("page-header-budget").hidden = top !== "budget";
       document.getElementById("panel-shopify").hidden = top !== "shopify";
       document.getElementById("panel-setting").hidden = top !== "ads";
       document.getElementById("panel-budget").hidden = top !== "budget";
@@ -1204,7 +1256,34 @@
     var cards = document.getElementById("budget-summary-cards");
     var tbody = document.getElementById("budget-results-list");
     var applyActions = document.getElementById("budget-apply-actions");
+    var tableView = document.getElementById("budget-table-view");
+    var columnsBtn = document.getElementById("budget-columns-btn");
+    var columnMenu = document.getElementById("budget-column-menu");
+    var fullscreenBtn = document.getElementById("budget-fullscreen-btn");
     var currentRows = [];
+
+    document.querySelectorAll(".budget-table th[data-col]").forEach(function (th) {
+      var handle = document.createElement("span");
+      handle.className = "budget-col-resizer";
+      handle.addEventListener("mousedown", function (event) {
+        event.preventDefault();
+        var startX = event.clientX;
+        var startWidth = th.getBoundingClientRect().width;
+        function move(moveEvent) {
+          var width = Math.max(72, startWidth + moveEvent.clientX - startX);
+          th.style.width = width + "px";
+          th.style.minWidth = width + "px";
+          th.style.maxWidth = width + "px";
+        }
+        function stop() {
+          document.removeEventListener("mousemove", move);
+          document.removeEventListener("mouseup", stop);
+        }
+        document.addEventListener("mousemove", move);
+        document.addEventListener("mouseup", stop);
+      });
+      th.appendChild(handle);
+    });
 
     function esc(value) {
       return String(value == null ? "" : value).replace(/[&<>"']/g, function (c) {
@@ -1231,14 +1310,41 @@
       var note = [row.reason, row.note].filter(Boolean).join(" / ");
       var flag = row.classification ? '<span class="budget-flag">' + esc(row.classification) + '</span>' : '-';
       return '<tr data-bucket="' + esc(row.bucket) + '">' +
-        '<td>' + esc(row.bucket) + '</td><td>' + esc(row.type) + '</td>' +
-        '<td><strong>' + esc(row.display_name) + '</strong><br><span class="record-meta">' + esc(row.campaign_name) + '</span></td>' +
-        '<td>' + esc(row.operating_days) + '일</td><td>' + percent(row.droas_7d) + '</td>' +
-        '<td>' + money(row.cpa_3d) + '</td><td>' + money(row.cpm_3d) + '</td>' +
-        '<td>' + money(row.current_budget) + '</td>' +
-        '<td><input class="budget-edit" type="number" min="0" step="1" data-budget-index="' + index + '" value="' + esc(row.suggested_budget) + '"></td>' +
-        '<td>' + flag + '</td><td>' + esc(note || "-") + '</td></tr>';
+        '<td data-col="bucket">' + esc(row.bucket) + '</td><td data-col="type">' + esc(row.type) + '</td>' +
+        '<td data-col="name"><strong>' + esc(row.display_name) + '</strong><br><span class="record-meta">' + esc(row.campaign_name) + '</span></td>' +
+        '<td data-col="days">' + esc(row.operating_days) + '일</td><td data-col="droas">' + percent(row.droas_7d) + '</td>' +
+        '<td data-col="cpa">' + money(row.cpa_3d) + '</td><td data-col="cpm">' + money(row.cpm_3d) + '</td>' +
+        '<td data-col="current">' + money(row.current_budget) + '</td>' +
+        '<td data-col="suggested"><input class="budget-edit" type="number" min="0" step="1" data-budget-index="' + index + '" value="' + esc(row.suggested_budget) + '"></td>' +
+        '<td data-col="class">' + flag + '</td><td data-col="note">' + esc(note || "-") + '</td></tr>';
     }
+
+    function applyColumnVisibility() {
+      columnMenu.querySelectorAll("[data-budget-column]").forEach(function (input) {
+        var col = input.getAttribute("data-budget-column");
+        document.querySelectorAll('.budget-table [data-col="' + col + '"]').forEach(function (cell) {
+          cell.classList.toggle("col-hidden", !input.checked);
+        });
+      });
+    }
+    columnsBtn.addEventListener("click", function () {
+      columnMenu.hidden = !columnMenu.hidden;
+      columnsBtn.setAttribute("aria-expanded", String(!columnMenu.hidden));
+    });
+    columnMenu.addEventListener("change", applyColumnVisibility);
+    document.addEventListener("click", function (e) {
+      if (!columnMenu.hidden && !columnMenu.contains(e.target) && !columnsBtn.contains(e.target)) {
+        columnMenu.hidden = true;
+        columnsBtn.setAttribute("aria-expanded", "false");
+      }
+    });
+    fullscreenBtn.addEventListener("click", function () {
+      if (document.fullscreenElement === tableView) {
+        document.exitFullscreen();
+      } else if (tableView.requestFullscreen) {
+        tableView.requestFullscreen();
+      }
+    });
 
     lookupBtn.addEventListener("click", function () {
       var query = queryInput.value.trim();
@@ -1260,9 +1366,10 @@
           if (!data.ok) throw new Error(data.error || "조회 실패");
           results.hidden = false;
           currentRows = data.matches || [];
-          summary.textContent = data.message || ("캠페인 " + data.campaigns.length + "개 · 활성 광고세트 " + currentRows.length + "개");
+          summary.textContent = data.message || ("캠페인 " + data.campaigns.length + "개 · 활성 광고세트 " + currentRows.length + "개 · 기준 " + data.summary.anchor_date + " PDT · CPA/CPM " + data.summary.cpa_cpm_period + " · D.ROAS " + data.summary.droas_period);
           renderCards(data.summary || {});
           tbody.innerHTML = currentRows.map(renderRow).join("") || '<tr><td colspan="11" class="empty">조회된 활성 광고세트가 없습니다.</td></tr>';
+          applyColumnVisibility();
           applyActions.hidden = !currentRows.length;
         })
         .catch(function (error) {
@@ -1549,6 +1656,28 @@
     var dbFileName = document.getElementById("copy_database_file_name");
     var dbUploadBtn = document.getElementById("copy-database-upload-btn");
     var dbResult = document.getElementById("copy-database-result");
+    var refreshBtn = document.getElementById("copy-refresh-btn");
+    var refreshResult = document.getElementById("copy-refresh-result");
+    refreshBtn.addEventListener("click", function () {
+      refreshBtn.disabled = true;
+      refreshBtn.textContent = "REFRESHING…";
+      fetch("/copy_database_refresh", { method: "POST" })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data.ok) throw new Error(data.error || "업데이트에 실패했습니다.");
+          refreshResult.innerHTML = '<div class="record-note" style="color:var(--status-done-fg);">최근 30일 Meta 카피 업데이트 완료 · 광고 ' +
+            data.matched_ads + '개 매칭 · 헤드라인 ' + data.headlines + '개 · Primary Text ' + data.primary_texts + '개 추가</div>';
+          refreshResult.hidden = false;
+        })
+        .catch(function (error) {
+          refreshResult.innerHTML = '<div class="record-note err">' + escapeHtml(error.message) + '</div>';
+          refreshResult.hidden = false;
+        })
+        .finally(function () {
+          refreshBtn.disabled = false;
+          refreshBtn.textContent = "REFRESH";
+        });
+    });
     dbFiles.addEventListener("change", function () {
       var names = Array.from(dbFiles.files || []).map(function (file) { return file.name; });
       dbFileName.textContent = names.length ? names.join(", ") : "선택된 파일 없음";

@@ -154,7 +154,9 @@ def _meta_date(value):
 
 def attach_raw_metrics(adsets, raw_rows, today=None):
     today = today or date.today()
-    seven_start = today - timedelta(days=6)
+    # "D-7" follows the ops convention requested here: anchor date and the
+    # preceding seven dates, e.g. 09/11-09/18 (8 inclusive calendar dates).
+    seven_start = today - timedelta(days=7)
     for item in adsets:
         spend_rows = []
         for row in item.pop("_meta_spend_rows", []):
@@ -274,7 +276,7 @@ def optimize(adsets, desired_total):
         elif item in missing_cpa:
             item["suggested_budget"] = 100
             item["classification"] = "CPA 데이터 없음"
-            item["reasons"].append("최근 3일 체크아웃 CPA 데이터 없음")
+            item["reasons"].append("PDT D-3 체크아웃 CPA 데이터 없음")
             fixed_new.append(item)
         else:
             cpa = item["cpa_3d"]
@@ -292,7 +294,7 @@ def optimize(adsets, desired_total):
             item["inverse_cpa"] = 1 / cpa if cpa > 0 else 0
         if 7 <= item["operating_days"] < 14 and item.get("droas_7d") is not None and item["droas_7d"] < 0.20:
             item["classification"] = (item["classification"] + " · " if item["classification"] else "") + "OFF 검토 제안"
-            item["reasons"].append("7일 D.ROAS 20% 미만")
+            item["reasons"].append("PDT D-7 D.ROAS 20% 미만")
 
     fixed_total = sum(item.get("suggested_budget", 0) for item in fixed_new)
     for item in weighted_new:
@@ -315,11 +317,11 @@ def optimize(adsets, desired_total):
         if item in held or item.get("droas_7d") is None:
             item["suggested_budget"] = item["current_budget"]
             item["classification"] = "판정 보류"
-            item["reasons"].append("최근 7일 광고비 $300 이하 또는 D.ROAS 데이터 없음")
+            item["reasons"].append("PDT D-7 광고비 $300 이하 또는 D.ROAS 데이터 없음")
         elif item in off_existing:
             item["suggested_budget"] = 0
             item["classification"] = "OFF 후보"
-            item["reasons"].append("7일 D.ROAS 50% 이하")
+            item["reasons"].append("PDT D-7 D.ROAS 50% 이하")
         else:
             item["droas_weight"] = item["droas_7d"]
             item["allocation_adjustable"] = True

@@ -160,6 +160,62 @@ def export_database():
         return json.loads(json.dumps({"registry": _REGISTRY, "copy_patterns": _PATTERNS}))
 
 
+def _product_code_from_ad_name(name):
+    tokens = str(name or "").strip().split("_")
+    if tokens and re.fullmatch(r"\d{6,8}", tokens[0]):
+        tokens = tokens[1:]
+    if not tokens:
+        return None
+    code = _PATTERNS["asin_map"].get(tokens[0], tokens[0])
+    return code if code in _PATTERNS["products"] else None
+
+
+def _creative_texts(creative):
+    headlines, bodies = [], []
+    story = (creative or {}).get("object_story_spec") or {}
+    for key in ("link_data", "video_data", "photo_data"):
+        block = story.get(key) or {}
+        if block.get("title"):
+            headlines.append(str(block["title"]).strip())
+        if block.get("message"):
+            bodies.append(str(block["message"]).strip())
+    feed = (creative or {}).get("asset_feed_spec") or {}
+    headlines.extend(str(value.get("text") or "").strip() for value in feed.get("titles") or [])
+    bodies.extend(str(value.get("text") or "").strip() for value in feed.get("bodies") or [])
+    return [x for x in headlines if x], [x for x in bodies if x]
+
+
+def merge_meta_copies(ads):
+    """Append unique recent live Meta copy to the matching product pools."""
+    global _REGISTRY, _PATTERNS, _PART_BY_CODE, _CONCERN_BY_CODE
+    additions = {"headlines": 0, "primary_texts": 0}
+    matched_ads = 0
+    with _DATA_LOCK:
+        next_patterns = json.loads(json.dumps(_PATTERNS))
+        for ad in ads:
+            product_code = _product_code_from_ad_name(ad.get("name"))
+            if not product_code:
+                continue
+            headlines, bodies = _creative_texts(ad.get("creative") or {})
+            if not headlines and not bodies:
+                continue
+            matched_ads += 1
+            product = next_patterns["products"][product_code]
+            for text in headlines:
+                if text not in product["headline_shapes"]:
+                    product["headline_shapes"].append(text)
+                    additions["headlines"] += 1
+            for text in bodies:
+                if text not in product["body_templates"]:
+                    product["body_templates"].append(text)
+                    additions["primary_texts"] += 1
+        _validate_patterns(next_patterns)
+        next_patterns["_source"] = "Updated from recent Meta ad creatives via dashboard refresh."
+        _atomic_write_json(DATA_DIR / "copy_patterns.json", next_patterns)
+        _REGISTRY, _PATTERNS, _PART_BY_CODE, _CONCERN_BY_CODE = _load_data()
+    return {**additions, "matched_ads": matched_ads, "fetched_ads": len(ads)}
+
+
 def _parse_creative_name(name):
     tokens = name.strip().split("_")
     if not tokens or not tokens[0]:

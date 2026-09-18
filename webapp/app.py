@@ -21,6 +21,7 @@ import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 from flask import Flask, Response, redirect, render_template, request, session
@@ -44,6 +45,18 @@ ACCOUNTS = {
     "1298298124998350": "EQQUALBERRY_AMAZON_US (USD)",
 }
 CANDIDATE_ACCOUNT_IDS = list(ACCOUNTS.keys())
+PACIFIC = ZoneInfo("America/Los_Angeles")
+
+
+def budget_reporting_periods(now=None):
+    """Return the complete-data anchor and requested PDT reporting windows."""
+    local_now = now.astimezone(PACIFIC) if now else datetime.now(PACIFIC)
+    anchor = local_now.date() if local_now.hour >= 10 else local_now.date() - timedelta(days=1)
+    return {
+        "anchor": anchor,
+        "three_start": anchor - timedelta(days=2),
+        "droas_start": anchor - timedelta(days=7),
+    }
 
 # Matches the meta-ad-duplicator artifact's bulk paste column order exactly.
 BULK_COLUMNS = [
@@ -540,6 +553,25 @@ def copy_database_download():
     )
 
 
+@app.route("/copy_database_refresh", methods=["POST"])
+def copy_database_refresh():
+    """Merge copy from Meta ads updated during the last 30 PDT days."""
+    token = os.environ.get("META_ACCESS_TOKEN")
+    if not token:
+        return {"ok": False, "error": "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."}, 400
+    since = (datetime.now(PACIFIC).date() - timedelta(days=30)).isoformat()
+    try:
+        ads = meta_lib.list_recent_ad_copies(token, CANDIDATE_ACCOUNT_IDS, since)
+        result = copy_generator.merge_meta_copies(ads)
+    except meta_lib.MetaApiError as e:
+        return {"ok": False, "error": str(e)}, 400
+    except copy_generator.CopyGenerationError as e:
+        return {"ok": False, "error": str(e)}, 400
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"최근 카피 업데이트 중 오류가 발생했습니다: {e}"}, 500
+    return {"ok": True, "since": since, **result}
+
+
 @app.route("/submit", methods=["POST"])
 def submit():
     form = request.form
@@ -983,9 +1015,18 @@ def budget_lookup():
     except budget_optimizer.BudgetDataError as e:
         return {"ok": False, "error": str(e)}, 400
 
+    tokens = [token.strip() for token in campaign_query.split(",") if token.strip()]
+    include_terms = [token for token in tokens if not token.startswith("*")]
+    exclude_terms = [token[1:].strip() for token in tokens if token.startswith("*") and token[1:].strip()]
+    if not include_terms and not exclude_terms:
+        return {"ok": False, "error": "캠페인 조회 조건을 하나 이상 입력해주세요."}, 400
+
     cache = {}
     try:
-        campaigns = meta_lib.find_matching_campaigns(token, CANDIDATE_ACCOUNT_IDS, [campaign_query], cache=cache)
+        campaigns = meta_lib.find_matching_campaigns(
+            token, CANDIDATE_ACCOUNT_IDS, include_terms,
+            exclusions=exclude_terms, cache=cache,
+        )
     except meta_lib.MetaApiError as e:
         return {"ok": False, "error": str(e)}, 400
 
@@ -1005,8 +1046,9 @@ def budget_lookup():
     except meta_lib.MetaApiError as e:
         return {"ok": False, "error": str(e)}, 400
 
-    since_3d = (date.today() - timedelta(days=2)).isoformat()
-    until = date.today().isoformat()
+    periods = budget_reporting_periods()
+    since_3d = periods["three_start"].isoformat()
+    until = periods["anchor"].isoformat()
 
     def enrich(adset):
         ads = meta_lib.list_adset_ads(token, adset["id"])
@@ -1021,7 +1063,10 @@ def budget_lookup():
         if not created_dates and adset.get("created_time"):
             created_dates.append(str(adset["created_time"])[:10])
         history_since = min(created_dates) if created_dates else date.today().isoformat()
-        daily_spend = meta_lib.get_adset_daily_ad_spend(token, adset["id"], history_since, until)
+        daily_spend = (
+            meta_lib.get_adset_daily_ad_spend(token, adset["id"], history_since, until)
+            if history_since <= until else []
+        )
         return {
             "adset_id": adset["id"], "campaign_name": adset["campaign_name"],
             "adset_name": adset_name, "type": "DA" if is_da else "PA",
@@ -1040,8 +1085,11 @@ def budget_lookup():
     except meta_lib.MetaApiError as e:
         return {"ok": False, "error": str(e)}, 400
 
-    budget_optimizer.attach_raw_metrics(matches, raw_rows)
+    budget_optimizer.attach_raw_metrics(matches, raw_rows, today=periods["anchor"])
     matches, calculation_summary = budget_optimizer.optimize(matches, desired_budget)
+    calculation_summary["anchor_date"] = periods["anchor"].isoformat()
+    calculation_summary["cpa_cpm_period"] = f"{periods['three_start'].isoformat()}~{periods['anchor'].isoformat()}"
+    calculation_summary["droas_period"] = f"{periods['droas_start'].isoformat()}~{periods['anchor'].isoformat()}"
 
     return {
         "ok": True,

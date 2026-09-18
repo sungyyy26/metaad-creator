@@ -131,18 +131,38 @@ def list_campaigns(token, account_id, cache=None):
         token, f"act_{account_id}/campaigns", fields="id,name", limit=200))
 
 
-def find_matching_campaigns(token, account_ids, keywords, cache=None):
-    """Every campaign across account_ids whose name contains ALL of `keywords`
-    (case-insensitive substring match) — e.g. a channel token like "Amazon"
-    plus a free-text product-group phrase."""
-    needles = [k.strip().lower() for k in keywords if k and k.strip()]
+def find_matching_campaigns(token, account_ids, keywords, exclusions=None, cache=None):
+    """Campaign names containing every keyword and none of the exclusions."""
+    needles = [k.strip().casefold() for k in keywords if k and k.strip()]
+    blocked = [k.strip().casefold() for k in (exclusions or []) if k and k.strip()]
     matches = []
     for account_id in account_ids:
         for c in list_campaigns(token, account_id, cache=cache):
-            name_lower = c["name"].lower()
-            if all(k in name_lower for k in needles):
+            name_lower = c["name"].casefold()
+            if all(k in name_lower for k in needles) and not any(k in name_lower for k in blocked):
                 matches.append({"id": c["id"], "name": c["name"], "account_id": account_id})
     return matches
+
+
+def list_recent_ad_copies(token, account_ids, since, limit_per_account=500):
+    """Fetch recent Meta ad names and creative copy for the local copy DB."""
+    collected = []
+    for account_id in account_ids:
+        rows = api(
+            "GET", f"act_{account_id}/ads", token,
+            fields="id,name,created_time,updated_time,effective_status,"
+                   "creative{id,object_story_spec,asset_feed_spec}",
+            limit=limit_per_account,
+        ).get("data", [])
+        for row in rows:
+            stamp = str(row.get("updated_time") or row.get("created_time") or "")[:10]
+            if stamp and stamp >= since:
+                collected.append(row)
+    collected.sort(
+        key=lambda row: row.get("updated_time") or row.get("created_time") or "",
+        reverse=True,
+    )
+    return collected
 
 
 def list_campaign_ads(token, campaign_id, cache=None):
