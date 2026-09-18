@@ -19,17 +19,15 @@
 </script>
 <style>
   :root{
-    /* 쇼피파이 일괄 편집기(.sf-app)와 같은 팔레트 — 이 대시보드 전체의 기본
-       테마로 그대로 반영 (라이트/다크 토글은 남겨두지만 사실상 항상 이 톤). */
-    --bg:#000000; --surface:#1c1c1e; --surface-2:#000000; --surface-3:#2c2c2e;
-    --border:#38383a; --border-strong:#48484a;
-    --text:#f5f5f7; --text-muted:#98989d; --text-faint:#6e6e73;
-    --accent:#0a84ff; --accent-hover:#3d9dff; --accent-contrast:#ffffff; --accent-soft:#0e2a4d;
-    --accent-green:#30d158; --accent-green-contrast:#04150a;
-    --status-done-bg:#0e2e17; --status-done-fg:#32d74b;
-    --status-error-bg:#3a1210; --status-error-fg:#ff453a;
-    --status-processing-bg:#0c2e33; --status-processing-fg:#5ac8dd;
-    --status-incomplete-bg:#3a2a10; --status-incomplete-fg:#ffb340;
+    --bg:#f5f5f7; --surface:#ffffff; --surface-2:#f5f5f7; --surface-3:#e8e8ed;
+    --border:#e5e5ea; --border-strong:#d1d1d6;
+    --text:#1d1d1f; --text-muted:#6e6e73; --text-faint:#8e8e93;
+    --accent:#0066cc; --accent-hover:#0077ed; --accent-contrast:#ffffff; --accent-soft:#e8f2ff;
+    --accent-green:#248a3d; --accent-green-contrast:#ffffff;
+    --status-done-bg:#e8f7ec; --status-done-fg:#187a32;
+    --status-error-bg:#fff0ef; --status-error-fg:#d70015;
+    --status-processing-bg:#e8f7fa; --status-processing-fg:#087d8f;
+    --status-incomplete-bg:#fff6df; --status-incomplete-fg:#9a6700;
     --radius-lg:20px; --radius-md:12px; --radius-sm:8px;
     --shadow: 0 1px 2px rgba(0,0,0,.4), 0 14px 32px -16px rgba(0,0,0,.6);
 
@@ -286,13 +284,13 @@
      into the rest of this dashboard's light Apple-ish theme.
      ============================================================ */
   .sf-app{
-    --sf-paper:#000000; --sf-panel:#1c1c1e; --sf-ink:#f5f5f7; --sf-ink-dim:#98989d; --sf-line:#38383a;
-    --sf-accent:#0a84ff; --sf-accent-ink:#ffffff; --sf-accent-soft:#0e2a4d;
-    --sf-pending:#ffb340; --sf-pending-bg:#3a2a10;
-    --sf-processing:#5ac8dd; --sf-processing-bg:#0c2e33;
-    --sf-done:#32d74b; --sf-done-bg:#0e2e17;
-    --sf-error:#ff453a; --sf-error-bg:#3a1210;
-    --sf-shadow:0 1px 2px rgba(0,0,0,.4),0 14px 32px -16px rgba(0,0,0,.6);
+    --sf-paper:var(--bg); --sf-panel:var(--surface); --sf-ink:var(--text); --sf-ink-dim:var(--text-muted); --sf-line:var(--border-strong);
+    --sf-accent:var(--accent); --sf-accent-ink:var(--accent-contrast); --sf-accent-soft:var(--accent-soft);
+    --sf-pending:var(--status-incomplete-fg); --sf-pending-bg:var(--status-incomplete-bg);
+    --sf-processing:var(--status-processing-fg); --sf-processing-bg:var(--status-processing-bg);
+    --sf-done:var(--status-done-fg); --sf-done-bg:var(--status-done-bg);
+    --sf-error:var(--status-error-fg); --sf-error-bg:var(--status-error-bg);
+    --sf-shadow:var(--shadow);
     /* No separate black "card" frame anymore — the whole dashboard already
        shares this dark palette, so the shopify panel sits directly on the
        page like every other tab instead of nesting a second black box. */
@@ -397,6 +395,13 @@
   .sf-mode-btn{font-family:"Gothic A1",sans-serif;font-weight:600;font-size:12px;border:1px solid var(--sf-line);background:var(--sf-panel);color:var(--sf-ink-dim);border-radius:999px;padding:7px 13px;cursor:pointer;}
   .sf-mode-btn.active{background:var(--sf-accent-soft);border-color:var(--sf-accent);color:var(--sf-accent);}
   .sf-media-remove{background:none;border:none;color:var(--sf-error);cursor:pointer;font-size:12px;}
+  .sf-media-lookup{position:relative;}
+  .sf-media-results{position:absolute;z-index:20;top:calc(100% + 5px);left:0;right:0;max-height:260px;overflow:auto;background:var(--sf-panel);border:1px solid var(--sf-line);border-radius:12px;box-shadow:var(--sf-shadow);padding:6px;}
+  .sf-media-result{width:100%;display:flex;align-items:center;gap:10px;text-align:left;border:0;background:transparent;color:var(--sf-ink);padding:8px;border-radius:8px;cursor:pointer;}
+  .sf-media-result:hover,.sf-media-result:focus{background:var(--sf-accent-soft);outline:none;}
+  .sf-media-result img,.sf-media-result-empty{width:38px;height:38px;object-fit:cover;border-radius:7px;background:var(--sf-paper);display:flex;align-items:center;justify-content:center;flex:none;}
+  .sf-media-result-name{font-size:12px;overflow-wrap:anywhere;}
+  .sf-media-search-state{padding:10px;font-size:11px;color:var(--sf-ink-dim);}
   .sf-media-suggestions{font-size:11px;color:var(--sf-ink-dim);min-height:16px;}
 
   .sf-preview-main{display:flex;gap:12px;align-items:flex-start;}
@@ -1758,7 +1763,7 @@
     var selected = new Set();   // ids currently checked in step 2
     var searchPage = 1;
     var selectPage = 1;
-    var SF_PAGE_SIZE = 12;
+    var SF_PAGE_SIZE = 10;
     var mediaOps = [];
 
     function showStep(n) {
@@ -1962,26 +1967,58 @@
       return { insert: "추가", overwrite: "교체", delete: "삭제", move: "이동" }[mode] || mode;
     }
 
-    function wireMediaLookup(input, datalist) {
+    function wireMediaLookup(input, resultsEl) {
       var timer = null;
+      var requestNumber = 0;
+      function closeResults() {
+        resultsEl.innerHTML = "";
+        resultsEl.hidden = true;
+      }
       input.addEventListener("input", function () {
         clearTimeout(timer);
         var query = input.value.trim();
         if (query.length < 2) {
-          datalist.innerHTML = "";
+          closeResults();
           return;
         }
+        resultsEl.innerHTML = '<div class="sf-media-search-state">검색 중…</div>';
+        resultsEl.hidden = false;
+        var currentRequest = ++requestNumber;
         timer = setTimeout(function () {
           fetch("/shopify_media_search?q=" + encodeURIComponent(query))
             .then(function (r) { return r.json(); })
             .then(function (data) {
-              datalist.innerHTML = (data.files || []).map(function (file) {
-                return '<option value="' + escapeHtml(file.displayName || file.filename || "") + '">' +
-                  escapeHtml(file.filename || file.alt || "") + "</option>";
-              }).join("");
+              if (currentRequest !== requestNumber) return;
+              if (!data.ok) throw new Error(data.error || "조회 실패");
+              var files = data.files || [];
+              resultsEl.innerHTML = files.length ? files.map(function (file) {
+                var name = file.displayName || file.filename || file.alt || "";
+                var thumb = file.url
+                  ? '<img src="' + escapeHtml(file.url) + '" alt="">'
+                  : '<span class="sf-media-result-empty">—</span>';
+                return '<button type="button" class="sf-media-result" data-media-value="' + escapeHtml(name) + '">' +
+                  thumb + '<span class="sf-media-result-name">' + escapeHtml(name) + '</span></button>';
+              }).join("") : '<div class="sf-media-search-state">일치하는 미디어가 없습니다.</div>';
+              resultsEl.hidden = false;
             })
-            .catch(function () { datalist.innerHTML = ""; });
-        }, 250);
+            .catch(function (error) {
+              if (currentRequest !== requestNumber) return;
+              resultsEl.innerHTML = '<div class="sf-media-search-state">' + escapeHtml(error.message) + '</div>';
+              resultsEl.hidden = false;
+            });
+        }, 180);
+      });
+      resultsEl.addEventListener("click", function (e) {
+        var option = e.target.closest("[data-media-value]");
+        if (!option) return;
+        input.value = option.getAttribute("data-media-value");
+        input.dispatchEvent(new Event("change", { bubbles: true }));
+        var index = Number(input.getAttribute("data-media-index"));
+        mediaOps[index][input.getAttribute("data-media-field")] = input.value;
+        closeResults();
+      });
+      input.addEventListener("blur", function () {
+        setTimeout(closeResults, 150);
       });
     }
 
@@ -1999,10 +2036,10 @@
               '" data-media-mode="' + mode + '" data-media-index="' + index + '">' + mediaModeLabel(mode) + '</button>';
           }).join("") + '</div>' +
           '<div class="sf-media-grid">' +
-            '<label class="sf-field"><span class="sf-lbl">' + infoLabel + '</span>' +
+            '<div class="sf-field sf-media-lookup"><span class="sf-lbl">' + infoLabel + '</span>' +
               '<input type="text" class="sf-media-input" data-media-field="info" data-media-index="' + index +
-              '" list="sf-media-info-' + index + '" value="' + escapeHtml(op.info) + '" placeholder="파일명 또는 대체 텍스트">' +
-              '<datalist id="sf-media-info-' + index + '"></datalist></label>' +
+              '" value="' + escapeHtml(op.info) + '" placeholder="파일명 또는 대체 텍스트">' +
+              '<div class="sf-media-results" data-media-results="info-' + index + '" hidden></div></div>' +
             '<label class="sf-field"><span class="sf-lbl">현재 순서</span>' +
               '<input type="number" min="1" class="sf-media-input" data-media-field="order" data-media-index="' + index +
               '" value="' + escapeHtml(op.order) + '" placeholder="예: 1"></label>' +
@@ -2010,11 +2047,11 @@
               '<input type="number" min="1" class="sf-media-input" data-media-field="moveTo" data-media-index="' + index +
               '" value="' + escapeHtml(op.moveTo) + '" placeholder="예: 3"' + (needsMove ? "" : " disabled") + '></label>' +
           '</div>' +
-          '<label class="sf-field"><span class="sf-lbl">교체할 새 이미지</span>' +
+          '<div class="sf-field sf-media-lookup"><span class="sf-lbl">교체할 새 이미지</span>' +
             '<input type="text" class="sf-media-input" data-media-field="newInfo" data-media-index="' + index +
-            '" list="sf-media-new-' + index + '" value="' + escapeHtml(op.newInfo) +
+            '" value="' + escapeHtml(op.newInfo) +
             '" placeholder="Shopify 파일 라이브러리의 파일명"' + (needsNew ? "" : " disabled") + '>' +
-            '<datalist id="sf-media-new-' + index + '"></datalist></label>' +
+            '<div class="sf-media-results" data-media-results="newInfo-' + index + '" hidden></div></div>' +
           '<p class="sf-media-suggestions">추가/교체 이미지는 두 글자 이상 입력하면 Shopify 파일 라이브러리에서 자동 검색됩니다.</p>' +
         '</div>';
       }).join("");
@@ -2023,8 +2060,10 @@
         input.addEventListener("input", function () {
           mediaOps[Number(input.getAttribute("data-media-index"))][input.getAttribute("data-media-field")] = input.value;
         });
-        var listId = input.getAttribute("list");
-        if (listId) wireMediaLookup(input, document.getElementById(listId));
+        var field = input.getAttribute("data-media-field");
+        if ((field === "info" || field === "newInfo") && !input.disabled) {
+          wireMediaLookup(input, container.querySelector('[data-media-results="' + field + '-' + input.getAttribute("data-media-index") + '"]'));
+        }
       });
     }
 

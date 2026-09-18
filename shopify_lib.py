@@ -3,6 +3,7 @@ duplicate of a source product, retitled/rehandled for one ad) — mirrors the
 Shopify step of the meta-ad-duplicator artifact's processing instructions."""
 import os
 import re
+from concurrent.futures import ThreadPoolExecutor
 from urllib.parse import urlparse
 
 import requests
@@ -230,13 +231,19 @@ def _map_file_node(node):
 
 
 def search_files(shop, token, query):
-    by_filename = _gql(shop, token, FIND_FILE_QUERY, {"query": query})
-    recent = _gql(shop, token, RECENT_IMAGE_FILES_QUERY)
+    # Run Shopify's filename search and the alt-text fallback concurrently so
+    # type-ahead results stay responsive in the media editor.
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        filename_future = executor.submit(_gql, shop, token, FIND_FILE_QUERY, {"query": query})
+        recent_future = executor.submit(_gql, shop, token, RECENT_IMAGE_FILES_QUERY)
+        by_filename = filename_future.result()
+        recent = recent_future.result()
     needle = query.strip().lower()
     matches = [_map_file_node(e["node"]) for e in by_filename["files"]["edges"]]
+    recent_files = [_map_file_node(e["node"]) for e in recent["files"]["edges"]]
     alt_matches = [
-        _map_file_node(e["node"]) for e in recent["files"]["edges"]
-        if needle in ((_map_file_node(e["node"])["displayName"] or "").lower())
+        file for file in recent_files
+        if needle in ((file["displayName"] or "").lower())
     ]
     seen = {item["id"] for item in matches}
     matches.extend(item for item in alt_matches if item["id"] not in seen)
