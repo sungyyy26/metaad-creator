@@ -154,6 +154,13 @@ def list_campaign_ads(token, campaign_id, cache=None):
         fields="id,name,adset{id,name,daily_budget},creative{name}"))
 
 
+def list_campaign_adsets(token, campaign_id, cache=None):
+    """Every ad set in a campaign for direct budget lookup by ad-set name."""
+    return _cached(cache, f"campaign_adsets:{campaign_id}", lambda: _paginate(
+        token, f"{campaign_id}/adsets", limit=200,
+        fields="id,name,daily_budget"))
+
+
 def update_adset_budget(token, adset_id, daily_budget):
     """Sets an ad set's daily budget (major currency units -> Meta's cents)."""
     api("POST", adset_id, token, daily_budget=int(daily_budget) * 100)

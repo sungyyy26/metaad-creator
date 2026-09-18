@@ -647,7 +647,7 @@
 
   <div class="panel" id="panel-budget" hidden>
     <h2>메타 예산 조정</h2>
-    <p class="hint">채널·제품군으로 대상 캠페인을 찾고, 업로드한 파일의 소재명을 그 캠페인들 안에서만 찾아 예산을 반영합니다.</p>
+    <p class="hint">채널·제품군으로 대상 캠페인을 찾고, 업로드한 파일의 소재명 또는 광고세트명을 기준으로 예산을 반영합니다.</p>
     <div class="step-label">1단계 · 조건 입력 및 파일 첨부</div>
     <div class="field-row">
       <div class="field">
@@ -674,7 +674,7 @@
         <input type="file" id="budget_file_input" accept=".xlsx,.xlsm,.csv" class="file-input-hidden">
         <span class="file-input-name" id="budget_file_name">선택된 파일 없음</span>
       </div>
-      <span class="field-hint">헤더 이름은 자유롭게 써도 됩니다 — 소재/소재명/광고명, 기존/기존예산/현재/현재예산, 변경/변경예산/제안/제안예산 중 하나로만 인식되면 됩니다.</span>
+      <span class="field-hint">조회 컬럼은 소재/소재명/광고명 또는 광고세트/광고세트명으로 인식합니다. 예산 컬럼은 기존/기존예산/현재/현재예산, 변경/변경예산/제안/제안예산을 사용할 수 있습니다.</span>
     </div>
     <div class="field-actions-right">
       <button type="button" class="primary" id="budget-lookup-btn">조회</button>
@@ -964,7 +964,7 @@
           <div class="budget-batch-item">
             {% if sub.campaign_name %}<div class="record-campaign"><span class="record-label">C:</span>{{ sub.campaign_name }}</div>{% endif %}
             <div class="record-main"><span class="record-label">AS:</span><span class="adset">{{ sub.adSetName }}</span></div>
-            <div class="record-result">소재: {{ sub.creativeNames|join(", ") }}</div>
+            <div class="record-result">조회값: {{ sub.creativeNames|join(", ") }}</div>
             <div class="record-result mono">현재 ${{ sub.liveCurrentBudget if sub.liveCurrentBudget is not none else '?' }} → 변경 ${{ sub.newBudget }}</div>
             {% if not sub.ok %}
               <div class="record-note err"><span class="record-note-text">{{ sub.error }}</span></div>
@@ -1352,7 +1352,7 @@
         '<div class="budget-match-body">' +
           '<div class="record-campaign"><span class="record-label">C:</span>' + escapeHtml(m.campaign_name) + '</div>' +
           '<div class="record-main"><span class="record-label">AS:</span><span class="adset">' + escapeHtml(m.adset_name) + '</span></div>' +
-          '<div class="record-result">소재: ' + escapeHtml(m.creative_names.join(", ")) + '</div>' +
+          '<div class="record-result">조회값: ' + escapeHtml(m.creative_names.join(", ")) + '</div>' +
           '<div class="record-result mono">현재 $' + escapeHtml(fmtBudget(m.live_current_budget)) +
             ' → 변경 $' + escapeHtml(fmtBudget(m.new_budget)) + '</div>' +
           mismatchNote +
@@ -1368,7 +1368,7 @@
       return '<div class="record-row preview-row">' +
         '<div class="record-campaign"><span class="record-label">C:</span>' + escapeHtml(c.campaign_name) + '</div>' +
         '<div class="record-main"><span class="record-label">AS:</span><span class="adset">' + escapeHtml(c.adset_name) + '</span></div>' +
-        '<div class="record-note err"><span class="record-note-text">이 광고 세트의 소재들이 서로 다른 예산 값을 가지고 있어 어느 쪽이 맞는지 판단할 수 없습니다: ' +
+        '<div class="record-note err"><span class="record-note-text">이 광고 세트와 연결된 조회값들이 서로 다른 예산을 가지고 있어 어느 쪽이 맞는지 판단할 수 없습니다: ' +
           rows + ' — 파일을 확인 후 다시 조회해주세요.</span></div>' +
       '</div>';
     }
@@ -1410,7 +1410,7 @@
             ("캠페인 " + data.campaigns.length + "개 · 매칭 " + data.matches.length + "건 · 못 찾음 " +
               data.not_found.length + "건" + (conflictCount ? " · 값 충돌 " + conflictCount + "건" : ""));
           listEl.innerHTML = data.matches.map(renderMatch).join("") ||
-            '<div class="empty">일치하는 소재를 찾지 못했습니다.</div>';
+            '<div class="empty">일치하는 소재명 또는 광고세트명을 찾지 못했습니다.</div>';
           if (conflictCount) {
             conflictsEl.hidden = false;
             conflictsEl.innerHTML = data.conflicts.map(renderConflict).join("");
@@ -1420,7 +1420,7 @@
           }
           if (data.not_found.length) {
             notFoundEl.hidden = false;
-            notFoundEl.innerHTML = '<div class="record-note warn">캠페인 안에서 찾지 못한 소재명: ' +
+            notFoundEl.innerHTML = '<div class="record-note warn">캠페인 안에서 찾지 못한 조회값: ' +
               data.not_found.map(escapeHtml).join(", ") + '</div>';
           } else {
             notFoundEl.hidden = true;

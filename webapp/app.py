@@ -160,12 +160,12 @@ class RowError(Exception):
 # 아니라 허용된 별칭 집합으로 컬럼을 찾는다. 값(딕셔너리 키)은 코드 내부용,
 # 사람에게 보여줄 땐 BUDGET_FIELD_LABELS를 쓴다.
 BUDGET_COLUMN_ALIASES = {
-    "creative_name": {"소재", "소재명", "광고명"},
+    "creative_name": {"소재", "소재명", "광고명", "광고세트", "광고세트명", "광고 세트", "광고 세트명"},
     "current_budget": {"기존", "기존예산", "기존 예산", "현재", "현재예산", "현재 예산"},
     "new_budget": {"변경", "변경예산", "변경 예산", "제안", "제안예산", "제안 예산"},
 }
 BUDGET_FIELD_LABELS = {
-    "creative_name": "소재명",
+    "creative_name": "소재명 또는 광고세트명",
     "current_budget": "기존 예산",
     "new_budget": "변경 예산",
 }
@@ -956,9 +956,9 @@ def delete_all_uploads():
 
 @app.route("/budget_lookup", methods=["POST"])
 def budget_lookup():
-    """Reads the uploaded 소재/기존예산/변경예산 file, finds every Meta campaign
+    """Reads the uploaded 조회값/기존예산/변경예산 file, finds every Meta campaign
     whose name contains both the 채널 and 제품군 keywords, then matches each
-    file row's 소재명 against the ad (or creative) names inside just those
+    file row's value against ad, creative, or ad-set names inside just those
     campaigns — never calls Meta to change anything, only looks things up, so
     the results can be reviewed before /apply_budget_changes is ever called."""
     channel = request.form.get("channel", "").strip()
@@ -994,10 +994,13 @@ def budget_lookup():
         }
 
     all_ads = []
+    all_adsets = []
     try:
         for c in campaigns:
             for ad in meta_lib.list_campaign_ads(token, c["id"], cache=cache):
                 all_ads.append({**ad, "_campaign_name": c["name"]})
+            for adset in meta_lib.list_campaign_adsets(token, c["id"], cache=cache):
+                all_adsets.append({**adset, "_campaign_name": c["name"]})
     except meta_lib.MetaApiError as e:
         return {"ok": False, "error": str(e)}, 400
 
@@ -1015,7 +1018,11 @@ def budget_lookup():
             if needle in (ad.get("name") or "").lower()
             or needle in ((ad.get("creative") or {}).get("name") or "").lower()
         ]
-        if not found_ads:
+        found_adsets = [
+            adset for adset in all_adsets
+            if needle in (adset.get("name") or "").lower()
+        ]
+        if not found_ads and not found_adsets:
             not_found.append(row["creative_name"])
             continue
 
@@ -1029,6 +1036,17 @@ def budget_lookup():
             if adset_id not in adset_info:
                 adset_info[adset_id] = {
                     "campaign_name": ad["_campaign_name"],
+                    "adset_name": adset.get("name", ""),
+                    "live_budget": int(adset["daily_budget"]) // 100 if adset.get("daily_budget") else None,
+                }
+        for adset in found_adsets:
+            adset_id = adset.get("id")
+            if not adset_id:
+                continue
+            matched_adset_ids.add(adset_id)
+            if adset_id not in adset_info:
+                adset_info[adset_id] = {
+                    "campaign_name": adset["_campaign_name"],
                     "adset_name": adset.get("name", ""),
                     "live_budget": int(adset["daily_budget"]) // 100 if adset.get("daily_budget") else None,
                 }
