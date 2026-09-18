@@ -332,10 +332,18 @@ def upload_creative(token, account_id, filename, file_obj):
     endpoint = "advideos" if is_video else "adimages"
     field = "source" if is_video else "filename"
 
+    upload_data = {"access_token": token}
+    if is_video:
+        # Meta supports an explicit name/title for videos.  Set both to the
+        # original local filename so the asset can be found later using the
+        # exact same 소재명.  Images take their library name from the filename
+        # in the multipart tuple below.
+        upload_data.update({"name": filename, "title": filename})
+
     r = requests.post(
         f"{GRAPH}/act_{account_id}/{endpoint}",
         files={field: (filename, file_obj)},
-        data={"access_token": token},
+        data=upload_data,
     )
     data = r.json()
     if "error" in data:
