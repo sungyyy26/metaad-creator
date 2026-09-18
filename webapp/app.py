@@ -1019,6 +1019,8 @@ def budget_lookup():
             "adset_id": adset["id"], "campaign_name": adset["campaign_name"],
             "adset_name": adset_name, "type": "DA" if is_da else "PA",
             "active_ad_names": active_names,
+            "adset_created_time": adset.get("created_time"),
+            "active_ad_created_times": [ad.get("created_time") for ad in active_ads if ad.get("created_time")],
             "display_name": ", ".join(active_names) if is_da and active_names else adset_name,
             "current_budget": int(adset["daily_budget"]) / 100 if adset.get("daily_budget") else 0,
             "cpa_3d": insight["cpa"], "cpm_3d": insight["cpm"],

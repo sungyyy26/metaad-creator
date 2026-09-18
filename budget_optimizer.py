@@ -128,23 +128,53 @@ def summarize_ad_history(rows, ad_name, today):
     }
 
 
+def _meta_date(value):
+    """Parse a Meta created_time/date value without failing the analysis."""
+    if not value:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).date()
+    except (TypeError, ValueError):
+        return None
+
+
 def attach_raw_metrics(adsets, raw_rows, today=None):
     today = today or date.today()
     seven_start = today - timedelta(days=6)
     for item in adsets:
         histories = [summarize_ad_history(raw_rows, name, today) for name in item["active_ad_names"]]
-        # Conservatively classify by the newest/recently resumed active ad.
-        controlling = min(histories, key=lambda h: h["days"]) if histories else summarize_ad_history([], item["display_name"], today)
+        # 운영일수는 RAW의 최근 재개일, 광고세트 생성일, 활성 광고 생성일 중
+        # 가장 최신 일자를 기준으로 잡는다. 같은 이름의 과거 광고 이력이
+        # 현재 광고의 운영일수를 부풀리지 않도록 하기 위함이다.
+        raw_controlling = max(histories, key=lambda h: h["restart"]) if histories else None
+        meta_dates = [_meta_date(item.get("adset_created_time"))]
+        meta_dates.extend(_meta_date(value) for value in item.get("active_ad_created_times", []))
+        latest_meta_date = max((value for value in meta_dates if value), default=None)
+        controlling_date = max(
+            (value for value in (raw_controlling["restart"] if raw_controlling else None, latest_meta_date, today if not latest_meta_date else None) if value)
+        )
+        controlling_days = max(1, (today - controlling_date).days + 1)
         active_names = {name.casefold() for name in item["active_ad_names"]}
         recent = [r for r in raw_rows if r["ad_name"].casefold() in active_names and seven_start <= r["date"] <= today]
         spend_7d = sum(r["spend"] for r in recent)
         sales_7d = sum(r["sales"] for r in recent)
         item.update({
-            "operating_days": controlling["days"],
-            "spend_since_restart": sum(h["spend_since_restart"] for h in histories),
+            "operating_days": controlling_days,
+            "spend_since_restart": sum(
+                r["spend"] for r in raw_rows
+                if r["ad_name"].casefold() in active_names and r["date"] >= controlling_date
+            ),
             "spend_7d": spend_7d,
             "droas_7d": (sales_7d / spend_7d) if spend_7d > 0 else None,
-            "note": " / ".join(h["note"] for h in histories if h["note"]),
+            "note": " / ".join(
+                ([f"운영일수 기준일 {controlling_date.isoformat()} (광고세트/활성 광고/최근 재개 중 최신)"]
+                 if latest_meta_date and (not raw_controlling or latest_meta_date >= raw_controlling["restart"]) else [])
+                + [h["note"] for h in histories if h["note"]]
+            ),
             "restart_confirmation_needed": any(h["needs_confirmation"] for h in histories),
         })
         item["bucket"] = "신규" if item["operating_days"] < 14 else "기존"
