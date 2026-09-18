@@ -199,6 +199,25 @@ def get_adset_insights(token, adset_id, since, until):
     return {"spend": spend, "cpm": cpm, "cpa": cpa}
 
 
+def get_adset_daily_ad_spend(token, adset_id, since, until):
+    """Daily Meta spend by ad for operating-day and D.ROAS calculations."""
+    rows = _paginate(
+        token, f"{adset_id}/insights", limit=500,
+        fields="ad_id,ad_name,spend,date_start",
+        time_range=json.dumps({"since": since, "until": until}),
+        time_increment=1,
+        level="ad",
+    )
+    return [
+        {
+            "date": row.get("date_start"),
+            "ad_name": row.get("ad_name", ""),
+            "spend": float(row.get("spend") or 0),
+        }
+        for row in rows if row.get("ad_name") and row.get("date_start")
+    ]
+
+
 def ensure_adset_active(token, adset_id):
     """Re-activate after a budget write if Meta changed delivery state."""
     state = api("GET", adset_id, token, fields="id,status,effective_status")

@@ -972,7 +972,7 @@ def budget_lookup():
     except ValueError:
         return {"ok": False, "error": "희망 예산은 0보다 큰 숫자로 입력해주세요."}, 400
     if not file or not file.filename:
-        return {"ok": False, "error": "운영일수와 D.ROAS 계산을 위한 RAW 파일을 업로드해주세요."}, 400
+        return {"ok": False, "error": "D.ROAS 계산을 위한 Amazon Attribution 일일 RAW 파일을 업로드해주세요."}, 400
 
     token = os.environ.get("META_ACCESS_TOKEN")
     if not token:
@@ -1015,6 +1015,13 @@ def budget_lookup():
         adset_name = adset.get("name", "")
         is_da = bool(re.search(r"(^|[_\-\s])DA([_\-\s]|$)", adset_name, re.I))
         active_names = [ad.get("name", "") for ad in active_ads if ad.get("name")]
+        created_dates = [
+            str(ad.get("created_time", ""))[:10] for ad in active_ads if ad.get("created_time")
+        ]
+        if not created_dates and adset.get("created_time"):
+            created_dates.append(str(adset["created_time"])[:10])
+        history_since = min(created_dates) if created_dates else date.today().isoformat()
+        daily_spend = meta_lib.get_adset_daily_ad_spend(token, adset["id"], history_since, until)
         return {
             "adset_id": adset["id"], "campaign_name": adset["campaign_name"],
             "adset_name": adset_name, "type": "DA" if is_da else "PA",
@@ -1024,6 +1031,7 @@ def budget_lookup():
             "display_name": ", ".join(active_names) if is_da and active_names else adset_name,
             "current_budget": int(adset["daily_budget"]) / 100 if adset.get("daily_budget") else 0,
             "cpa_3d": insight["cpa"], "cpm_3d": insight["cpm"],
+            "_meta_spend_rows": daily_spend,
         }
 
     try:
