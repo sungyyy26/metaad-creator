@@ -75,14 +75,15 @@
     font-family:var(--font-ui);font-size:var(--fs-base);
     -webkit-font-smoothing:antialiased;
   }
-  #app{max-width:880px;margin:0 auto;padding:var(--sp-8) 22px 100px;}
+  #app{max-width:1180px;margin:0 auto;padding:var(--sp-8) 22px 100px;}
 
-  .eyebrow{font-family:var(--font-heading);font-size:var(--fs-xs);font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);}
-  h1{font-family:var(--font-heading);font-weight:800;font-size:var(--fs-xl);letter-spacing:-0.02em;margin:var(--sp-2) 0 var(--sp-2);text-wrap:balance;}
-  .subtitle{color:var(--text-muted);font-size:var(--fs-md);line-height:1.5;margin:0 0 var(--sp-6);max-width:60ch;}
+  .eyebrow{font-family:var(--font-heading);font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--accent);margin:0 0 10px;}
+  h1{font-family:var(--font-heading);font-weight:800;font-size:30px;letter-spacing:-0.02em;margin:0 0 8px;text-wrap:balance;}
+  .subtitle{color:var(--text-muted);font-size:14.5px;line-height:1.6;margin:0;max-width:64ch;}
 
-  .page-header{display:flex;justify-content:space-between;align-items:flex-start;gap:var(--sp-4);flex-wrap:wrap;}
+  .page-header{display:flex;justify-content:space-between;align-items:flex-start;gap:20px;margin-bottom:32px;}
   .page-header-left{flex:1;min-width:240px;}
+  .page-logo,.sf-logo{color:var(--text);flex-shrink:0;margin-top:6px;}
   .mode-toggle{flex:none;margin-top:2px;}
 
   .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:28px 30px;margin-bottom:var(--sp-5);}
@@ -344,8 +345,8 @@
   .sf-results-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;}
   .sf-results-head h3{font-family:"Gothic A1",sans-serif;font-weight:700;font-size:15px;margin:0;color:var(--sf-ink);}
   .sf-count-badge{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--sf-ink-dim);}
-  .sf-results-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
-  @media (max-width:900px){.sf-results-grid{grid-template-columns:repeat(2,1fr);}}
+  .sf-results-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
+  @media (max-width:900px){.sf-results-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
   @media (max-width:560px){.sf-results-grid{grid-template-columns:1fr;}}
   .sf-result-card{background:var(--sf-panel);border:1px solid var(--sf-line);border-radius:14px;padding:14px;display:flex;gap:11px;align-items:flex-start;min-width:0;}
   .sf-result-card:has(.sf-result-check){cursor:pointer;}
@@ -355,9 +356,11 @@
   .sf-thumb-tile svg{width:24px;height:24px;}
   .sf-thumb-img{width:52px;height:52px;border-radius:11px;flex-shrink:0;object-fit:cover;background:var(--sf-accent-soft);border:1px solid var(--sf-line);}
   .sf-result-info{min-width:0;display:flex;flex-direction:column;gap:4px;flex:1;}
-  .sf-result-title{font-family:"Gothic A1",sans-serif;font-weight:600;font-size:13.5px;line-height:1.35;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;word-break:break-word;}
-  .sf-result-handle{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--sf-ink-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .sf-result-tags{font-size:11.5px;color:var(--sf-ink-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .sf-result-title{font-family:"Gothic A1",sans-serif;font-weight:600;font-size:13.5px;line-height:1.4;white-space:normal;overflow-wrap:anywhere;word-break:break-word;}
+  .sf-result-handle{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--sf-ink-dim);white-space:normal;overflow-wrap:anywhere;word-break:break-word;}
+  .sf-result-tags{font-size:11.5px;color:var(--sf-ink-dim);white-space:normal;overflow-wrap:anywhere;word-break:break-word;}
+  .sf-result-url{color:var(--sf-accent);text-decoration:none;}
+  .sf-result-url:hover{text-decoration:none;}
   .sf-r-badge{font-family:"IBM Plex Mono",monospace;font-size:10.5px;border-radius:999px;padding:1px 8px;display:inline-block;width:fit-content;}
   .sf-r-active{color:var(--sf-done);background:var(--sf-done-bg);}
   .sf-r-draft{color:var(--sf-pending);background:var(--sf-pending-bg);}
@@ -379,6 +382,34 @@
   .sf-detail-row .sf-ex-before{text-decoration:line-through;}
   .sf-detail-row .sf-ex-arrow{margin:0 6px;}
   .sf-detail-row .sf-ex-after{color:var(--sf-ink);font-weight:600;}
+
+  .sf-pager{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;margin-top:16px;}
+  .sf-pager button{font-family:"IBM Plex Mono",monospace;font-size:12px;min-width:32px;height:32px;border-radius:999px;border:1px solid var(--sf-line);background:var(--sf-panel);color:var(--sf-ink-dim);cursor:pointer;}
+  .sf-pager button.current{border-color:var(--sf-accent);background:var(--sf-accent);color:var(--sf-accent-ink);}
+  .sf-pager button:disabled{opacity:.35;cursor:not-allowed;}
+
+  .sf-media-ops{display:flex;flex-direction:column;gap:12px;}
+  .sf-media-row{border:1px solid var(--sf-line);background:var(--sf-paper);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px;}
+  .sf-media-row-head{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+  .sf-media-grid{display:grid;grid-template-columns:minmax(0,1fr) 130px 130px;gap:12px;}
+  @media (max-width:720px){.sf-media-grid{grid-template-columns:1fr;}}
+  .sf-mode-row{display:flex;gap:8px;flex-wrap:wrap;}
+  .sf-mode-btn{font-family:"Gothic A1",sans-serif;font-weight:600;font-size:12px;border:1px solid var(--sf-line);background:var(--sf-panel);color:var(--sf-ink-dim);border-radius:999px;padding:7px 13px;cursor:pointer;}
+  .sf-mode-btn.active{background:var(--sf-accent-soft);border-color:var(--sf-accent);color:var(--sf-accent);}
+  .sf-media-remove{background:none;border:none;color:var(--sf-error);cursor:pointer;font-size:12px;}
+  .sf-media-suggestions{font-size:11px;color:var(--sf-ink-dim);min-height:16px;}
+
+  .sf-preview-main{display:flex;gap:12px;align-items:flex-start;}
+  .sf-preview-main .sf-thumb-img,.sf-preview-main .sf-thumb-tile{width:64px;height:64px;}
+  .sf-preview-copy{min-width:0;flex:1;}
+  .sf-media-compare{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;}
+  @media (max-width:700px){.sf-media-compare{grid-template-columns:1fr;}}
+  .sf-media-state{border:1px solid var(--sf-line);border-radius:12px;padding:10px;}
+  .sf-media-state-label{font-family:"Gothic A1",sans-serif;font-weight:700;font-size:11px;color:var(--sf-ink-dim);margin-bottom:8px;}
+  .sf-thumb-strip{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;}
+  .sf-thumb-mini{width:72px;flex:0 0 72px;}
+  .sf-thumb-mini img,.sf-thumb-mini-empty{width:72px;height:72px;border-radius:9px;object-fit:cover;background:var(--sf-accent-soft);display:flex;align-items:center;justify-content:center;}
+  .sf-thumb-mini span:last-child{display:block;font-size:10px;color:var(--sf-ink-dim);margin-top:4px;overflow-wrap:anywhere;}
 
   .sf-history{margin-top:40px;}
   .sf-history-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;}
@@ -413,10 +444,16 @@
 
   <div class="page-header" id="page-header-ads">
     <div class="page-header-left">
-      <div class="eyebrow">Boosters · 메타 광고 · 로컬 실행</div>
+      <p class="eyebrow">EQB · Meta Ads Ops</p>
       <h1>광고 에딧 데스크</h1>
       <p class="subtitle">기존 광고 세트를 알려주시면 타겟팅을 복제하고, 소재를 매칭해 새 광고 세트와 광고를 즉시 생성합니다. 이 페이지는 내 컴퓨터에서만 열리고, 제출 즉시 Meta API를 직접 호출합니다 (승인 대기열 없음).</p>
     </div>
+    <svg class="page-logo" viewBox="0 0 220 100" width="56" height="25" aria-label="EQB">
+      <rect x="4" y="10" width="140" height="80" rx="40" fill="none" stroke="currentColor" stroke-width="7"/>
+      <rect x="76" y="10" width="140" height="80" rx="40" fill="none" stroke="currentColor" stroke-width="7"/>
+      <text x="44" y="61" font-size="30" font-weight="700" text-anchor="middle" fill="currentColor">EQ</text>
+      <text x="181" y="61" font-size="30" font-weight="700" text-anchor="middle" fill="currentColor">B</text>
+    </svg>
   </div>
   <div class="mode-toggle" id="mode-toggle-ads">
     <button type="button" class="mode-btn active" data-mode="setting">광고 셋팅</button>
@@ -642,7 +679,7 @@
 
   <div class="panel" id="panel-copy" hidden>
     <h2>소재 카피 생성기</h2>
-    <p class="hint">소재명을 입력하면 제품·부위·고민 코드를 해석해 헤드라인·기본 텍스트 후보를 만듭니다 (로컬에서 바로 생성 — Meta/Claude 호출 없음). 마음에 드는 후보를 클릭하면 클립보드로 복사됩니다.</p>
+    <p class="hint">소재명을 입력하면 제품·부위·고민 코드를 해석해 매번 다른 순서의 헤드라인·기본 텍스트 후보를 만듭니다. 아래에서 주간 JSON 파일을 올리면 서버 재시작 없이 카피 데이터베이스도 갱신됩니다.</p>
     <div class="field">
       <label>소재명</label>
       <input type="text" id="copy_creative_name_input" placeholder="예: n-srm_ao_da_ig_fface-wrnk-timerewind_ksh_20260916-1">
@@ -651,6 +688,20 @@
       <button type="button" class="primary" id="copy-generate-btn">카피 생성</button>
     </div>
     <div id="copy-gen-result" hidden></div>
+    <hr class="sf-divider" style="margin:24px 0;">
+    <div class="panel-header">
+      <h2 style="font-size:16px;">카피 데이터베이스 업데이트</h2>
+    </div>
+    <p class="hint">기존 형식의 <span class="mono">copy_patterns.json</span>, <span class="mono">registry.json</span> 또는 두 데이터를 담은 JSON 번들을 선택하세요. 업로드 전 구조를 검증하며, 오류가 있으면 기존 데이터는 유지됩니다. <a href="/copy_database_download" class="sf-result-url">현재 DB 내려받기</a>로 받은 파일을 편집해 그대로 다시 올릴 수도 있습니다.</p>
+    <div class="file-input-wrap">
+      <label class="file-input-btn" for="copy_database_files">JSON 파일 선택</label>
+      <input type="file" name="copy_database_files" id="copy_database_files" accept=".json,application/json" multiple class="file-input-hidden">
+      <span class="file-input-name" id="copy_database_file_name">선택된 파일 없음</span>
+    </div>
+    <div class="field-actions-right">
+      <button type="button" class="primary" id="copy-database-upload-btn">데이터베이스 업데이트</button>
+    </div>
+    <div id="copy-database-result" hidden></div>
   </div>
 
   <div class="sf-app" id="panel-shopify" hidden>
@@ -659,7 +710,7 @@
         <div>
           <p class="sf-eyebrow">EQB · Product Ops</p>
           <h1 class="sf-h1">쇼피파이 일괄 편집기</h1>
-          <p class="sf-sub">Step 1에서 조건을 검색하고, Step 2에서 수정사항을 입력한 뒤 적용할 상품을 고르고, Step 3에서 최종 확인 후 적용합니다. 제목·설명(HTML)·태그를 한 번에 수정할 수 있고, 검색은 최근 수정한 상품 최대 250개까지 조회됩니다 (미디어/이미지 수정은 아직 지원하지 않습니다).</p>
+          <p class="sf-sub">Step 1에서 조건을 검색하고, Step 2에서 제목·설명·미디어·태그 수정사항과 적용 상품을 선택한 뒤, Step 3에서 썸네일과 AS-IS/TO-BE를 최종 확인하고 적용합니다.</p>
         </div>
         <svg class="sf-logo" viewBox="0 0 220 100" width="56" height="25" aria-label="EQB">
           <rect x="4" y="10" width="140" height="80" rx="40" fill="none" stroke="currentColor" stroke-width="7"/>
@@ -698,6 +749,7 @@
           </div>
           <div id="sf-search-summary"></div>
           <div id="sf-search-list" class="sf-results-grid"></div>
+          <div id="sf-search-pager" class="sf-pager" hidden></div>
           <div class="sf-actions" id="sf-to-step2-actions" hidden>
             <span class="sf-hint-req"></span>
             <button type="button" class="sf-submit" id="sf-to-step2-btn">다음: 수정사항 입력 →</button>
@@ -711,6 +763,12 @@
           <p class="sf-panel-hint">채운 항목만 적용됩니다.</p>
           <label class="sf-field"><span class="sf-lbl">제목</span><input type="text" id="sf-m-title" placeholder="비워두면 건드리지 않음 (이미 같은 값이면 자동 건너뜀)"></label>
           <label class="sf-field"><span class="sf-lbl">설명 (HTML)</span><textarea id="sf-m-description" placeholder="비워두면 건드리지 않음"></textarea></label>
+          <div class="sf-field">
+            <span class="sf-lbl">미디어</span>
+            <p class="sf-panel-hint" style="margin:0;">여러 작업을 추가하면 위에서부터 순서대로 적용됩니다. 이미지 이름은 Shopify 파일 라이브러리의 파일명 또는 대체 텍스트와 일치해야 합니다.</p>
+            <div id="sf-media-ops" class="sf-media-ops"></div>
+            <button type="button" class="sf-btn-secondary" id="sf-add-media-op" style="align-self:flex-start;">+ 미디어 작업 추가</button>
+          </div>
           <div class="sf-field">
             <span class="sf-lbl">태그</span>
             <select id="sf-m-tagmode">
@@ -747,6 +805,7 @@
             </div>
           </div>
           <div id="sf-select-list" class="sf-results-grid"></div>
+          <div id="sf-select-pager" class="sf-pager" hidden></div>
           <div class="sf-actions">
             <button type="button" class="sf-btn-secondary" id="sf-back-to-1-btn">← 이전</button>
             <button type="button" class="sf-submit" id="sf-preview-btn">다음: 미리보기 →</button>
@@ -767,7 +826,7 @@
         </div>
       </div>
 
-      <section class="sf-history">
+      <section class="sf-history sf-panel">
         <div class="sf-history-head">
           <h2>작업 내역</h2>
           <div style="display:flex;align-items:center;gap:12px;">
@@ -1632,6 +1691,46 @@
       if (!iconBtn) return;
       copyText(iconBtn.getAttribute("data-copy-text"), iconBtn);
     });
+
+    var dbFiles = document.getElementById("copy_database_files");
+    var dbFileName = document.getElementById("copy_database_file_name");
+    var dbUploadBtn = document.getElementById("copy-database-upload-btn");
+    var dbResult = document.getElementById("copy-database-result");
+    dbFiles.addEventListener("change", function () {
+      var names = Array.from(dbFiles.files || []).map(function (file) { return file.name; });
+      dbFileName.textContent = names.length ? names.join(", ") : "선택된 파일 없음";
+    });
+    dbUploadBtn.addEventListener("click", function () {
+      var files = Array.from(dbFiles.files || []);
+      if (!files.length) {
+        dbResult.innerHTML = '<div class="record-note err">JSON 파일을 선택해주세요.</div>';
+        dbResult.hidden = false;
+        return;
+      }
+      var body = new FormData();
+      files.forEach(function (file) { body.append("copy_database_files", file); });
+      dbUploadBtn.disabled = true;
+      dbUploadBtn.textContent = "검증 및 업데이트 중…";
+      fetch("/copy_database_upload", { method: "POST", body: body })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data.ok) throw new Error(data.error || "업데이트에 실패했습니다.");
+          dbResult.innerHTML = '<div class="record-note" style="color:var(--status-done-fg);">업데이트 완료: ' +
+            escapeHtml(data.updated.join(", ")) + " · 제품 " + data.product_count + "개 · 부위 " +
+            data.part_count + "개 · 고민 " + data.concern_count + "개</div>";
+          dbResult.hidden = false;
+          dbFiles.value = "";
+          dbFileName.textContent = "선택된 파일 없음";
+        })
+        .catch(function (error) {
+          dbResult.innerHTML = '<div class="record-note err">' + escapeHtml(error.message) + '</div>';
+          dbResult.hidden = false;
+        })
+        .finally(function () {
+          dbUploadBtn.disabled = false;
+          dbUploadBtn.textContent = "데이터베이스 업데이트";
+        });
+    });
   })();
 
   (function () {
@@ -1657,6 +1756,10 @@
 
     var candidates = [];        // last search result, [{id, title, handle, statusLabel, tags, template, thumbnail}]
     var selected = new Set();   // ids currently checked in step 2
+    var searchPage = 1;
+    var selectPage = 1;
+    var SF_PAGE_SIZE = 12;
+    var mediaOps = [];
 
     function showStep(n) {
       tabBtns.forEach(function (b) { b.classList.toggle("active", Number(b.getAttribute("data-sf-step")) === n); });
@@ -1677,7 +1780,9 @@
     }
 
     function candidateCard(p, selectable) {
-      var tagsText = (p.tags || []).join(", ") || "(태그 없음)";
+      var tagsText = (p.tags || []).map(function (tag) {
+        return String(tag).charAt(0) === "#" ? String(tag) : "#" + String(tag);
+      }).join(" ") || "(태그 없음)";
       var checkbox = selectable
         ? '<input type="checkbox" class="sf-result-check" data-id="' + escapeHtml(p.id) + '"' + (selected.has(p.id) ? " checked" : "") + '>'
         : "";
@@ -1686,12 +1791,46 @@
         '<div class="sf-result-info">' +
           '<span class="sf-r-badge ' + (STATUS_BADGE_CLASS[p.status] || "") + '">' + escapeHtml(p.statusLabel) + '</span>' +
           '<span class="sf-result-title">' + escapeHtml(p.title) + '</span>' +
-          '<span class="sf-result-handle">/' + escapeHtml(p.handle) + (p.template ? " · " + escapeHtml(p.template) : "") + '</span>' +
-          '<span class="sf-result-tags">' + escapeHtml(tagsText) + '</span>' +
+          '<a class="sf-result-handle sf-result-url" href="' + escapeHtml(p.url || ("/products/" + p.handle)) + '" target="_blank" rel="noopener">' + escapeHtml(p.url || ("/products/" + p.handle)) + '</a>' +
+          (p.template ? '<span class="sf-result-handle">템플릿: ' + escapeHtml(p.template) + '</span>' : '') +
+          '<span class="sf-result-tags">태그: ' + escapeHtml(tagsText) + '</span>' +
         '</div>' +
       '</' + tag + '>';
     }
     function renderCandidateRow(p) { return candidateCard(p, true); }
+
+    function pageSlice(items, page) {
+      var totalPages = Math.max(1, Math.ceil(items.length / SF_PAGE_SIZE));
+      var safePage = Math.max(1, Math.min(page, totalPages));
+      return {
+        page: safePage,
+        totalPages: totalPages,
+        items: items.slice((safePage - 1) * SF_PAGE_SIZE, safePage * SF_PAGE_SIZE),
+      };
+    }
+
+    function renderSfPager(el, page, totalPages) {
+      if (totalPages <= 1) {
+        el.innerHTML = "";
+        el.hidden = true;
+        return;
+      }
+      var html = '<button type="button" data-page="' + (page - 1) + '"' + (page === 1 ? " disabled" : "") + '>‹</button>';
+      for (var p = 1; p <= totalPages; p++) {
+        html += '<button type="button" data-page="' + p + '" class="' + (p === page ? "current" : "") + '">' + p + '</button>';
+      }
+      html += '<button type="button" data-page="' + (page + 1) + '"' + (page === totalPages ? " disabled" : "") + '>›</button>';
+      el.innerHTML = html;
+      el.hidden = false;
+    }
+
+    function renderSearchList() {
+      var paged = pageSlice(candidates, searchPage);
+      searchPage = paged.page;
+      searchListEl.innerHTML = paged.items.map(function (p) { return candidateCard(p, false); }).join("") ||
+        '<p class="sf-empty">조건에 맞는 상품이 없습니다.</p>';
+      renderSfPager(document.getElementById("sf-search-pager"), paged.page, paged.totalPages);
+    }
 
     function updateSelectedCount() {
       var el = document.getElementById("sf-selected-count");
@@ -1700,8 +1839,11 @@
 
     function renderSelectList() {
       var listEl = document.getElementById("sf-select-list");
-      listEl.innerHTML = candidates.map(renderCandidateRow).join("") ||
+      var paged = pageSlice(candidates, selectPage);
+      selectPage = paged.page;
+      listEl.innerHTML = paged.items.map(renderCandidateRow).join("") ||
         '<p class="sf-empty">조회된 상품이 없습니다.</p>';
+      renderSfPager(document.getElementById("sf-select-pager"), paged.page, paged.totalPages);
       updateSelectedCount();
     }
 
@@ -1719,6 +1861,31 @@
       } else {
         candidates.forEach(function (p) { selected.add(p.id); });
       }
+      renderSelectList();
+    });
+
+    document.getElementById("sf-search-pager").addEventListener("click", function (e) {
+      var button = e.target.closest("button[data-page]");
+      if (!button || button.disabled) return;
+      searchPage = Number(button.getAttribute("data-page"));
+      renderSearchList();
+    });
+    document.getElementById("sf-select-pager").addEventListener("click", function (e) {
+      var button = e.target.closest("button[data-page]");
+      if (!button || button.disabled) return;
+      selectPage = Number(button.getAttribute("data-page"));
+      renderSelectList();
+    });
+
+    document.addEventListener("keydown", function (e) {
+      if (!((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a")) return;
+      var step2 = app.querySelector('[data-sf-step-content="2"]');
+      if (!step2 || step2.hidden) return;
+      var targetTag = (e.target && e.target.tagName || "").toLowerCase();
+      if (["input", "textarea", "select"].indexOf(targetTag) !== -1) return;
+      e.preventDefault();
+      if (selected.size === candidates.length) selected.clear();
+      else candidates.forEach(function (product) { selected.add(product.id); });
       renderSelectList();
     });
 
@@ -1755,9 +1922,10 @@
           }
           candidates = data.products;
           selected = new Set(candidates.map(function (p) { return p.id; })); // 기본 전체 선택
+          searchPage = 1;
+          selectPage = 1;
           summaryEl.innerHTML = '<div class="sf-results-head"><h3>조회 결과</h3><span class="sf-count-badge">' + data.count + '건</span></div>';
-          searchListEl.innerHTML = candidates.map(function (p) { return candidateCard(p, false); }).join("") ||
-            '<p class="sf-empty">조건에 맞는 상품이 없습니다.</p>';
+          renderSearchList();
           toStep2Actions.hidden = candidates.length === 0;
           setTabsEnabled(candidates.length > 0);
         })
@@ -1786,11 +1954,110 @@
 
     document.getElementById("sf-back-to-1-btn").addEventListener("click", function () { showStep(1); });
 
+    function newMediaOp() {
+      return { mode: "insert", info: "", order: "", moveTo: "", newInfo: "" };
+    }
+
+    function mediaModeLabel(mode) {
+      return { insert: "추가", overwrite: "교체", delete: "삭제", move: "이동" }[mode] || mode;
+    }
+
+    function wireMediaLookup(input, datalist) {
+      var timer = null;
+      input.addEventListener("input", function () {
+        clearTimeout(timer);
+        var query = input.value.trim();
+        if (query.length < 2) {
+          datalist.innerHTML = "";
+          return;
+        }
+        timer = setTimeout(function () {
+          fetch("/shopify_media_search?q=" + encodeURIComponent(query))
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+              datalist.innerHTML = (data.files || []).map(function (file) {
+                return '<option value="' + escapeHtml(file.displayName || file.filename || "") + '">' +
+                  escapeHtml(file.filename || file.alt || "") + "</option>";
+              }).join("");
+            })
+            .catch(function () { datalist.innerHTML = ""; });
+        }, 250);
+      });
+    }
+
+    function renderMediaOps() {
+      var container = document.getElementById("sf-media-ops");
+      container.innerHTML = mediaOps.map(function (op, index) {
+        var needsNew = op.mode === "overwrite";
+        var needsMove = op.mode === "move";
+        var infoLabel = op.mode === "insert" ? "추가할 이미지" : "기존 이미지";
+        return '<div class="sf-media-row" data-media-index="' + index + '">' +
+          '<div class="sf-media-row-head"><strong>미디어 작업 ' + (index + 1) + '</strong>' +
+            '<button type="button" class="sf-media-remove" data-remove-media="' + index + '">삭제</button></div>' +
+          '<div class="sf-mode-row">' + ["insert", "overwrite", "delete", "move"].map(function (mode) {
+            return '<button type="button" class="sf-mode-btn' + (op.mode === mode ? " active" : "") +
+              '" data-media-mode="' + mode + '" data-media-index="' + index + '">' + mediaModeLabel(mode) + '</button>';
+          }).join("") + '</div>' +
+          '<div class="sf-media-grid">' +
+            '<label class="sf-field"><span class="sf-lbl">' + infoLabel + '</span>' +
+              '<input type="text" class="sf-media-input" data-media-field="info" data-media-index="' + index +
+              '" list="sf-media-info-' + index + '" value="' + escapeHtml(op.info) + '" placeholder="파일명 또는 대체 텍스트">' +
+              '<datalist id="sf-media-info-' + index + '"></datalist></label>' +
+            '<label class="sf-field"><span class="sf-lbl">현재 순서</span>' +
+              '<input type="number" min="1" class="sf-media-input" data-media-field="order" data-media-index="' + index +
+              '" value="' + escapeHtml(op.order) + '" placeholder="예: 1"></label>' +
+            '<label class="sf-field"><span class="sf-lbl">이동할 순서</span>' +
+              '<input type="number" min="1" class="sf-media-input" data-media-field="moveTo" data-media-index="' + index +
+              '" value="' + escapeHtml(op.moveTo) + '" placeholder="예: 3"' + (needsMove ? "" : " disabled") + '></label>' +
+          '</div>' +
+          '<label class="sf-field"><span class="sf-lbl">교체할 새 이미지</span>' +
+            '<input type="text" class="sf-media-input" data-media-field="newInfo" data-media-index="' + index +
+            '" list="sf-media-new-' + index + '" value="' + escapeHtml(op.newInfo) +
+            '" placeholder="Shopify 파일 라이브러리의 파일명"' + (needsNew ? "" : " disabled") + '>' +
+            '<datalist id="sf-media-new-' + index + '"></datalist></label>' +
+          '<p class="sf-media-suggestions">추가/교체 이미지는 두 글자 이상 입력하면 Shopify 파일 라이브러리에서 자동 검색됩니다.</p>' +
+        '</div>';
+      }).join("");
+
+      container.querySelectorAll(".sf-media-input").forEach(function (input) {
+        input.addEventListener("input", function () {
+          mediaOps[Number(input.getAttribute("data-media-index"))][input.getAttribute("data-media-field")] = input.value;
+        });
+        var listId = input.getAttribute("list");
+        if (listId) wireMediaLookup(input, document.getElementById(listId));
+      });
+    }
+
+    document.getElementById("sf-media-ops").addEventListener("click", function (e) {
+      var remove = e.target.closest("[data-remove-media]");
+      if (remove) {
+        mediaOps.splice(Number(remove.getAttribute("data-remove-media")), 1);
+        renderMediaOps();
+        return;
+      }
+      var modeButton = e.target.closest("[data-media-mode]");
+      if (!modeButton) return;
+      var index = Number(modeButton.getAttribute("data-media-index"));
+      mediaOps[index].mode = modeButton.getAttribute("data-media-mode");
+      renderMediaOps();
+    });
+    document.getElementById("sf-add-media-op").addEventListener("click", function () {
+      mediaOps.push(newMediaOp());
+      renderMediaOps();
+    });
+    mediaOps.push(newMediaOp());
+    renderMediaOps();
+
     function collectModifications() {
       var mods = {
         title: document.getElementById("sf-m-title").value,
         description: document.getElementById("sf-m-description").value,
         tagMode: tagModeSelect.value,
+        mediaOps: mediaOps.filter(function (op) {
+          return op.info.trim() || op.order.trim() || op.moveTo.trim() || op.newInfo.trim();
+        }).map(function (op) {
+          return { mode: op.mode, info: op.info.trim(), order: op.order, moveTo: op.moveTo, newInfo: op.newInfo.trim() };
+        }),
       };
       if (mods.tagMode === "add") mods.tagsValue = document.getElementById("sf-m-tags-value-add").value;
       if (mods.tagMode === "remove") mods.tagsValue = document.getElementById("sf-m-tags-value-remove").value;
@@ -1812,6 +2079,16 @@
       return parts.join(" · ") || "조건 없음";
     }
 
+    function renderMediaStrip(items) {
+      if (!items || !items.length) return '<span class="sf-empty">이미지 없음</span>';
+      return '<div class="sf-thumb-strip">' + items.map(function (item) {
+        var image = item.url
+          ? '<img src="' + escapeHtml(item.url) + '" alt="" loading="lazy">'
+          : '<span class="sf-thumb-mini-empty">—</span>';
+        return '<div class="sf-thumb-mini">' + image + '<span>' + escapeHtml(item.name || item.alt || "이미지") + '</span></div>';
+      }).join("") + '</div>';
+    }
+
     function renderPreviewRow(r) {
       var badge = r.overall === "apply" ? '<span class="sf-item-status sf-item-apply">적용</span>'
         : r.overall === "error" ? '<span class="sf-item-status sf-item-error">오류</span>'
@@ -1822,6 +2099,7 @@
       var detailLines = "";
       if (r.detail) {
         Object.keys(r.detail).forEach(function (field) {
+          if (field === "media") return;
           var d = r.detail[field];
           var before = Array.isArray(d.before) ? d.before.join(", ") : d.before;
           var after = Array.isArray(d.after) ? d.after.join(", ") : d.after;
@@ -1831,11 +2109,19 @@
             '<span class="sf-ex-after">' + escapeHtml(after) + '</span></div>';
         });
       }
+      var mediaCompare = r.detail && r.detail.media
+        ? '<div class="sf-media-compare">' +
+            '<div class="sf-media-state"><div class="sf-media-state-label">AS-IS</div>' + renderMediaStrip(r.detail.media.before) + '</div>' +
+            '<div class="sf-media-state"><div class="sf-media-state-label">TO-BE</div>' + renderMediaStrip(r.detail.media.after) + '</div>' +
+          '</div>'
+        : "";
       var errLine = r.error ? '<div class="sf-detail-row" style="color:var(--sf-error);">' + escapeHtml(r.error) + '</div>' : "";
       return '<div class="sf-preview-row">' +
-        '<div><span class="sf-result-title">' + escapeHtml(r.title) + '</span> ' + badge + '</div>' +
-        '<div class="sf-result-handle">/' + escapeHtml(r.handle) + '</div>' +
-        lines + detailLines + errLine +
+        '<div class="sf-preview-main">' + sfThumbFor(r) + '<div class="sf-result-info">' +
+          '<div><span class="sf-result-title">' + escapeHtml(r.title) + '</span> ' + badge + '</div>' +
+          (r.url ? '<a class="sf-result-handle sf-result-url" href="' + escapeHtml(r.url) + '" target="_blank" rel="noopener">' + escapeHtml(r.url) + '</a>' : '<div class="sf-result-handle">/' + escapeHtml(r.handle) + '</div>') +
+          lines + detailLines + errLine +
+        '</div></div>' + mediaCompare +
       '</div>';
     }
 

@@ -2,6 +2,8 @@
 duplicate of a source product, retitled/rehandled for one ad) — mirrors the
 Shopify step of the meta-ad-duplicator artifact's processing instructions."""
 import os
+import re
+from urllib.parse import urlparse
 
 import requests
 
@@ -114,7 +116,11 @@ query($query: String, $first: Int!) {
   products(first: $first, query: $query, sortKey: UPDATED_AT, reverse: true) {
     edges { node {
       id title handle status tags templateSuffix
+      onlineStorePreviewUrl
       featuredImage { url }
+      media(first: 50) {
+        edges { node { id alt ... on MediaImage { image { url } } } }
+      }
     } }
   }
 }
@@ -123,7 +129,13 @@ query($query: String, $first: Int!) {
 PRODUCTS_BY_IDS_QUERY = """
 query($ids: [ID!]!) {
   nodes(ids: $ids) {
-    ... on Product { id title handle status tags templateSuffix descriptionHtml }
+    ... on Product {
+      id title handle status tags templateSuffix descriptionHtml onlineStorePreviewUrl
+      featuredImage { url }
+      media(first: 50) {
+        edges { node { id alt ... on MediaImage { image { url } } } }
+      }
+    }
   }
 }
 """
@@ -136,6 +148,110 @@ mutation($input: ProductInput!) {
   }
 }
 """
+
+FIND_FILE_QUERY = """
+query($query: String!) {
+  files(first: 10, query: $query) {
+    edges { node { id alt ... on MediaImage { image { url } } } }
+  }
+}
+"""
+
+RECENT_IMAGE_FILES_QUERY = """
+query {
+  files(first: 250, sortKey: CREATED_AT, reverse: true, query: "media_type:IMAGE") {
+    edges { node { id alt ... on MediaImage { image { url } } } }
+  }
+}
+"""
+
+PRODUCT_CREATE_MEDIA_MUTATION = """
+mutation($productId: ID!, $media: [CreateMediaInput!]!) {
+  productCreateMedia(productId: $productId, media: $media) {
+    media { id }
+    mediaUserErrors { field message }
+  }
+}
+"""
+
+PRODUCT_REORDER_MEDIA_MUTATION = """
+mutation($id: ID!, $moves: [MoveInput!]!) {
+  productReorderMedia(id: $id, moves: $moves) {
+    mediaUserErrors { field message }
+  }
+}
+"""
+
+PRODUCT_DELETE_MEDIA_MUTATION = """
+mutation($mediaIds: [ID!]!, $productId: ID!) {
+  productDeleteMedia(mediaIds: $mediaIds, productId: $productId) {
+    deletedMediaIds
+    mediaUserErrors { field message }
+  }
+}
+"""
+
+
+def _normalize_product(product):
+    product = dict(product)
+    edges = (product.get("media") or {}).get("edges", [])
+    product["media"] = [
+        {
+            "id": edge["node"]["id"],
+            "alt": edge["node"].get("alt"),
+            "url": (edge["node"].get("image") or {}).get("url"),
+        }
+        for edge in edges
+    ]
+    return product
+
+
+def _base_filename(url):
+    if not url:
+        return ""
+    filename = urlparse(url).path.rsplit("/", 1)[-1]
+    stem = re.sub(r"\.[A-Za-z0-9]+$", "", filename)
+    return re.sub(
+        r"_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+        "", stem, flags=re.I,
+    )
+
+
+def media_display_name(media):
+    return (media.get("alt") or "").strip() or _base_filename(media.get("url"))
+
+
+def _map_file_node(node):
+    url = (node.get("image") or {}).get("url")
+    return {
+        "id": node.get("id"), "alt": node.get("alt"), "url": url,
+        "displayName": (node.get("alt") or "").strip() or _base_filename(url),
+    }
+
+
+def search_files(shop, token, query):
+    by_filename = _gql(shop, token, FIND_FILE_QUERY, {"query": query})
+    recent = _gql(shop, token, RECENT_IMAGE_FILES_QUERY)
+    needle = query.strip().lower()
+    matches = [_map_file_node(e["node"]) for e in by_filename["files"]["edges"]]
+    alt_matches = [
+        _map_file_node(e["node"]) for e in recent["files"]["edges"]
+        if needle in ((_map_file_node(e["node"])["displayName"] or "").lower())
+    ]
+    seen = {item["id"] for item in matches}
+    matches.extend(item for item in alt_matches if item["id"] not in seen)
+    return matches
+
+
+def _find_file_url(shop, token, names, cache):
+    for name in names:
+        if name not in cache:
+            files = search_files(shop, token, name)
+            exact = next((f for f in files if f["displayName"] == name), None)
+            cache[name] = (exact or (files[0] if files else {})).get("url")
+        if cache[name]:
+            return cache[name]
+    return None
 
 
 def parse_include_exclude(raw):
@@ -189,7 +305,7 @@ def search_products(shop, token, conditions):
     query_str = " AND ".join(query_parts) or None
 
     data = _gql(shop, token, PRODUCT_SEARCH_QUERY, {"query": query_str, "first": 250})
-    products = [edge["node"] for edge in data["products"]["edges"]]
+    products = [_normalize_product(edge["node"]) for edge in data["products"]["edges"]]
 
     title_include, title_exclude = parse_include_exclude(conditions.get("title"))
     if title_include or title_exclude:
@@ -222,7 +338,7 @@ def fetch_products_by_ids(shop, token, ids):
     trusts the search-time snapshot, since other edits may have landed on
     the product in between."""
     data = _gql(shop, token, PRODUCTS_BY_IDS_QUERY, {"ids": ids})
-    return [n for n in data["nodes"] if n]
+    return [_normalize_product(n) for n in data["nodes"] if n]
 
 
 def _compute_tag_change(current_tags, mods):
@@ -253,7 +369,234 @@ def _compute_tag_change(current_tags, mods):
     return tags, (tags != list(current_tags or []))
 
 
-def evaluate_modifications(product, mods):
+def _split_values(value):
+    return [piece.strip() for piece in str(value or "").split(",") if piece.strip()]
+
+
+def _expand_media_ops(media_ops):
+    expanded = []
+    for op in media_ops or []:
+        if op.get("mode") == "move":
+            expanded.append(dict(op))
+            continue
+        infos = _split_values(op.get("info"))
+        orders = _split_values(op.get("order"))
+        new_infos = _split_values(op.get("newInfo"))
+        count = max(len(infos), len(orders), len(new_infos), 1)
+        for index in range(count):
+            expanded.append({
+                "mode": op.get("mode"),
+                "info": infos[index] if index < len(infos) else "",
+                "order": orders[index] if index < len(orders) else "",
+                "moveTo": op.get("moveTo") or "",
+                "newInfo": new_infos[index] if index < len(new_infos) else "",
+            })
+    return expanded
+
+
+def _to_position(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _derive_media_plan(shop, token, media, op, cache):
+    mode = op.get("mode")
+    info = (op.get("info") or "").strip()
+    order = _to_position(op.get("order"))
+    move_to = _to_position(op.get("moveTo"))
+
+    if mode == "move":
+        if not order or not move_to:
+            return {"action": "error", "reason": "이동 순서 값이 올바르지 않음"}
+        if order < 1 or order > len(media):
+            return {"action": "skip", "reason": f"{order}번 위치에 이미지가 없음"}
+        item = media[order - 1]
+        if info and media_display_name(item) != info:
+            return {"action": "skip", "reason": f"{order}번 위치의 이미지가 다름 (실제: '{media_display_name(item) or '제목 없음'}')"}
+        if move_to < 1 or move_to > len(media):
+            return {"action": "skip", "reason": f"{move_to}번은 잘못된 위치 (전체 {len(media)}개)"}
+        if order == move_to:
+            return {"action": "skip", "reason": f"이미 {move_to}번 위치 (변경 없음)"}
+        next_media = list(media)
+        moved = next_media.pop(order - 1)
+        next_media.insert(move_to - 1, moved)
+        return {
+            "action": "apply", "reason": f"이미지 순서 변경: {order}번 → {move_to}번",
+            "next_media": next_media,
+            "mutation": {"kind": "move", "media_id": item["id"], "position": move_to},
+        }
+
+    if mode == "delete":
+        index = None
+        if order:
+            if order < 1 or order > len(media):
+                return {"action": "skip", "reason": f"{order}번 위치에 이미지가 없음"}
+            index = order - 1
+            if info and media_display_name(media[index]) != info:
+                return {"action": "skip", "reason": f"{order}번 위치의 이미지가 다름 (실제: '{media_display_name(media[index]) or '제목 없음'}')"}
+        elif info:
+            index = next((i for i, item in enumerate(media) if media_display_name(item) == info), None)
+            if index is None:
+                return {"action": "skip", "reason": f"삭제할 이미지를 찾지 못함: '{info}'"}
+        else:
+            return {"action": "error", "reason": "삭제할 이미지 또는 순서를 입력해주세요"}
+        target = media[index]
+        next_media = list(media)
+        next_media.pop(index)
+        return {
+            "action": "apply", "reason": f"이미지 삭제: {order}번" if order else f"이미지 삭제: '{info}'",
+            "next_media": next_media,
+            "mutation": {"kind": "delete", "media_id": target["id"]},
+        }
+
+    if mode == "overwrite":
+        new_info = (op.get("newInfo") or "").strip()
+        if not info or not new_info:
+            return {"action": "error", "reason": "교체할 기존 이미지와 새 이미지를 입력해주세요"}
+        if order:
+            if order < 1 or order > len(media):
+                return {"action": "skip", "reason": f"{order}번 위치에 이미지가 없음"}
+            index = order - 1
+            if media_display_name(media[index]) != info:
+                return {"action": "skip", "reason": f"{order}번 위치의 이미지가 다름 (실제: '{media_display_name(media[index]) or '제목 없음'}')"}
+        else:
+            index = next((i for i, item in enumerate(media) if media_display_name(item) == info), None)
+            if index is None:
+                return {"action": "skip", "reason": f"교체할 이미지를 찾지 못함: '{info}'"}
+        if any(media_display_name(item) == new_info for item in media):
+            return {"action": "skip", "reason": f"이미 등록된 이미지: '{new_info}'"}
+        new_url = _find_file_url(shop, token, [new_info], cache)
+        if not new_url:
+            return {"action": "error", "reason": f"쇼피파이 파일에서 이미지를 찾지 못함: '{new_info}'"}
+        pending = {"id": "__pending__", "alt": new_info, "url": new_url}
+        next_media = list(media)
+        old_id = next_media[index]["id"]
+        next_media[index] = pending
+        return {
+            "action": "apply", "reason": f"이미지 교체: '{info}' → '{new_info}' ({index + 1}번)",
+            "next_media": next_media,
+            "mutation": {"kind": "replace", "url": new_url, "alt": new_info, "position": index + 1, "old_id": old_id},
+        }
+
+    if mode == "insert":
+        if not info:
+            return {"action": "error", "reason": "추가할 이미지를 입력해주세요"}
+        if any(media_display_name(item) == info for item in media):
+            return {"action": "skip", "reason": f"이미 등록된 이미지: '{info}'"}
+        url = _find_file_url(shop, token, [info], cache)
+        if not url:
+            return {"action": "error", "reason": f"쇼피파이 파일에서 이미지를 찾지 못함: '{info}'"}
+        position = max(1, min(len(media) + 1, order or len(media) + 1))
+        pending = {"id": "__pending__", "alt": info, "url": url}
+        next_media = list(media)
+        next_media.insert(position - 1, pending)
+        return {
+            "action": "apply", "reason": f"이미지 추가: '{info}' ({position}번)",
+            "next_media": next_media,
+            "mutation": {"kind": "insert", "url": url, "alt": info, "position": position},
+        }
+
+    return {"action": "error", "reason": "이미지 수정 방식을 선택해주세요"}
+
+
+def _media_snapshot(media):
+    return [
+        {"url": item.get("url"), "name": media_display_name(item)}
+        for item in media
+    ]
+
+
+def _preview_media_ops(shop, token, product, media_ops):
+    media = list(product.get("media") or [])
+    before = _media_snapshot(media)
+    parts = []
+    cache = {}
+    for op in _expand_media_ops(media_ops):
+        plan = _derive_media_plan(shop, token, media, op, cache)
+        parts.append({"field": "media", "action": plan["action"], "reason": plan["reason"]})
+        if plan["action"] == "apply":
+            media = plan["next_media"]
+    return parts, {"before": before, "after": _media_snapshot(media)}
+
+
+def _media_errors(result, key):
+    errors = result[key].get("mediaUserErrors") or []
+    if errors:
+        raise ShopifyApiError("; ".join(error["message"] for error in errors))
+
+
+def _execute_media_mutation(shop, token, product_id, mutation):
+    kind = mutation["kind"]
+    if kind == "move":
+        result = _gql(shop, token, PRODUCT_REORDER_MEDIA_MUTATION, {
+            "id": product_id,
+            "moves": [{"id": mutation["media_id"], "newPosition": str(mutation["position"] - 1)}],
+        })
+        _media_errors(result, "productReorderMedia")
+        return None
+    if kind == "delete":
+        result = _gql(shop, token, PRODUCT_DELETE_MEDIA_MUTATION, {
+            "productId": product_id, "mediaIds": [mutation["media_id"]],
+        })
+        _media_errors(result, "productDeleteMedia")
+        return None
+
+    result = _gql(shop, token, PRODUCT_CREATE_MEDIA_MUTATION, {
+        "productId": product_id,
+        "media": [{
+            "originalSource": mutation["url"],
+            "mediaContentType": "IMAGE",
+            "alt": mutation["alt"],
+        }],
+    })
+    _media_errors(result, "productCreateMedia")
+    new_id = result["productCreateMedia"]["media"][0]["id"]
+    reordered = _gql(shop, token, PRODUCT_REORDER_MEDIA_MUTATION, {
+        "id": product_id,
+        "moves": [{"id": new_id, "newPosition": str(mutation["position"] - 1)}],
+    })
+    _media_errors(reordered, "productReorderMedia")
+    if kind == "replace":
+        deleted = _gql(shop, token, PRODUCT_DELETE_MEDIA_MUTATION, {
+            "productId": product_id, "mediaIds": [mutation["old_id"]],
+        })
+        _media_errors(deleted, "productDeleteMedia")
+    return new_id
+
+
+def _apply_media_ops(shop, token, product, media_ops):
+    media = list(product.get("media") or [])
+    parts = []
+    cache = {}
+    for op in _expand_media_ops(media_ops):
+        plan = _derive_media_plan(shop, token, media, op, cache)
+        part = {"field": "media", "action": plan["action"], "reason": plan["reason"]}
+        if plan["action"] == "apply":
+            try:
+                new_id = _execute_media_mutation(shop, token, product["id"], plan["mutation"])
+                media = plan["next_media"]
+                if new_id:
+                    for item in media:
+                        if item["id"] == "__pending__":
+                            item["id"] = new_id
+                            break
+            except ShopifyApiError as error:
+                part = {"field": "media", "action": "error", "reason": str(error)}
+        parts.append(part)
+    return parts
+
+
+def _overall(parts):
+    if any(part["action"] == "error" for part in parts):
+        return "error"
+    if any(part["action"] == "apply" for part in parts):
+        return "apply"
+    return "skip"
+
+
+def evaluate_modifications(product, mods, shop=None, token=None):
     """Computes what would happen to `product` under `mods` without calling
     the API — used for both the step-3 preview and (as the first half of)
     the actual apply. Each field that's a no-op is marked 'skip' with a
@@ -286,9 +629,18 @@ def evaluate_modifications(product, mods):
         else:
             parts.append({"field": "tags", "action": "skip", "reason": "태그 변경 (변경 없음 또는 대상 없음)"})
 
+    if mods.get("mediaOps"):
+        if not shop or not token:
+            parts.append({"field": "media", "action": "error", "reason": "Shopify 연결 정보가 없습니다."})
+        else:
+            media_parts, media_detail = _preview_media_ops(shop, token, product, mods["mediaOps"])
+            parts.extend(media_parts)
+            if any(part["action"] == "apply" for part in media_parts):
+                detail["media"] = media_detail
+
     if not parts:
         return {"overall": "skip", "reason": "적용할 수정사항 없음", "parts": [], "detail": {}}
-    overall = "apply" if any(p["action"] == "apply" for p in parts) else "skip"
+    overall = _overall(parts)
     return {"overall": overall, "parts": parts, "detail": detail}
 
 
@@ -297,8 +649,8 @@ def apply_modifications(shop, token, product, mods):
     actually change, sends one productUpdate mutation. Returns the same
     shape as evaluate_modifications, with overall possibly promoted to
     'error' if Shopify rejects the mutation."""
-    plan = evaluate_modifications(product, mods)
-    if plan["overall"] != "apply":
+    plan = evaluate_modifications(product, mods, shop, token)
+    if plan["overall"] == "error":
         return plan
     fields = {"id": product["id"]}
     if "title" in plan["detail"]:
@@ -307,11 +659,22 @@ def apply_modifications(shop, token, product, mods):
         fields["descriptionHtml"] = plan["detail"]["description"]["after"]
     if "tags" in plan["detail"]:
         fields["tags"] = plan["detail"]["tags"]["after"]
-    data = _gql(shop, token, PRODUCT_UPDATE_MUTATION, {"input": fields})
-    result = data["productUpdate"]
-    if result["userErrors"]:
-        plan["overall"] = "error"
-        plan["error"] = "; ".join(e["message"] for e in result["userErrors"])
+    if len(fields) > 1:
+        data = _gql(shop, token, PRODUCT_UPDATE_MUTATION, {"input": fields})
+        result = data["productUpdate"]
+        if result["userErrors"]:
+            plan["overall"] = "error"
+            plan["error"] = "; ".join(e["message"] for e in result["userErrors"])
+            return plan
+
+    non_media_parts = [part for part in plan["parts"] if part.get("field") != "media"]
+    media_parts = _apply_media_ops(shop, token, product, mods.get("mediaOps") or [])
+    plan["parts"] = non_media_parts + media_parts
+    plan["overall"] = _overall(plan["parts"])
+    if plan["overall"] == "error":
+        plan["error"] = "; ".join(
+            part["reason"] for part in plan["parts"] if part["action"] == "error"
+        )
     return plan
 
 

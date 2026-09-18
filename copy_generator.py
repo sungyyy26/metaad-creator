@@ -12,10 +12,14 @@ data/registry.json and data/copy_patterns.json when new product/부위/고민 co
 are added there.
 """
 import json
+import os
 import re
+import secrets
+import threading
 from pathlib import Path
 
 DATA_DIR = Path(__file__).parent / "copy_generator_data"
+_DATA_LOCK = threading.RLock()
 
 
 class CopyGenerationError(ValueError):
@@ -33,6 +37,127 @@ def _load_data():
 
 
 _REGISTRY, _PATTERNS, _PART_BY_CODE, _CONCERN_BY_CODE = _load_data()
+
+
+def _validate_registry(value):
+    if not isinstance(value, dict):
+        raise CopyGenerationError("registry 데이터는 JSON 객체여야 합니다.")
+    for key in ("part", "concern"):
+        if not isinstance(value.get(key), list):
+            raise CopyGenerationError(f"registry에 '{key}' 배열이 필요합니다.")
+        for index, item in enumerate(value[key], start=1):
+            if (
+                not isinstance(item, dict)
+                or not item.get("code")
+                or not item.get("ko")
+                or "en" not in item
+            ):
+                raise CopyGenerationError(
+                    f"registry.{key}의 {index}번째 항목에는 code, ko, en 값이 필요합니다."
+                )
+
+
+def _validate_patterns(value):
+    if not isinstance(value, dict):
+        raise CopyGenerationError("copy_patterns 데이터는 JSON 객체여야 합니다.")
+    required = (
+        "products", "asin_map", "part_singular", "part_display",
+        "concern_copy", "care_scope", "hook_shapes",
+    )
+    missing = [key for key in required if key not in value]
+    if missing:
+        raise CopyGenerationError("copy_patterns 필수 항목 누락: " + ", ".join(missing))
+    if not isinstance(value["products"], dict) or not value["products"]:
+        raise CopyGenerationError("copy_patterns.products에 제품 데이터가 필요합니다.")
+    for code, product in value["products"].items():
+        for key in ("name_ko", "short_ko", "headline_shapes", "body_templates"):
+            if key not in product:
+                raise CopyGenerationError(f"제품 '{code}'의 '{key}' 항목이 필요합니다.")
+        if not isinstance(product["headline_shapes"], list) or not product["headline_shapes"]:
+            raise CopyGenerationError(f"제품 '{code}'의 headline_shapes는 비어 있지 않은 배열이어야 합니다.")
+        if not isinstance(product["body_templates"], list) or not product["body_templates"]:
+            raise CopyGenerationError(f"제품 '{code}'의 body_templates는 비어 있지 않은 배열이어야 합니다.")
+    for key in ("asin_map", "part_singular", "part_display", "concern_copy", "care_scope"):
+        if not isinstance(value[key], dict):
+            raise CopyGenerationError(f"copy_patterns.{key}는 JSON 객체여야 합니다.")
+    if not isinstance(value["hook_shapes"], dict):
+        raise CopyGenerationError("copy_patterns.hook_shapes는 JSON 객체여야 합니다.")
+
+
+def _atomic_write_json(path, value):
+    temp_path = path.with_suffix(path.suffix + ".tmp")
+    temp_path.write_text(
+        json.dumps(value, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    os.replace(temp_path, path)
+
+
+def update_database(payloads):
+    """Validates and replaces registry/pattern JSON files, then hot-reloads.
+
+    ``payloads`` is an iterable of ``(filename, decoded_json)`` pairs. It may
+    contain the two existing files separately, or one bundle with ``registry``
+    and/or ``copy_patterns`` keys. Existing data is retained for any side not
+    present in the upload.
+    """
+    global _REGISTRY, _PATTERNS, _PART_BY_CODE, _CONCERN_BY_CODE
+
+    registry = None
+    patterns = None
+    for filename, payload in payloads:
+        lower_name = (filename or "").lower()
+        if isinstance(payload, dict) and (
+            "registry" in payload or "copy_patterns" in payload or "patterns" in payload
+        ):
+            registry = payload.get("registry", registry)
+            patterns = payload.get("copy_patterns", payload.get("patterns", patterns))
+        elif "registry" in lower_name:
+            registry = payload
+        elif "pattern" in lower_name:
+            patterns = payload
+        elif isinstance(payload, dict) and "products" in payload:
+            patterns = payload
+        elif isinstance(payload, dict) and "part" in payload and "concern" in payload:
+            registry = payload
+        else:
+            raise CopyGenerationError(
+                f"'{filename}'의 데이터 종류를 확인할 수 없습니다. "
+                "파일명을 registry.json 또는 copy_patterns.json으로 지정해주세요."
+            )
+
+    if registry is None and patterns is None:
+        raise CopyGenerationError("업데이트할 registry 또는 copy_patterns 데이터가 없습니다.")
+
+    with _DATA_LOCK:
+        current_registry, current_patterns, _, _ = _load_data()
+        next_registry = registry if registry is not None else current_registry
+        next_patterns = patterns if patterns is not None else current_patterns
+        _validate_registry(next_registry)
+        _validate_patterns(next_patterns)
+        if registry is not None:
+            _atomic_write_json(DATA_DIR / "registry.json", next_registry)
+        if patterns is not None:
+            _atomic_write_json(DATA_DIR / "copy_patterns.json", next_patterns)
+        _REGISTRY, _PATTERNS, _PART_BY_CODE, _CONCERN_BY_CODE = _load_data()
+
+    return {
+        "updated": [
+            name for name, present in (
+                ("registry.json", registry is not None),
+                ("copy_patterns.json", patterns is not None),
+            ) if present
+        ],
+        "product_count": len(_PATTERNS["products"]),
+        "part_count": len(_REGISTRY["part"]),
+        "concern_count": len(_REGISTRY["concern"]),
+    }
+
+
+def export_database():
+    """Returns a detached bundle suitable for editing and re-uploading."""
+    with _DATA_LOCK:
+        return json.loads(json.dumps({"registry": _REGISTRY, "copy_patterns": _PATTERNS}))
 
 
 def _parse_creative_name(name):
@@ -136,10 +261,16 @@ def generate(creative_name):
             headlines.append(shape.format(**fmt))
         except KeyError:
             continue
-        if len(headlines) >= 3:
-            break
 
-    primary_texts = [tpl.format(**fmt) for tpl in product["body_templates"]][:3]
+    primary_texts = [tpl.format(**fmt) for tpl in product["body_templates"]]
+
+    # A static database can still yield a different mix/order on each click.
+    # Weekly JSON uploads expand this pool without requiring an AI/API call.
+    rng = secrets.SystemRandom()
+    rng.shuffle(headlines)
+    rng.shuffle(primary_texts)
+    headlines = headlines[:3]
+    primary_texts = primary_texts[:3]
 
     part_entry = _PART_BY_CODE.get(parsed["part_code"])
     concern_entry_raw = _CONCERN_BY_CODE.get(parsed["concern_code"])

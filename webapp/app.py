@@ -11,10 +11,10 @@ Run (every time after that — no need to re-export anything):
     python webapp/app.py
 """
 import csv
-import hashlib
 import io
 import json
 import os
+import secrets
 import re
 import sys
 import threading
@@ -22,7 +22,7 @@ import uuid
 from datetime import datetime
 
 from dotenv import load_dotenv
-from flask import Flask, redirect, render_template, request, session
+from flask import Flask, Response, redirect, render_template, request, session
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import copy_generator  # noqa: E402
@@ -89,18 +89,15 @@ def is_generate_placeholder(value):
 
 
 def _select_copy_variant(candidates, creative_name, salt, used):
-    """Deterministically picks one of copy_generator's (up to 3) candidate
-    strings for creative_name, spread via a hash of the full 소재명 instead
-    of always index 0 — so a batch of near-identical 소재 (same product/부위/
-    고민) doesn't get byte-identical copy on every row. `used` is a set
-    shared across one bulk batch (or None for a single manual submit); once a
-    candidate is picked it's added to `used`, and later rows skip forward
-    past anything already taken. If every candidate in this batch is already
-    used, it's fine to repeat — there's no more variety on offer for this
-    소재명."""
+    """Randomly rotates through the available copy candidates.
+
+    The old implementation hashed the 소재명, so the same name always returned
+    the same copy. A random starting point makes repeated generations feel
+    fresh while ``used`` still prevents duplicates inside one bulk batch.
+    """
     if not candidates:
         return ""
-    start = int(hashlib.sha1(f"{salt}:{creative_name}".encode("utf-8")).hexdigest(), 16) % len(candidates)
+    start = secrets.randbelow(len(candidates))
     for offset in range(len(candidates)):
         candidate = candidates[(start + offset) % len(candidates)]
         if used is None or candidate not in used:
@@ -502,6 +499,43 @@ def generate_copy_endpoint():
     except copy_generator.CopyGenerationError as e:
         return {"ok": False, "error": str(e)}, 400
     return {"ok": True, **result}
+
+
+@app.route("/copy_database_upload", methods=["POST"])
+def copy_database_upload():
+    """Hot-reloads the local copy database from one or more validated JSON files."""
+    files = [f for f in request.files.getlist("copy_database_files") if f and f.filename]
+    if not files:
+        return {"ok": False, "error": "업데이트할 JSON 파일을 선택해주세요."}, 400
+
+    payloads = []
+    try:
+        for file in files:
+            if not file.filename.lower().endswith(".json"):
+                raise copy_generator.CopyGenerationError(
+                    f"'{file.filename}'은 JSON 파일이 아닙니다."
+                )
+            payloads.append((file.filename, json.load(file.stream)))
+        result = copy_generator.update_database(payloads)
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        return {"ok": False, "error": f"JSON 파일을 읽지 못했습니다: {e}"}, 400
+    except copy_generator.CopyGenerationError as e:
+        return {"ok": False, "error": str(e)}, 400
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"카피 DB 업데이트 중 오류가 발생했습니다: {e}"}, 500
+
+    return {"ok": True, **result}
+
+
+@app.route("/copy_database_download")
+def copy_database_download():
+    """Downloads the current editable database as one re-uploadable bundle."""
+    payload = json.dumps(copy_generator.export_database(), ensure_ascii=False, indent=2) + "\n"
+    return Response(
+        payload,
+        mimetype="application/json",
+        headers={"Content-Disposition": "attachment; filename=copy_database_bundle.json"},
+    )
 
 
 @app.route("/submit", methods=["POST"])
@@ -1125,10 +1159,27 @@ def shopify_search():
                 "statusLabel": shopify_lib.STATUS_LABELS.get(p["status"], p["status"]),
                 "tags": p.get("tags") or [], "template": p.get("templateSuffix") or "",
                 "thumbnail": (p.get("featuredImage") or {}).get("url"),
+                "url": p.get("onlineStorePreviewUrl") or f"https://{shop}/products/{p['handle']}",
             }
             for p in products
         ],
     }
+
+
+@app.route("/shopify_media_search")
+def shopify_media_search():
+    """Searches Shopify Files by filename/alt for the media-operation inputs."""
+    shop, token = _shopify_env()
+    if not shop or not token:
+        return {"ok": False, "error": "SHOPIFY_SHOP / SHOPIFY_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."}, 400
+    query = request.args.get("q", "").strip()
+    if not query:
+        return {"ok": True, "files": []}
+    try:
+        files = shopify_lib.search_files(shop, token, query)[:8]
+    except shopify_lib.ShopifyApiError as e:
+        return {"ok": False, "error": str(e)}, 400
+    return {"ok": True, "files": files}
 
 
 @app.route("/shopify_preview", methods=["POST"])
@@ -1152,8 +1203,13 @@ def shopify_preview():
 
     results = []
     for p in products:
-        plan = shopify_lib.evaluate_modifications(p, mods)
-        results.append({"id": p["id"], "title": p["title"], "handle": p["handle"], **plan})
+        plan = shopify_lib.evaluate_modifications(p, mods, shop, token)
+        results.append({
+            "id": p["id"], "title": p["title"], "handle": p["handle"],
+            "thumbnail": (p.get("featuredImage") or {}).get("url"),
+            "url": p.get("onlineStorePreviewUrl") or f"https://{shop}/products/{p['handle']}",
+            **plan,
+        })
     return {"ok": True, "results": results}
 
 
@@ -1185,7 +1241,12 @@ def shopify_apply():
             plan = {"overall": "error", "error": str(e), "parts": [], "detail": {}}
         except Exception as e:  # noqa: BLE001
             plan = {"overall": "error", "error": f"예상치 못한 오류: {e}", "parts": [], "detail": {}}
-        results.append({"id": p["id"], "title": p["title"], "handle": p["handle"], **plan})
+        results.append({
+            "id": p["id"], "title": p["title"], "handle": p["handle"],
+            "thumbnail": (p.get("featuredImage") or {}).get("url"),
+            "url": p.get("onlineStorePreviewUrl") or f"https://{shop}/products/{p['handle']}",
+            **plan,
+        })
 
     applied = sum(1 for r in results if r["overall"] == "apply")
     skipped = sum(1 for r in results if r["overall"] == "skip")
