@@ -112,6 +112,7 @@
   .tab-btn.active,.mode-btn.active{color:var(--text);border-bottom-color:var(--accent);}
   .tab-btn:focus-visible,.mode-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   #top-toggle .top-btn[data-top="ads"].active{background:var(--accent);color:var(--accent-contrast);box-shadow:none;}
+  #top-toggle .top-btn[data-top="budget"].active{background:#f5c542;color:#1d1d1f;box-shadow:none;}
   #top-toggle .top-btn[data-top="shopify"].active{background:var(--accent-green);color:var(--accent-green-contrast);box-shadow:none;}
   .tab-panel[hidden]{display:none;}
 
@@ -250,6 +251,20 @@
   .bulk-copy-editor label{display:block;font-family:var(--font-heading);font-size:var(--fs-xs);font-weight:700;color:var(--text-faint);margin-bottom:5px;}
   .bulk-copy-editor input,.bulk-copy-editor textarea{font-size:var(--fs-sm);background:var(--surface-2);}
   .bulk-copy-editor textarea{min-height:130px;white-space:pre-wrap;}
+  .budget-table-wrap{overflow:auto;margin-top:var(--sp-3);border:1px solid var(--border);border-radius:var(--radius-md);}
+  .budget-table{width:100%;min-width:1180px;border-collapse:collapse;font-size:var(--fs-xs);}
+  .budget-table th,.budget-table td{padding:10px 9px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top;}
+  .budget-table th{position:sticky;top:0;background:var(--surface-2);font-family:var(--font-heading);font-weight:700;white-space:nowrap;z-index:1;}
+  .budget-table tr:last-child td{border-bottom:0;}
+  .budget-table tr[data-bucket="신규"]{border-left:3px solid var(--accent);}
+  .budget-table tr[data-bucket="기존"]{border-left:3px solid #8e8e93;}
+  .budget-edit{width:86px!important;min-width:86px;padding:7px 8px!important;font-family:var(--font-mono)!important;}
+  .budget-flag{font-weight:700;color:var(--status-error-fg);}
+  .budget-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px;}
+  .budget-summary-card{background:var(--surface-2);border-radius:var(--radius-sm);padding:12px;}
+  .budget-summary-card span{display:block;font-size:var(--fs-2xs);color:var(--text-faint);}
+  .budget-summary-card strong{font-size:var(--fs-md);}
+  @media(max-width:720px){.budget-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
 
   .record-note.err{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap;}
   .record-note-text{flex:1;min-width:0;overflow-wrap:break-word;word-break:break-word;}
@@ -448,6 +463,7 @@
 <div id="app">
   <div class="top-toggle" id="top-toggle">
     <button type="button" class="top-btn active" data-top="ads">광고 셋팅</button>
+    <button type="button" class="top-btn" data-top="budget">예산 조정</button>
     <button type="button" class="top-btn" data-top="shopify">쇼피파이 편집</button>
   </div>
 
@@ -464,12 +480,6 @@
       <text x="181" y="61" font-size="30" font-weight="700" text-anchor="middle" fill="currentColor">B</text>
     </svg>
   </div>
-  <div class="mode-toggle" id="mode-toggle-ads">
-    <button type="button" class="mode-btn active" data-mode="setting">광고 셋팅</button>
-    <button type="button" class="mode-btn" data-mode="budget">예산 조정</button>
-    <button type="button" class="mode-btn" data-mode="copy">카피 생성</button>
-  </div>
-
   {% if message %}
     <div class="banner {{ message.kind }}" id="flash-banner">
       <button type="button" class="banner-close" id="flash-banner-close" aria-label="닫기">×</button>
@@ -485,6 +495,7 @@
       <button type="button" class="tab-btn active" data-tab="bulk">대량 업로드</button>
       <button type="button" class="tab-btn" data-tab="manual">수동 입력</button>
       <button type="button" class="tab-btn" data-tab="upload">소재 업로드</button>
+      <button type="button" class="tab-btn" data-tab="copy">카피 생성</button>
     </div>
 
     <div class="tab-panel" id="tab-manual" hidden>
@@ -643,38 +654,37 @@
         <button type="submit" class="primary">선택한 파일 업로드</button>
       </form>
     </div>
+    <div class="tab-panel" id="tab-copy" hidden>
+      <h2>소재 카피 생성기</h2>
+      <p class="hint">소재명을 입력하면 제품·부위·고민 코드를 해석해 매번 다른 순서의 헤드라인·기본 텍스트 후보를 만듭니다.</p>
+      <div class="field"><label>소재명</label><input type="text" id="copy_creative_name_input" placeholder="예: n-srm_ao_da_ig_fface-wrnk-timerewind_ksh_20260916-1"></div>
+      <div class="field-actions-right"><button type="button" class="primary" id="copy-generate-btn">카피 생성</button></div>
+      <div id="copy-gen-result" hidden></div>
+      <hr class="sf-divider" style="margin:24px 0;">
+      <div class="panel-header"><h2 style="font-size:16px;">카피 데이터베이스 업데이트</h2></div>
+      <p class="hint"><a href="/copy_database_download" class="sf-result-url">현재 DB 내려받기</a> 후 편집한 JSON을 다시 업로드할 수 있습니다.</p>
+      <div class="file-input-wrap"><label class="file-input-btn" for="copy_database_files">JSON 파일 선택</label><input type="file" name="copy_database_files" id="copy_database_files" accept=".json,application/json" multiple class="file-input-hidden"><span class="file-input-name" id="copy_database_file_name">선택된 파일 없음</span></div>
+      <div class="field-actions-right"><button type="button" class="primary" id="copy-database-upload-btn">데이터베이스 업데이트</button></div>
+      <div id="copy-database-result" hidden></div>
+    </div>
   </div>
 
   <div class="panel" id="panel-budget" hidden>
     <h2>메타 예산 조정</h2>
-    <p class="hint">채널·제품군으로 대상 캠페인을 찾고, 업로드한 파일의 소재명 또는 광고세트명을 기준으로 예산을 반영합니다.</p>
-    <div class="step-label">1단계 · 조건 입력 및 파일 첨부</div>
+    <p class="hint">캠페인 조회값을 포함하는 활성 광고세트를 분석하고, CPA·D.ROAS 기준으로 희망 총예산을 재배분합니다.</p>
+    <div class="step-label">1단계 · 조회 조건</div>
     <div class="field-row">
-      <div class="field">
-        <label>채널 *</label>
-        <select id="budget_channel">
-          <option value="Amazon">Amazon</option>
-          <option value="Boots">Boots</option>
-          <option value="__add__">+ 새 채널 추가</option>
-        </select>
-        <div class="inline-add-row" id="budget_channel_add_row" hidden>
-          <input type="text" id="budget_channel_new" placeholder="새 채널 이름 입력">
-          <button type="button" class="secondary" id="budget_channel_add_btn">추가</button>
-        </div>
-      </div>
-      <div class="field">
-        <label>제품군</label>
-        <input type="text" id="budget_product_group" placeholder="예: v-srm (비워두면 채널만으로 검색)">
-      </div>
+      <div class="field"><label>캠페인 조회 *</label><input type="text" id="budget_campaign_query" placeholder="입력값을 포함하는 캠페인 전체 조회"></div>
+      <div class="field"><label>희망 총예산 (USD) *</label><div class="budget-wrap"><span class="prefix">$</span><input type="number" id="budget_desired_total" min="1" step="1" placeholder="예: 10000"></div></div>
     </div>
     <div class="field">
-      <label>예산 파일 (.xlsx 또는 .csv) *</label>
+      <label>D.ROAS RAW 파일 *</label>
       <div class="file-input-wrap">
-        <label class="file-input-btn" for="budget_file_input">파일 선택</label>
-        <input type="file" id="budget_file_input" accept=".xlsx,.xlsm,.csv" class="file-input-hidden">
-        <span class="file-input-name" id="budget_file_name">선택된 파일 없음</span>
+        <label class="file-input-btn" for="droas_file_input">파일 선택</label>
+        <input type="file" id="droas_file_input" accept=".xlsx,.xlsm,.csv" class="file-input-hidden">
+        <span class="file-input-name" id="droas_file_name">선택된 파일 없음</span>
       </div>
-      <span class="field-hint">조회 컬럼은 소재/소재명/광고명 또는 광고세트/광고세트명으로 인식합니다. 예산 컬럼은 기존/기존예산/현재/현재예산, 변경/변경예산/제안/제안예산을 사용할 수 있습니다.</span>
+      <span class="field-hint">필수 컬럼: 날짜, 광고명(Ad Name), Spend, AMZ Sales. 운영일수·재개일·최근 7일 D.ROAS 계산에 사용합니다.</span>
     </div>
     <div class="field-actions-right">
       <button type="button" class="primary" id="budget-lookup-btn">조회</button>
@@ -682,40 +692,12 @@
     <div class="bulk-preview" id="budget-results" hidden>
       <div class="step-label">2단계 · 결과 확인 및 반영</div>
       <div class="bulk-preview-summary" id="budget-results-summary"></div>
-      <div class="record-list" id="budget-results-list"></div>
-      <div id="budget-conflicts" hidden></div>
-      <div id="budget-not-found" hidden></div>
+      <div id="budget-summary-cards" class="budget-summary-grid"></div>
+      <div class="budget-table-wrap"><table class="budget-table"><thead><tr><th>구분</th><th>유형</th><th>소재명</th><th>운영 일수</th><th>D.ROAS (7일)</th><th>CPA (3일)</th><th>CPM (3일)</th><th>현재 예산</th><th>변경 예산</th><th>분류</th><th>비고</th></tr></thead><tbody id="budget-results-list"></tbody></table></div>
       <div class="field-actions-right" id="budget-apply-actions" hidden>
         <button type="button" class="primary" id="budget-apply-btn">적용</button>
       </div>
     </div>
-  </div>
-
-  <div class="panel" id="panel-copy" hidden>
-    <h2>소재 카피 생성기</h2>
-    <p class="hint">소재명을 입력하면 제품·부위·고민 코드를 해석해 매번 다른 순서의 헤드라인·기본 텍스트 후보를 만듭니다. 아래에서 주간 JSON 파일을 올리면 서버 재시작 없이 카피 데이터베이스도 갱신됩니다.</p>
-    <div class="field">
-      <label>소재명</label>
-      <input type="text" id="copy_creative_name_input" placeholder="예: n-srm_ao_da_ig_fface-wrnk-timerewind_ksh_20260916-1">
-    </div>
-    <div class="field-actions-right">
-      <button type="button" class="primary" id="copy-generate-btn">카피 생성</button>
-    </div>
-    <div id="copy-gen-result" hidden></div>
-    <hr class="sf-divider" style="margin:24px 0;">
-    <div class="panel-header">
-      <h2 style="font-size:16px;">카피 데이터베이스 업데이트</h2>
-    </div>
-    <p class="hint">기존 형식의 <span class="mono">copy_patterns.json</span>, <span class="mono">registry.json</span> 또는 두 데이터를 담은 JSON 번들을 선택하세요. 업로드 전 구조를 검증하며, 오류가 있으면 기존 데이터는 유지됩니다. <a href="/copy_database_download" class="sf-result-url">현재 DB 내려받기</a>로 받은 파일을 편집해 그대로 다시 올릴 수도 있습니다.</p>
-    <div class="file-input-wrap">
-      <label class="file-input-btn" for="copy_database_files">JSON 파일 선택</label>
-      <input type="file" name="copy_database_files" id="copy_database_files" accept=".json,application/json" multiple class="file-input-hidden">
-      <span class="file-input-name" id="copy_database_file_name">선택된 파일 없음</span>
-    </div>
-    <div class="field-actions-right">
-      <button type="button" class="primary" id="copy-database-upload-btn">데이터베이스 업데이트</button>
-    </div>
-    <div id="copy-database-result" hidden></div>
   </div>
 
   <div class="sf-app" id="panel-shopify" hidden>
@@ -1025,19 +1007,17 @@
 <script>
   function syncHistoryPanels() {
     var activeTopBtn = document.querySelector("#top-toggle .top-btn.active");
-    var activeModeBtn = document.querySelector("#mode-toggle-ads .mode-btn.active");
     var activeSettingTab = document.querySelector(".tab-btn.active");
-    var isAds = !activeTopBtn || activeTopBtn.getAttribute("data-top") === "ads";
-    var mode = activeModeBtn ? activeModeBtn.getAttribute("data-mode") : "setting";
+    var top = activeTopBtn ? activeTopBtn.getAttribute("data-top") : "ads";
     var settingTab = activeSettingTab ? activeSettingTab.getAttribute("data-tab") : "bulk";
 
     document.getElementById("panel-setting-history").hidden = !(
-      isAds && mode === "setting" && settingTab !== "upload"
+      top === "ads" && (settingTab === "bulk" || settingTab === "manual")
     );
     document.getElementById("panel-upload-history").hidden = !(
-      isAds && mode === "setting" && settingTab === "upload"
+      top === "ads" && settingTab === "upload"
     );
-    document.getElementById("panel-budget-history").hidden = !(isAds && mode === "budget");
+    document.getElementById("panel-budget-history").hidden = true;
   }
 
   document.querySelectorAll(".tab-btn").forEach(function (btn) {
@@ -1048,18 +1028,7 @@
       document.getElementById("tab-manual").hidden = target !== "manual";
       document.getElementById("tab-bulk").hidden = target !== "bulk";
       document.getElementById("tab-upload").hidden = target !== "upload";
-      syncHistoryPanels();
-    });
-  });
-
-  document.querySelectorAll(".mode-btn").forEach(function (btn) {
-    btn.addEventListener("click", function () {
-      document.querySelectorAll(".mode-btn").forEach(function (b) { b.classList.remove("active"); });
-      btn.classList.add("active");
-      var mode = btn.getAttribute("data-mode");
-      document.getElementById("panel-setting").hidden = mode !== "setting";
-      document.getElementById("panel-budget").hidden = mode !== "budget";
-      document.getElementById("panel-copy").hidden = mode !== "copy";
+      document.getElementById("tab-copy").hidden = target !== "copy";
       syncHistoryPanels();
     });
   });
@@ -1072,29 +1041,16 @@
       document.querySelectorAll("#top-toggle .top-btn").forEach(function (b) { b.classList.remove("active"); });
       btn.classList.add("active");
       var top = btn.getAttribute("data-top");
-      var isShopify = top === "shopify";
-
-      document.getElementById("page-header-ads").hidden = isShopify;
-      document.getElementById("mode-toggle-ads").hidden = isShopify;
-      document.getElementById("panel-shopify").hidden = !isShopify;
-
-      if (isShopify) {
-        document.getElementById("panel-setting").hidden = true;
-        document.getElementById("panel-budget").hidden = true;
-        document.getElementById("panel-copy").hidden = true;
-      } else {
-        var activeSubBtn = document.querySelector("#mode-toggle-ads .mode-btn.active") || document.querySelector("#mode-toggle-ads .mode-btn");
-        var subMode = activeSubBtn ? activeSubBtn.getAttribute("data-mode") : "setting";
-        document.getElementById("panel-setting").hidden = subMode !== "setting";
-        document.getElementById("panel-budget").hidden = subMode !== "budget";
-        document.getElementById("panel-copy").hidden = subMode !== "copy";
-      }
+      document.getElementById("page-header-ads").hidden = top === "shopify";
+      document.getElementById("panel-shopify").hidden = top !== "shopify";
+      document.getElementById("panel-setting").hidden = top !== "ads";
+      document.getElementById("panel-budget").hidden = top !== "budget";
       syncHistoryPanels();
     });
   });
 
   var requestedSettingTab = new URLSearchParams(window.location.search).get("tab");
-  var requestedSettingTabBtn = ["bulk", "manual", "upload"].indexOf(requestedSettingTab) !== -1
+  var requestedSettingTabBtn = ["bulk", "manual", "upload", "copy"].indexOf(requestedSettingTab) !== -1
     ? document.querySelector('.tab-btn[data-tab="' + requestedSettingTab + '"]')
     : null;
   if (requestedSettingTabBtn) {
@@ -1227,289 +1183,134 @@
     });
   }
 
-  var budgetFileInput = document.getElementById("budget_file_input");
-  var budgetFileName = document.getElementById("budget_file_name");
+  var budgetFileInput = document.getElementById("droas_file_input");
+  var budgetFileName = document.getElementById("droas_file_name");
   if (budgetFileInput && budgetFileName) {
     budgetFileInput.addEventListener("change", function () {
       budgetFileName.textContent = budgetFileInput.files.length ? budgetFileInput.files[0].name : "선택된 파일 없음";
     });
   }
 
+
   (function () {
     var lookupBtn = document.getElementById("budget-lookup-btn");
-    if (!lookupBtn) return;
-    var channelSelect = document.getElementById("budget_channel");
-    var productGroupInput = document.getElementById("budget_product_group");
-    var channelAddRow = document.getElementById("budget_channel_add_row");
-    var channelNewInput = document.getElementById("budget_channel_new");
-    var channelAddBtn = document.getElementById("budget_channel_add_btn");
-    var resultsEl = document.getElementById("budget-results");
-    var summaryEl = document.getElementById("budget-results-summary");
-    var listEl = document.getElementById("budget-results-list");
-    var notFoundEl = document.getElementById("budget-not-found");
-    var conflictsEl = document.getElementById("budget-conflicts");
-    var applyActions = document.getElementById("budget-apply-actions");
     var applyBtn = document.getElementById("budget-apply-btn");
+    if (!lookupBtn || !applyBtn) return;
+    var queryInput = document.getElementById("budget_campaign_query");
+    var desiredInput = document.getElementById("budget_desired_total");
+    var fileInput = document.getElementById("droas_file_input");
+    var results = document.getElementById("budget-results");
+    var summary = document.getElementById("budget-results-summary");
+    var cards = document.getElementById("budget-summary-cards");
+    var tbody = document.getElementById("budget-results-list");
+    var applyActions = document.getElementById("budget-apply-actions");
+    var currentRows = [];
 
-    function escapeHtml(s) {
-      return String(s).replace(/[&<>"']/g, function (c) {
+    function esc(value) {
+      return String(value == null ? "" : value).replace(/[&<>"']/g, function (c) {
         return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
       });
     }
-
-    function fmtBudget(v) {
-      return v === null || v === undefined ? "?" : String(v);
-    }
-
-    // 채널 목록에 "+ 새 채널 추가"를 고르면 직접 입력한 이름을 옵션으로 추가할
-    // 수 있게 한다. 이 브라우저에 저장해두므로 (localStorage) 다음에 열 때도
-    // 다시 입력할 필요 없이 그대로 남아있다.
-    var CHANNEL_STORAGE_KEY = "budget-custom-channels";
-
-    function loadCustomChannels() {
-      try {
-        var raw = localStorage.getItem(CHANNEL_STORAGE_KEY);
-        return raw ? JSON.parse(raw) : [];
-      } catch (e) {
-        return [];
+    function money(value) { return value == null ? "-" : "$" + Number(value).toFixed(2); }
+    function percent(value) { return value == null ? "-" : (Number(value) * 100).toFixed(1) + "%"; }
+    function renderCards(s) {
+      var values = [
+        ["희망 총예산", money(s.desired_total)],
+        ["신규 목표예산", money(s.new_target)],
+        ["신규 평균 CPA / OFF 기준", money(s.avg_cpa) + " / " + money(s.off_cpa)],
+        ["기존 목표예산 / 평균 D.ROAS", money(s.existing_target) + " / " + percent(s.avg_droas)],
+      ];
+      cards.innerHTML = values.map(function (v) {
+        return '<div class="budget-summary-card"><span>' + esc(v[0]) + '</span><strong>' + esc(v[1]) + '</strong></div>';
+      }).join("");
+      if ((s.warnings || []).length) {
+        cards.innerHTML += '<div class="record-note warn" style="grid-column:1/-1;">' + esc(s.warnings.join(" / ")) + '</div>';
       }
     }
-
-    function saveCustomChannels(list) {
-      try { localStorage.setItem(CHANNEL_STORAGE_KEY, JSON.stringify(list)); } catch (e) {}
-    }
-
-    function addChannelOption(name, select) {
-      var addOption = channelSelect.querySelector('option[value="__add__"]');
-      var option = document.createElement("option");
-      option.value = name;
-      option.textContent = name;
-      channelSelect.insertBefore(option, addOption);
-      if (select) {
-        channelSelect.value = name;
-      }
-      return option;
-    }
-
-    loadCustomChannels().forEach(function (name) { addChannelOption(name, false); });
-
-    function confirmNewChannel() {
-      var name = channelNewInput.value.trim();
-      if (!name) {
-        channelNewInput.focus();
-        return;
-      }
-      var existing = Array.prototype.find.call(channelSelect.options, function (opt) {
-        return opt.value.toLowerCase() === name.toLowerCase() && opt.value !== "__add__";
-      });
-      if (existing) {
-        channelSelect.value = existing.value;
-      } else {
-        addChannelOption(name, true);
-        var stored = loadCustomChannels();
-        stored.push(name);
-        saveCustomChannels(stored);
-      }
-      channelNewInput.value = "";
-      channelAddRow.hidden = true;
-    }
-
-    function syncChannelAddRow(focusInput) {
-      channelAddRow.hidden = channelSelect.value !== "__add__";
-      if (!channelAddRow.hidden && focusInput) {
-        channelNewInput.focus();
-      }
-    }
-    if (channelSelect) {
-      syncChannelAddRow(false); // enforce the correct state on load, not just reactively on change
-      channelSelect.addEventListener("change", function () { syncChannelAddRow(true); });
-    }
-    if (channelAddBtn) {
-      channelAddBtn.addEventListener("click", confirmNewChannel);
-    }
-    if (channelNewInput) {
-      channelNewInput.addEventListener("keydown", function (e) {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          confirmNewChannel();
-        }
-      });
-    }
-
-    function renderMatch(m) {
-      var mismatchNote = m.mismatch
-        ? '<div class="record-note warn">파일의 기존 예산($' + escapeHtml(fmtBudget(m.file_current_budget)) +
-          ')이 실제 Meta 예산($' + escapeHtml(fmtBudget(m.live_current_budget)) + ')과 다릅니다 — 최신 상태인지 확인해주세요.</div>'
-        : '';
-      return '<label class="record-row preview-row budget-match-row">' +
-        '<input type="checkbox" class="budget-apply-check" data-adset-id="' + escapeHtml(m.adset_id) +
-          '" data-new-budget="' + escapeHtml(m.new_budget) +
-          '" data-campaign-name="' + escapeHtml(m.campaign_name) +
-          '" data-adset-name="' + escapeHtml(m.adset_name) +
-          '" data-creative-names="' + escapeHtml(JSON.stringify(m.creative_names)) +
-          '" data-live-budget="' + escapeHtml(m.live_current_budget) +
-          '"' + (m.new_budget != null ? ' checked' : ' disabled') + '>' +
-        '<div class="budget-match-body">' +
-          '<div class="record-campaign"><span class="record-label">C:</span>' + escapeHtml(m.campaign_name) + '</div>' +
-          '<div class="record-main"><span class="record-label">AS:</span><span class="adset">' + escapeHtml(m.adset_name) + '</span></div>' +
-          '<div class="record-result">조회값: ' + escapeHtml(m.creative_names.join(", ")) + '</div>' +
-          '<div class="record-result mono">현재 $' + escapeHtml(fmtBudget(m.live_current_budget)) +
-            ' → 변경 $' + escapeHtml(fmtBudget(m.new_budget)) + '</div>' +
-          mismatchNote +
-        '</div>' +
-      '</label>';
-    }
-
-    function renderConflict(c) {
-      var rows = c.values.map(function (v) {
-        return escapeHtml(v.creative_name) + ' (기존 $' + escapeHtml(fmtBudget(v.current_budget)) +
-          ' → 변경 $' + escapeHtml(fmtBudget(v.new_budget)) + ')';
-      }).join(", ");
-      return '<div class="record-row preview-row">' +
-        '<div class="record-campaign"><span class="record-label">C:</span>' + escapeHtml(c.campaign_name) + '</div>' +
-        '<div class="record-main"><span class="record-label">AS:</span><span class="adset">' + escapeHtml(c.adset_name) + '</span></div>' +
-        '<div class="record-note err"><span class="record-note-text">이 광고 세트와 연결된 조회값들이 서로 다른 예산을 가지고 있어 어느 쪽이 맞는지 판단할 수 없습니다: ' +
-          rows + ' — 파일을 확인 후 다시 조회해주세요.</span></div>' +
-      '</div>';
+    function renderRow(row, index) {
+      var note = [row.reason, row.note].filter(Boolean).join(" / ");
+      var flag = row.classification ? '<span class="budget-flag">' + esc(row.classification) + '</span>' : '-';
+      return '<tr data-bucket="' + esc(row.bucket) + '">' +
+        '<td>' + esc(row.bucket) + '</td><td>' + esc(row.type) + '</td>' +
+        '<td><strong>' + esc(row.display_name) + '</strong><br><span class="record-meta">' + esc(row.campaign_name) + '</span></td>' +
+        '<td>' + esc(row.operating_days) + '일</td><td>' + percent(row.droas_7d) + '</td>' +
+        '<td>' + money(row.cpa_3d) + '</td><td>' + money(row.cpm_3d) + '</td>' +
+        '<td>' + money(row.current_budget) + '</td>' +
+        '<td><input class="budget-edit" type="number" min="0" step="1" data-budget-index="' + index + '" value="' + esc(row.suggested_budget) + '"></td>' +
+        '<td>' + flag + '</td><td>' + esc(note || "-") + '</td></tr>';
     }
 
     lookupBtn.addEventListener("click", function () {
-      if (channelSelect.value === "__add__") {
-        alert("새 채널 이름을 입력하고 '추가'를 눌러주세요.");
-        channelNewInput.focus();
-        return;
-      }
-      var file = budgetFileInput.files[0];
-      if (!file) {
-        alert("파일을 선택해주세요.");
+      var query = queryInput.value.trim();
+      var desired = desiredInput.value.trim();
+      var file = fileInput.files[0];
+      if (!query || !desired || !file) {
+        alert("캠페인 조회값, 희망 총예산, D.ROAS RAW 파일을 모두 입력해주세요.");
         return;
       }
       var body = new FormData();
-      body.set("channel", channelSelect.value);
-      body.set("product_group", productGroupInput.value);
-      body.set("budget_file", file);
-
+      body.set("campaign_query", query);
+      body.set("desired_budget", desired);
+      body.set("droas_file", file);
       lookupBtn.disabled = true;
-      var originalLabel = lookupBtn.textContent;
-      lookupBtn.textContent = "조회 중…";
-
+      lookupBtn.textContent = "분석 중…";
       fetch("/budget_lookup", { method: "POST", body: body })
         .then(function (r) { return r.json(); })
         .then(function (data) {
-          resultsEl.hidden = false;
-          if (!data.ok) {
-            summaryEl.textContent = data.error || "조회에 실패했습니다.";
-            listEl.innerHTML = "";
-            notFoundEl.hidden = true;
-            conflictsEl.hidden = true;
-            applyActions.hidden = true;
-            return;
-          }
-          var conflictCount = (data.conflicts || []).length;
-          summaryEl.textContent = data.message ||
-            ("캠페인 " + data.campaigns.length + "개 · 매칭 " + data.matches.length + "건 · 못 찾음 " +
-              data.not_found.length + "건" + (conflictCount ? " · 값 충돌 " + conflictCount + "건" : ""));
-          listEl.innerHTML = data.matches.map(renderMatch).join("") ||
-            '<div class="empty">일치하는 소재명 또는 광고세트명을 찾지 못했습니다.</div>';
-          if (conflictCount) {
-            conflictsEl.hidden = false;
-            conflictsEl.innerHTML = data.conflicts.map(renderConflict).join("");
-          } else {
-            conflictsEl.hidden = true;
-            conflictsEl.innerHTML = "";
-          }
-          if (data.not_found.length) {
-            notFoundEl.hidden = false;
-            notFoundEl.innerHTML = '<div class="record-note warn">캠페인 안에서 찾지 못한 조회값: ' +
-              data.not_found.map(escapeHtml).join(", ") + '</div>';
-          } else {
-            notFoundEl.hidden = true;
-            notFoundEl.innerHTML = "";
-          }
-          applyActions.hidden = data.matches.length === 0;
+          if (!data.ok) throw new Error(data.error || "조회 실패");
+          results.hidden = false;
+          currentRows = data.matches || [];
+          summary.textContent = data.message || ("캠페인 " + data.campaigns.length + "개 · 활성 광고세트 " + currentRows.length + "개");
+          renderCards(data.summary || {});
+          tbody.innerHTML = currentRows.map(renderRow).join("") || '<tr><td colspan="11" class="empty">조회된 활성 광고세트가 없습니다.</td></tr>';
+          applyActions.hidden = !currentRows.length;
         })
-        .catch(function () {
-          resultsEl.hidden = false;
-          summaryEl.textContent = "조회 중 오류가 발생했습니다.";
-          listEl.innerHTML = "";
+        .catch(function (error) {
+          results.hidden = false;
+          summary.textContent = error.message;
+          cards.innerHTML = "";
+          tbody.innerHTML = "";
           applyActions.hidden = true;
         })
         .finally(function () {
           lookupBtn.disabled = false;
-          lookupBtn.textContent = originalLabel;
+          lookupBtn.textContent = "조회";
         });
     });
 
-    function resetBudgetPanel() {
-      channelSelect.value = "Amazon";
-      syncChannelAddRow(false);
-      productGroupInput.value = "";
-      budgetFileInput.value = "";
-      budgetFileName.textContent = "선택된 파일 없음";
-      resultsEl.hidden = true;
-      summaryEl.textContent = "";
-      listEl.innerHTML = "";
-      notFoundEl.hidden = true;
-      notFoundEl.innerHTML = "";
-      conflictsEl.hidden = true;
-      conflictsEl.innerHTML = "";
-      applyActions.hidden = true;
-    }
+    tbody.addEventListener("input", function (e) {
+      var input = e.target.closest("[data-budget-index]");
+      if (!input) return;
+      currentRows[Number(input.getAttribute("data-budget-index"))].suggested_budget = Number(input.value);
+    });
 
-    if (applyBtn) {
-      applyBtn.addEventListener("click", function () {
-        var checks = Array.prototype.filter.call(
-          document.querySelectorAll(".budget-apply-check"), function (c) { return c.checked; });
-        if (!checks.length) {
-          alert("반영할 항목을 선택해주세요.");
-          return;
-        }
-        if (!confirm(checks.length + "건의 Meta 광고 세트 예산을 실제로 변경합니다. 계속할까요?")) return;
-
-        var items = checks.map(function (c) {
-          var liveBudgetAttr = c.getAttribute("data-live-budget");
-          return {
-            adset_id: c.getAttribute("data-adset-id"),
-            new_budget: Number(c.getAttribute("data-new-budget")),
-            campaign_name: c.getAttribute("data-campaign-name"),
-            adset_name: c.getAttribute("data-adset-name"),
-            creative_names: JSON.parse(c.getAttribute("data-creative-names") || "[]"),
-            live_current_budget: (liveBudgetAttr && liveBudgetAttr !== "null") ? Number(liveBudgetAttr) : null,
-          };
-        });
-        applyBtn.disabled = true;
-        var originalLabel = applyBtn.textContent;
-        applyBtn.textContent = "반영 중…";
-        fetch("/apply_budget_changes", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ items: items }),
-        })
-          .then(function (r) { return r.json(); })
-          .then(function (data) {
-            if (!data.ok) {
-              alert(data.error || "예산 반영에 실패했습니다.");
-              return;
-            }
-            var okCount = data.results.filter(function (r) { return r.ok; }).length;
-            var failCount = data.results.length - okCount;
-            var msg = "반영 완료 — 성공 " + okCount + "건 / 실패 " + failCount + "건 (요청 기록에서 확인할 수 있습니다)";
-            if (failCount) {
-              msg += "\n\n" + data.results.filter(function (r) { return !r.ok; })
-                .map(function (r) { return r.adset_id + ": " + r.error; }).join("\n");
-            }
-            alert(msg);
-            resetBudgetPanel();
-          })
-          .catch(function () {
-            alert("예산 반영 중 오류가 발생했습니다.");
-          })
-          .finally(function () {
-            applyBtn.disabled = false;
-            applyBtn.textContent = originalLabel;
-          });
+    applyBtn.addEventListener("click", function () {
+      if (!currentRows.length) return;
+      if (!confirm(currentRows.length + "개 광고세트의 변경 예산을 반영하고 ACTIVE 상태를 재확인합니다.")) return;
+      var items = currentRows.map(function (row) {
+        return {
+          adset_id: row.adset_id, new_budget: row.suggested_budget,
+          campaign_name: row.campaign_name, adset_name: row.adset_name,
+          creative_names: row.active_ad_names, live_current_budget: row.current_budget,
+        };
       });
-    }
+      applyBtn.disabled = true;
+      applyBtn.textContent = "적용 및 상태 확인 중…";
+      fetch("/apply_budget_changes", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: items }),
+      }).then(function (r) { return r.json(); }).then(function (data) {
+        if (!data.ok) throw new Error(data.error || "적용 실패");
+        var failed = data.results.filter(function (r) { return !r.ok; });
+        var skipped = data.results.filter(function (r) { return r.skipped; }).length;
+        var verified = data.results.filter(function (r) { return r.verified_active; }).length;
+        alert("적용 완료 · ACTIVE 확인 " + verified + "건 · OFF 후보 적용 제외 " + skipped + "건 · 실패 " + failed.length + "건" +
+          (failed.length ? "\n" + failed.map(function (r) { return r.error; }).join("\n") : ""));
+      }).catch(function (error) { alert(error.message); }).finally(function () {
+        applyBtn.disabled = false;
+        applyBtn.textContent = "적용";
+      });
+    });
   })();
 
   (function () {

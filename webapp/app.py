@@ -19,13 +19,15 @@ import re
 import sys
 import threading
 import uuid
-from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
+from datetime import date, datetime, timedelta
 
 from dotenv import load_dotenv
 from flask import Flask, Response, redirect, render_template, request, session
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import copy_generator  # noqa: E402
+import budget_optimizer  # noqa: E402
 import meta_lib  # noqa: E402
 import shopify_lib  # noqa: E402
 
@@ -956,147 +958,86 @@ def delete_all_uploads():
 
 @app.route("/budget_lookup", methods=["POST"])
 def budget_lookup():
-    """Reads the uploaded 조회값/기존예산/변경예산 file, finds every Meta campaign
-    whose name contains both the 채널 and 제품군 keywords, then matches each
-    file row's value against ad, creative, or ad-set names inside just those
-    campaigns — never calls Meta to change anything, only looks things up, so
-    the results can be reviewed before /apply_budget_changes is ever called."""
-    channel = request.form.get("channel", "").strip()
-    product_group = request.form.get("product_group", "").strip()
-    file = request.files.get("budget_file")
+    """Builds the full budget recommendation table without changing Meta."""
+    campaign_query = request.form.get("campaign_query", "").strip()
+    desired_budget_raw = request.form.get("desired_budget", "").strip()
+    file = request.files.get("droas_file")
 
-    if not channel:
-        return {"ok": False, "error": "채널을 선택해주세요."}, 400
+    if not campaign_query:
+        return {"ok": False, "error": "캠페인 조회값을 입력해주세요."}, 400
+    try:
+        desired_budget = float(desired_budget_raw)
+        if desired_budget <= 0:
+            raise ValueError
+    except ValueError:
+        return {"ok": False, "error": "희망 예산은 0보다 큰 숫자로 입력해주세요."}, 400
     if not file or not file.filename:
-        return {"ok": False, "error": "엑셀(.xlsx) 또는 CSV 파일을 선택해주세요."}, 400
+        return {"ok": False, "error": "운영일수와 D.ROAS 계산을 위한 RAW 파일을 업로드해주세요."}, 400
 
     token = os.environ.get("META_ACCESS_TOKEN")
     if not token:
         return {"ok": False, "error": "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다. 터미널에서 export/set 하고 서버를 다시 시작하세요."}, 400
 
     try:
-        rows = read_budget_rows(file.filename, file.stream)
-    except RowError as e:
+        raw_rows = budget_optimizer.read_raw_report(file.filename, file.stream)
+    except budget_optimizer.BudgetDataError as e:
         return {"ok": False, "error": str(e)}, 400
 
-    keywords = [channel, product_group] if product_group else [channel]
     cache = {}
     try:
-        campaigns = meta_lib.find_matching_campaigns(token, CANDIDATE_ACCOUNT_IDS, keywords, cache=cache)
+        campaigns = meta_lib.find_matching_campaigns(token, CANDIDATE_ACCOUNT_IDS, [campaign_query], cache=cache)
     except meta_lib.MetaApiError as e:
         return {"ok": False, "error": str(e)}, 400
 
     if not campaigns:
         return {
-            "ok": True, "campaigns": [], "matches": [], "conflicts": [],
-            "not_found": [r["creative_name"] for r in rows],
-            "message": f"'{' / '.join(keywords)}' 키워드를 모두 포함하는 캠페인을 찾지 못했습니다.",
+            "ok": True, "campaigns": [], "matches": [], "summary": {},
+            "message": f"'{campaign_query}'을 포함하는 캠페인을 찾지 못했습니다.",
         }
 
-    all_ads = []
-    all_adsets = []
+    adsets = []
     try:
-        for c in campaigns:
-            for ad in meta_lib.list_campaign_ads(token, c["id"], cache=cache):
-                all_ads.append({**ad, "_campaign_name": c["name"]})
-            for adset in meta_lib.list_campaign_adsets(token, c["id"], cache=cache):
-                all_adsets.append({**adset, "_campaign_name": c["name"]})
+        for campaign in campaigns:
+            for adset in meta_lib.list_campaign_active_adsets(token, campaign["id"], cache=cache):
+                if (adset.get("effective_status") or adset.get("status")) != "ACTIVE":
+                    continue
+                adsets.append({**adset, "campaign_name": campaign["name"]})
     except meta_lib.MetaApiError as e:
         return {"ok": False, "error": str(e)}, 400
 
-    # Budget lives on the ad set, not the ad — so every ad set gets matched
-    # (and its budget changed) at most once, even if several of the file's
-    # 소재명 rows each independently find an ad inside that same ad set.
-    adset_info = {}          # adset_id -> {campaign_name, adset_name, live_budget}
-    adset_contributions = {}  # adset_id -> [{creative_name, current_budget, new_budget}, ...]
-    not_found = []
+    since_3d = (date.today() - timedelta(days=2)).isoformat()
+    until = date.today().isoformat()
 
-    for row in rows:
-        needle = row["creative_name"].lower()
-        found_ads = [
-            ad for ad in all_ads
-            if needle in (ad.get("name") or "").lower()
-            or needle in ((ad.get("creative") or {}).get("name") or "").lower()
-        ]
-        found_adsets = [
-            adset for adset in all_adsets
-            if needle in (adset.get("name") or "").lower()
-        ]
-        if not found_ads and not found_adsets:
-            not_found.append(row["creative_name"])
-            continue
+    def enrich(adset):
+        ads = meta_lib.list_adset_ads(token, adset["id"])
+        active_ads = [ad for ad in ads if (ad.get("effective_status") or ad.get("status")) == "ACTIVE"]
+        insight = meta_lib.get_adset_insights(token, adset["id"], since_3d, until)
+        adset_name = adset.get("name", "")
+        is_da = bool(re.search(r"(^|[_\-\s])DA([_\-\s]|$)", adset_name, re.I))
+        active_names = [ad.get("name", "") for ad in active_ads if ad.get("name")]
+        return {
+            "adset_id": adset["id"], "campaign_name": adset["campaign_name"],
+            "adset_name": adset_name, "type": "DA" if is_da else "PA",
+            "active_ad_names": active_names,
+            "display_name": ", ".join(active_names) if is_da and active_names else adset_name,
+            "current_budget": int(adset["daily_budget"]) / 100 if adset.get("daily_budget") else 0,
+            "cpa_3d": insight["cpa"], "cpm_3d": insight["cpm"],
+        }
 
-        matched_adset_ids = set()
-        for ad in found_ads:
-            adset = ad.get("adset") or {}
-            adset_id = adset.get("id")
-            if not adset_id:
-                continue
-            matched_adset_ids.add(adset_id)
-            if adset_id not in adset_info:
-                adset_info[adset_id] = {
-                    "campaign_name": ad["_campaign_name"],
-                    "adset_name": adset.get("name", ""),
-                    "live_budget": int(adset["daily_budget"]) // 100 if adset.get("daily_budget") else None,
-                }
-        for adset in found_adsets:
-            adset_id = adset.get("id")
-            if not adset_id:
-                continue
-            matched_adset_ids.add(adset_id)
-            if adset_id not in adset_info:
-                adset_info[adset_id] = {
-                    "campaign_name": adset["_campaign_name"],
-                    "adset_name": adset.get("name", ""),
-                    "live_budget": int(adset["daily_budget"]) // 100 if adset.get("daily_budget") else None,
-                }
-        # A row that matches several ads within the same ad set (a broad
-        # substring hit) still only counts as this row's single opinion about
-        # that ad set's budget — not once per ad.
-        for adset_id in matched_adset_ids:
-            adset_contributions.setdefault(adset_id, []).append({
-                "creative_name": row["creative_name"],
-                "current_budget": row["current_budget"],
-                "new_budget": row["new_budget"],
-            })
+    try:
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            matches = list(executor.map(enrich, adsets))
+    except meta_lib.MetaApiError as e:
+        return {"ok": False, "error": str(e)}, 400
 
-    matches, conflicts = [], []
-    for adset_id, contributions in adset_contributions.items():
-        info = adset_info[adset_id]
-        creative_names = [c["creative_name"] for c in contributions]
-        unique_pairs = {(c["current_budget"], c["new_budget"]) for c in contributions}
-        if len(unique_pairs) > 1:
-            # Several 소재명 in the same ad set disagree on what the budget
-            # should be — refuse to guess which one is right and surface it
-            # as a conflict the user has to fix in the file instead.
-            conflicts.append({
-                "campaign_name": info["campaign_name"],
-                "adset_name": info["adset_name"],
-                "values": [
-                    {"creative_name": c["creative_name"], "current_budget": c["current_budget"], "new_budget": c["new_budget"]}
-                    for c in contributions
-                ],
-            })
-            continue
-        current_budget, new_budget = next(iter(unique_pairs))
-        live_budget = info["live_budget"]
-        matches.append({
-            "creative_names": creative_names,
-            "campaign_name": info["campaign_name"],
-            "adset_id": adset_id,
-            "adset_name": info["adset_name"],
-            "file_current_budget": current_budget,
-            "live_current_budget": live_budget,
-            "mismatch": (current_budget is not None and live_budget is not None and current_budget != live_budget),
-            "new_budget": new_budget,
-        })
+    budget_optimizer.attach_raw_metrics(matches, raw_rows)
+    matches, calculation_summary = budget_optimizer.optimize(matches, desired_budget)
 
     return {
         "ok": True,
         "campaigns": [{"id": c["id"], "name": c["name"]} for c in campaigns],
         "matches": matches,
-        "conflicts": conflicts,
-        "not_found": not_found,
+        "summary": calculation_summary,
     }
 
 
@@ -1133,11 +1074,23 @@ def apply_budget_changes():
             entry_items.append(sub)
             results.append({"adset_id": adset_id, "ok": False, "error": sub["error"]})
             continue
+        if float(new_budget) <= 0:
+            sub["ok"], sub["error"] = True, None
+            sub["skipped"] = True
+            entry_items.append(sub)
+            results.append({"adset_id": adset_id, "ok": True, "skipped": True, "status": "OFF 후보 — 예산 $0은 자동 적용하지 않음"})
+            continue
         try:
             meta_lib.update_adset_budget(token, adset_id, new_budget)
+            verified = meta_lib.ensure_adset_active(token, adset_id)
+            if verified.get("status") != "ACTIVE":
+                raise meta_lib.MetaApiError(
+                    f"예산 변경 후 ACTIVE 재확인 실패 (status={verified.get('status')}, effective_status={verified.get('effective_status')})"
+                )
             sub["ok"], sub["error"] = True, None
+            sub["verifiedActive"] = True
             entry_items.append(sub)
-            results.append({"adset_id": adset_id, "ok": True})
+            results.append({"adset_id": adset_id, "ok": True, "verified_active": True})
         except meta_lib.MetaApiError as e:
             sub["ok"], sub["error"] = False, str(e)
             entry_items.append(sub)

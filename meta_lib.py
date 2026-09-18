@@ -161,6 +161,53 @@ def list_campaign_adsets(token, campaign_id, cache=None):
         fields="id,name,daily_budget"))
 
 
+def list_campaign_active_adsets(token, campaign_id, cache=None):
+    """Ad sets in a campaign, including delivery state for budget analysis."""
+    return _cached(cache, f"campaign_active_adsets:{campaign_id}", lambda: _paginate(
+        token, f"{campaign_id}/adsets", limit=200,
+        fields="id,name,status,effective_status,daily_budget,created_time"))
+
+
+def list_adset_ads(token, adset_id, cache=None):
+    return _cached(cache, f"adset_ads:{adset_id}", lambda: _paginate(
+        token, f"{adset_id}/ads", limit=200,
+        fields="id,name,status,effective_status,created_time"))
+
+
+def get_adset_insights(token, adset_id, since, until):
+    rows = _paginate(
+        token, f"{adset_id}/insights", limit=200,
+        fields="spend,cpm,actions,cost_per_action_type",
+        time_range=json.dumps({"since": since, "until": until}),
+        level="adset",
+    )
+    if not rows:
+        return {"spend": 0.0, "cpm": None, "cpa": None}
+    row = rows[0]
+    spend = float(row.get("spend") or 0)
+    cpm = float(row["cpm"]) if row.get("cpm") not in (None, "") else None
+    checkout_types = (
+        "omni_initiated_checkout", "initiate_checkout",
+        "offsite_conversion.fb_pixel_initiate_checkout",
+    )
+    costs = {item.get("action_type"): item.get("value") for item in row.get("cost_per_action_type") or []}
+    cpa = next((float(costs[action]) for action in checkout_types if costs.get(action) not in (None, "")), None)
+    if cpa is None:
+        actions = {item.get("action_type"): float(item.get("value") or 0) for item in row.get("actions") or []}
+        checkouts = next((actions[action] for action in checkout_types if actions.get(action)), 0)
+        cpa = spend / checkouts if checkouts else None
+    return {"spend": spend, "cpm": cpm, "cpa": cpa}
+
+
+def ensure_adset_active(token, adset_id):
+    """Re-activate after a budget write if Meta changed delivery state."""
+    state = api("GET", adset_id, token, fields="id,status,effective_status")
+    if state.get("status") != "ACTIVE":
+        api("POST", adset_id, token, status="ACTIVE")
+    verified = api("GET", adset_id, token, fields="id,status,effective_status")
+    return verified
+
+
 def update_adset_budget(token, adset_id, daily_budget):
     """Sets an ad set's daily budget (major currency units -> Meta's cents)."""
     api("POST", adset_id, token, daily_budget=int(daily_budget) * 100)
