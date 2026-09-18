@@ -90,7 +90,7 @@
   .panel .hint{color:var(--text-muted);font-size:var(--fs-sm);margin:0 0 var(--sp-5);}
   .panel-header{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);margin-bottom:var(--sp-1);}
   .panel-header h2{margin:0;}
-  #delete-all-form{margin:0;flex:none;}
+  .panel-header form{margin:0;flex:none;}
   .delete-all-btn{
     font-family:var(--font-heading);font-size:var(--fs-xs);font-weight:600;color:var(--text-muted);background:transparent;
     border:1px solid var(--border-strong);border-radius:980px;padding:6px 14px;cursor:pointer;
@@ -908,11 +908,18 @@
     {% endif %}
   </div>
 
-  {% if uploads %}
-  <div class="panel">
-    <h2>업로드 기록</h2>
+  <div class="panel" id="panel-upload-history" hidden>
+    <div class="panel-header">
+      <h2>업로드 기록</h2>
+      {% if uploads %}
+        <form method="post" action="/delete_all_uploads" id="delete-all-uploads-form">
+          <button type="submit" class="delete-all-btn">전체 삭제</button>
+        </form>
+      {% endif %}
+    </div>
     <p class="hint">이 컴퓨터에서 올린 소재들 (webapp/uploads.json에 저장됨).</p>
-    <div class="record-list">
+    {% if uploads %}
+    <div class="record-list" id="upload-record-list">
       {% for u in uploads %}
       <div class="record-row">
         <button type="button" class="delete-btn" data-delete-url="/delete_upload/{{ u.id }}" title="기록 삭제 (실제 업로드된 소재는 삭제되지 않음)">×</button>
@@ -936,10 +943,30 @@
       </div>
       {% endfor %}
     </div>
+    <div class="pagination" id="upload-history-pagination" hidden></div>
+    {% else %}
+      <div class="empty">아직 업로드된 소재가 없습니다.</div>
+    {% endif %}
   </div>
-  {% endif %}
 </div>
 <script>
+  function syncHistoryPanels() {
+    var activeTopBtn = document.querySelector("#top-toggle .top-btn.active");
+    var activeModeBtn = document.querySelector("#mode-toggle-ads .mode-btn.active");
+    var activeSettingTab = document.querySelector(".tab-btn.active");
+    var isAds = !activeTopBtn || activeTopBtn.getAttribute("data-top") === "ads";
+    var mode = activeModeBtn ? activeModeBtn.getAttribute("data-mode") : "setting";
+    var settingTab = activeSettingTab ? activeSettingTab.getAttribute("data-tab") : "bulk";
+
+    document.getElementById("panel-setting-history").hidden = !(
+      isAds && mode === "setting" && settingTab !== "upload"
+    );
+    document.getElementById("panel-upload-history").hidden = !(
+      isAds && mode === "setting" && settingTab === "upload"
+    );
+    document.getElementById("panel-budget-history").hidden = !(isAds && mode === "budget");
+  }
+
   document.querySelectorAll(".tab-btn").forEach(function (btn) {
     btn.addEventListener("click", function () {
       document.querySelectorAll(".tab-btn").forEach(function (b) { b.classList.remove("active"); });
@@ -948,6 +975,7 @@
       document.getElementById("tab-manual").hidden = target !== "manual";
       document.getElementById("tab-bulk").hidden = target !== "bulk";
       document.getElementById("tab-upload").hidden = target !== "upload";
+      syncHistoryPanels();
     });
   });
 
@@ -959,8 +987,7 @@
       document.getElementById("panel-setting").hidden = mode !== "setting";
       document.getElementById("panel-budget").hidden = mode !== "budget";
       document.getElementById("panel-copy").hidden = mode !== "copy";
-      document.getElementById("panel-setting-history").hidden = mode !== "setting";
-      document.getElementById("panel-budget-history").hidden = mode !== "budget";
+      syncHistoryPanels();
     });
   });
 
@@ -982,19 +1009,26 @@
         document.getElementById("panel-setting").hidden = true;
         document.getElementById("panel-budget").hidden = true;
         document.getElementById("panel-copy").hidden = true;
-        document.getElementById("panel-setting-history").hidden = true;
-        document.getElementById("panel-budget-history").hidden = true;
       } else {
-        var activeSubBtn = document.querySelector(".page-header .mode-btn.active") || document.querySelector(".page-header .mode-btn");
+        var activeSubBtn = document.querySelector("#mode-toggle-ads .mode-btn.active") || document.querySelector("#mode-toggle-ads .mode-btn");
         var subMode = activeSubBtn ? activeSubBtn.getAttribute("data-mode") : "setting";
         document.getElementById("panel-setting").hidden = subMode !== "setting";
         document.getElementById("panel-budget").hidden = subMode !== "budget";
         document.getElementById("panel-copy").hidden = subMode !== "copy";
-        document.getElementById("panel-setting-history").hidden = subMode !== "setting";
-        document.getElementById("panel-budget-history").hidden = subMode !== "budget";
       }
+      syncHistoryPanels();
     });
   });
+
+  var requestedSettingTab = new URLSearchParams(window.location.search).get("tab");
+  var requestedSettingTabBtn = ["bulk", "manual", "upload"].indexOf(requestedSettingTab) !== -1
+    ? document.querySelector('.tab-btn[data-tab="' + requestedSettingTab + '"]')
+    : null;
+  if (requestedSettingTabBtn) {
+    requestedSettingTabBtn.click();
+  } else {
+    syncHistoryPanels();
+  }
 
   document.querySelectorAll(".delete-btn[data-delete-url]").forEach(function (btn) {
     btn.addEventListener("click", function () {
@@ -1065,6 +1099,7 @@
 
   setupPagination("request-record-list", "request-pagination");
   setupPagination("budget-record-list", "budget-history-pagination");
+  setupPagination("upload-record-list", "upload-history-pagination");
 
   var deleteAllForm = document.getElementById("delete-all-form");
   if (deleteAllForm) {
@@ -1079,6 +1114,15 @@
   if (deleteAllBudgetForm) {
     deleteAllBudgetForm.addEventListener("submit", function (e) {
       if (!confirm("예산 조정 기록을 모두 삭제할까요? (실제 반영된 예산은 되돌아가지 않습니다)")) {
+        e.preventDefault();
+      }
+    });
+  }
+
+  var deleteAllUploadsForm = document.getElementById("delete-all-uploads-form");
+  if (deleteAllUploadsForm) {
+    deleteAllUploadsForm.addEventListener("submit", function (e) {
+      if (!confirm("업로드 기록을 모두 삭제할까요? (Meta에 업로드된 실제 소재는 삭제되지 않습니다)")) {
         e.preventDefault();
       }
     });

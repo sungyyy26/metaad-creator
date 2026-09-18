@@ -832,7 +832,7 @@ def upload_creative():
 
     if not files:
         session["flash_message"] = {"kind": "err", "text": "업로드할 파일을 선택해주세요."}
-        return redirect("/")
+        return redirect("/?tab=upload")
 
     entries = []
     for file in files:
@@ -880,13 +880,24 @@ def upload_creative():
         }
 
     session["flash_message"] = message
-    return redirect("/")
+    return redirect("/?tab=upload")
 
 
 @app.route("/delete_upload/<upload_id>", methods=["POST"])
 def delete_upload(upload_id):
     remove_upload(upload_id)
     return {"ok": True}
+
+
+@app.route("/delete_all_uploads", methods=["POST"])
+def delete_all_uploads():
+    """Clears upload history without deleting any assets from Meta."""
+    _save_json_list(UPLOADS_DB_PATH, [])
+    session["flash_message"] = {
+        "kind": "ok",
+        "text": "업로드 기록을 모두 삭제했습니다. Meta에 업로드된 실제 소재는 유지됩니다.",
+    }
+    return redirect("/?tab=upload")
 
 
 @app.route("/budget_lookup", methods=["POST"])
