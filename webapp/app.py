@@ -603,6 +603,12 @@ def submit():
 def submit_bulk():
     text = request.form.get("bulk_text", "")
     rows = list(enumerate(split_bulk_rows(text), start=1))
+    try:
+        copy_overrides = json.loads(request.form.get("copy_overrides", "{}") or "{}")
+        if not isinstance(copy_overrides, dict):
+            raise ValueError
+    except (json.JSONDecodeError, ValueError):
+        copy_overrides = {}
 
     token = os.environ.get("META_ACCESS_TOKEN")
     if not rows:
@@ -630,6 +636,20 @@ def submit_bulk():
                 fail += 1
                 details.append(f"{lineno}행: {e}")
                 continue
+
+            # When the user reviewed the generated copy in the browser, use
+            # that exact edited version instead of generating a new random
+            # variant again at submission time.
+            override = copy_overrides.get(str(lineno))
+            if isinstance(override, dict):
+                edited_headline = str(override.get("headline") or "").strip()
+                edited_primary = str(override.get("primary_text") or "").strip()
+                if not edited_headline or not edited_primary:
+                    fail += 1
+                    details.append(f"{lineno}행: 수정한 헤드라인과 기본 텍스트를 모두 입력해주세요.")
+                    continue
+                row["headline"] = edited_headline
+                row["primary_text"] = edited_primary
 
             headline, primary_text, gen_err = _resolve_generated_copy(
                 row["headline"], row["primary_text"], row["creative_name"], used_headlines, used_primary_texts

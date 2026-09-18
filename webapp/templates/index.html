@@ -246,6 +246,10 @@
   .preview-row{padding:var(--sp-3) var(--sp-4);}
   .preview-copy{margin-top:var(--sp-2);font-size:var(--fs-xs);color:var(--text-muted);line-height:1.6;white-space:pre-wrap;overflow-wrap:break-word;word-break:break-word;}
   .preview-copy .record-label{color:var(--text-faint);}
+  .bulk-copy-editor{margin-top:var(--sp-3);}
+  .bulk-copy-editor label{display:block;font-family:var(--font-heading);font-size:var(--fs-xs);font-weight:700;color:var(--text-faint);margin-bottom:5px;}
+  .bulk-copy-editor input,.bulk-copy-editor textarea{font-size:var(--fs-sm);background:var(--surface-2);}
+  .bulk-copy-editor textarea{min-height:130px;white-space:pre-wrap;}
 
   .record-note.err{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap;}
   .record-note-text{flex:1;min-width:0;overflow-wrap:break-word;word-break:break-word;}
@@ -597,6 +601,7 @@
         </ol>
       </details>
       <form method="post" action="/submit_bulk" id="bulk-form">
+        <input type="hidden" name="copy_overrides" id="bulk-copy-overrides" value="{}">
         <div class="field">
           <textarea class="bulk-textarea" name="bulk_text" id="bulk_text" placeholder="[캠페인]	[복제할 광고 세트 — 광고만 추가하려면 비움]	[새 광고 세트 이름]	[새 광고 이름]	[예산]	[URL]	[소재]	[헤드라인]	[기본 텍스트]	[시작 — 비우면 즉시]	[종료 — 비우면 없음]	[생성 후 상태 — 더 이상 사용 안 함, 비워두세요]	[Shopify 핸들 — 선택]	[제목 재지정]	[태그 재지정]	[템플릿 재지정]	[아마존 링크 재지정]"></textarea>
         </div>
@@ -607,7 +612,11 @@
       </form>
       <div class="bulk-preview" id="bulk-preview" hidden>
         <div class="bulk-preview-summary" id="bulk-preview-summary"></div>
+        <p class="field-hint">자동 생성된 카피를 아래에서 수정할 수 있습니다. 입력된 최종 버전이 그대로 제출됩니다.</p>
         <div class="record-list" id="bulk-preview-rows"></div>
+        <div class="field-actions-right">
+          <button type="submit" class="primary" form="bulk-form">수정한 버전으로 전체 행 실행</button>
+        </div>
       </div>
     </div>
 
@@ -1532,8 +1541,11 @@
     var btn = document.getElementById("bulk-preview-btn");
     var textarea = document.getElementById("bulk_text");
     var preview = document.getElementById("bulk-preview");
+    var form = document.getElementById("bulk-form");
     var summary = document.getElementById("bulk-preview-summary");
     var rowsEl = document.getElementById("bulk-preview-rows");
+    var overridesInput = document.getElementById("bulk-copy-overrides");
+    var copyOverrides = {};
     if (!btn || !textarea) return;
 
     function escapeHtml(s) {
@@ -1559,8 +1571,10 @@
         '<div class="record-main"><span class="record-label">AS:</span><span class="adset">' + escapeHtml(row.source_adset) + '</span><span class="arrow">→</span>' +
           escapeHtml(row.new_adset) + ' · <span class="record-label">AD:</span><span class="adname">' + escapeHtml(row.new_ad_name) + '</span></div>' +
         '<div class="record-result">' + escapeHtml(row.website_url) + shopify + '</div>' +
-        '<div class="preview-copy"><span class="record-label">헤드라인:</span> ' + escapeHtml(row.headline) + '</div>' +
-        '<div class="preview-copy"><span class="record-label">기본 텍스트:</span> ' + escapeHtml(row.primary_text) + '</div>' +
+        '<div class="bulk-copy-editor"><label>헤드라인</label>' +
+          '<input type="text" class="bulk-copy-input" data-line="' + row.lineno + '" data-copy-field="headline" value="' + escapeHtml(row.headline) + '"></div>' +
+        '<div class="bulk-copy-editor"><label>Primary Text</label>' +
+          '<textarea class="bulk-copy-input" data-line="' + row.lineno + '" data-copy-field="primary_text">' + escapeHtml(row.primary_text) + '</textarea></div>' +
         (row.shopify_title ? '<div class="preview-copy"><span class="record-label">Shopify 제목:</span> ' + escapeHtml(row.shopify_title) + '</div>' : '') +
         warn +
         '</div>';
@@ -1582,6 +1596,13 @@
       fetch("/preview_bulk", { method: "POST", body: body })
         .then(function (r) { return r.json(); })
         .then(function (data) {
+          copyOverrides = {};
+          data.rows.forEach(function (row) {
+            if (row.ok) {
+              copyOverrides[String(row.lineno)] = { headline: row.headline, primary_text: row.primary_text };
+            }
+          });
+          overridesInput.value = JSON.stringify(copyOverrides);
           summary.textContent = "총 " + data.total + "행 — 정상 " + data.ok_count + "행 / 오류 " + data.error_count + "행";
           rowsEl.innerHTML = data.rows.map(renderRow).join("");
           preview.hidden = false;
@@ -1595,6 +1616,32 @@
           btn.disabled = false;
           btn.textContent = originalLabel;
         });
+    });
+
+    rowsEl.addEventListener("input", function (e) {
+      var field = e.target.closest(".bulk-copy-input");
+      if (!field) return;
+      var line = field.getAttribute("data-line");
+      if (!copyOverrides[line]) copyOverrides[line] = {};
+      copyOverrides[line][field.getAttribute("data-copy-field")] = field.value;
+      overridesInput.value = JSON.stringify(copyOverrides);
+    });
+
+    textarea.addEventListener("input", function () {
+      copyOverrides = {};
+      overridesInput.value = "{}";
+      preview.hidden = true;
+    });
+
+    form.addEventListener("submit", function (e) {
+      var incompleteLine = Object.keys(copyOverrides).find(function (line) {
+        var item = copyOverrides[line];
+        return !item.headline.trim() || !item.primary_text.trim();
+      });
+      if (incompleteLine) {
+        e.preventDefault();
+        alert(incompleteLine + "행의 헤드라인과 Primary Text를 모두 입력해주세요.");
+      }
     });
   })();
 
