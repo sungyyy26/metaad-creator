@@ -85,12 +85,6 @@
   .mode-toggle{flex:none;margin-top:2px;}
 
   .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:28px 30px;margin-bottom:var(--sp-5);}
-  /* The two Meta work areas use the same usable width as Shopify's sf-wrap.
-     Their 30px inner padding is offset outside #app so content edges align. */
-  #panel-setting,#panel-budget{width:calc(100% + 60px);margin-left:-30px;margin-right:-30px;}
-  @media(max-width:700px){
-    #panel-setting,#panel-budget{width:100%;margin-left:0;margin-right:0;}
-  }
   .panel h2{font-family:var(--font-heading);font-size:var(--fs-lg);font-weight:700;letter-spacing:-0.01em;margin:0 0 var(--sp-1);}
   .panel .hint{color:var(--text-muted);font-size:var(--fs-sm);margin:0 0 var(--sp-5);}
   .panel-header{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);margin-bottom:var(--sp-1);}
@@ -271,6 +265,7 @@
   .budget-table{width:max-content;min-width:100%;border-collapse:collapse;font-size:var(--fs-xs);}
   .budget-table th,.budget-table td{padding:10px 9px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top;}
   .budget-table th{position:sticky;top:0;background:var(--surface-2);font-family:var(--font-heading);font-weight:700;white-space:nowrap;z-index:1;resize:horizontal;overflow:hidden;min-width:72px;max-width:520px;}
+  .budget-total-row td{background:var(--surface-2);font-family:var(--font-heading);font-weight:700;border-bottom:2px solid var(--border-strong);white-space:nowrap;}
   .budget-table th[data-col="name"]{min-width:260px;}
   .budget-table th[data-col="note"]{min-width:300px;}
   .budget-col-resizer{position:absolute;right:0;top:0;width:7px;height:100%;cursor:col-resize;border-right:2px solid transparent;user-select:none;}
@@ -293,7 +288,7 @@
   .record-note.err{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap;}
   .record-note-text{flex:1;min-width:0;overflow-wrap:break-word;word-break:break-word;}
 
-  .field-actions-right{display:flex;justify-content:flex-end;margin-top:var(--sp-2);}
+  .field-actions-right{display:flex;justify-content:flex-end;gap:8px;margin-top:var(--sp-2);}
   .field-actions-right[hidden]{display:none;}
   .budget-match-row{display:flex;gap:var(--sp-3);align-items:flex-start;cursor:pointer;}
   .budget-match-row input[type=checkbox]{margin-top:3px;flex:none;width:16px;height:16px;}
@@ -756,6 +751,7 @@
         <div class="budget-table-wrap"><table class="budget-table"><thead><tr><th data-col="bucket">구분</th><th data-col="type">유형</th><th data-col="name">소재명</th><th data-col="days">운영 일수</th><th data-col="droas">D.ROAS (D-7)</th><th data-col="cpa">CPA (D-3)</th><th data-col="cpm">CPM (D-3)</th><th data-col="current">현재 예산</th><th data-col="suggested">변경 예산</th><th data-col="change">증감액</th><th data-col="class">분류</th><th data-col="note">비고</th></tr></thead><tbody id="budget-results-list"></tbody></table></div>
       </div>
       <div class="field-actions-right" id="budget-apply-actions" hidden>
+        <button type="button" class="secondary" id="budget-export-btn">엑셀 다운로드</button>
         <button type="button" class="primary" id="budget-apply-btn">적용</button>
       </div>
     </div>
@@ -1257,6 +1253,7 @@
   (function () {
     var lookupBtn = document.getElementById("budget-lookup-btn");
     var applyBtn = document.getElementById("budget-apply-btn");
+    var exportBtn = document.getElementById("budget-export-btn");
     if (!lookupBtn || !applyBtn) return;
     var queryInput = document.getElementById("budget_campaign_query");
     var desiredInput = document.getElementById("budget_desired_total");
@@ -1271,6 +1268,7 @@
     var columnMenu = document.getElementById("budget-column-menu");
     var fullscreenBtn = document.getElementById("budget-fullscreen-btn");
     var currentRows = [];
+    var currentSummary = {};
 
     document.querySelectorAll(".budget-table th[data-col]").forEach(function (th) {
       var handle = document.createElement("span");
@@ -1312,16 +1310,47 @@
     }
     function renderCards(s) {
       var values = [
-        ["희망 총예산", money(s.desired_total)],
-        ["신규 목표예산", money(s.new_target)],
         ["신규 평균 CPA / OFF 기준", money(s.avg_cpa) + " / " + money(s.off_cpa)],
-        ["기존 목표예산 / 평균 D.ROAS", money(s.existing_target) + " / " + percent(s.avg_droas)],
+        ["기존 평균 D.ROAS / OFF 기준", percent(s.avg_droas) + " / " + percent(s.off_droas)],
+        ["변경 전 예산 합계", money(s.current_total)],
+        ["희망 총예산", money(s.desired_total)],
       ];
       cards.innerHTML = values.map(function (v) {
         return '<div class="budget-summary-card"><span>' + esc(v[0]) + '</span><strong>' + esc(v[1]) + '</strong></div>';
       }).join("");
       if ((s.warnings || []).length) {
         cards.innerHTML += '<div class="record-note warn" style="grid-column:1/-1;">' + esc(s.warnings.join(" / ")) + '</div>';
+      }
+    }
+    function totals() {
+      return currentRows.reduce(function (result, row) {
+        result.current += Number(row.current_budget || 0);
+        result.suggested += Number(row.suggested_budget || 0);
+        return result;
+      }, { current: 0, suggested: 0 });
+    }
+    function renderTotalRow() {
+      var total = totals();
+      var change = changeInfo(total.current, total.suggested);
+      return '<tr class="budget-total-row">' +
+        '<td data-col="bucket">합계</td><td data-col="type">-</td><td data-col="name">전체 활성 광고세트</td>' +
+        '<td data-col="days">-</td><td data-col="droas">-</td><td data-col="cpa">-</td><td data-col="cpm">-</td>' +
+        '<td data-col="current" id="budget-current-total">' + money(total.current) + '</td>' +
+        '<td data-col="suggested" id="budget-suggested-total">' + money(total.suggested) + '</td>' +
+        '<td data-col="change"><span class="budget-change ' + change.css + '" id="budget-change-total">' + change.text + '</span></td>' +
+        '<td data-col="class">-</td><td data-col="note">-</td></tr>';
+    }
+    function refreshTotals() {
+      var total = totals();
+      var current = document.getElementById("budget-current-total");
+      var suggested = document.getElementById("budget-suggested-total");
+      var changeOutput = document.getElementById("budget-change-total");
+      if (current) current.textContent = money(total.current);
+      if (suggested) suggested.textContent = money(total.suggested);
+      if (changeOutput) {
+        var change = changeInfo(total.current, total.suggested);
+        changeOutput.className = "budget-change " + change.css;
+        changeOutput.textContent = change.text;
       }
     }
     function renderRow(row, index) {
@@ -1386,9 +1415,10 @@
           if (!data.ok) throw new Error(data.error || "조회 실패");
           results.hidden = false;
           currentRows = data.matches || [];
+          currentSummary = data.summary || {};
           summary.textContent = data.message || ("캠페인 " + data.campaigns.length + "개 · 활성 광고세트 " + currentRows.length + "개 · 기준 " + data.summary.anchor_date + " PDT · CPA/CPM " + data.summary.cpa_cpm_period + " · D.ROAS " + data.summary.droas_period);
-          renderCards(data.summary || {});
-          tbody.innerHTML = currentRows.map(renderRow).join("") || '<tr><td colspan="12" class="empty">조회된 활성 광고세트가 없습니다.</td></tr>';
+          renderCards(currentSummary);
+          tbody.innerHTML = currentRows.length ? renderTotalRow() + currentRows.map(renderRow).join("") : '<tr><td colspan="12" class="empty">조회된 활성 광고세트가 없습니다.</td></tr>';
           applyColumnVisibility();
           applyActions.hidden = !currentRows.length;
         })
@@ -1414,6 +1444,34 @@
       var change = changeInfo(currentRows[index].current_budget, currentRows[index].suggested_budget);
       output.className = "budget-change " + change.css;
       output.textContent = change.text;
+      refreshTotals();
+    });
+
+    exportBtn.addEventListener("click", function () {
+      if (!currentRows.length) return;
+      exportBtn.disabled = true;
+      exportBtn.textContent = "엑셀 생성 중…";
+      fetch("/budget_export", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows: currentRows, summary: currentSummary }),
+      }).then(function (response) {
+        if (response.ok) return response.blob();
+        return response.json().then(function (data) { throw new Error(data.error || "엑셀 생성 실패"); });
+      }).then(function (blob) {
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement("a");
+        link.href = url;
+        link.download = "meta_budget_adjustment_" + String(currentSummary.anchor_date || "result").replace(/-/g, "") + ".xlsx";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      }).catch(function (error) {
+        alert(error.message);
+      }).finally(function () {
+        exportBtn.disabled = false;
+        exportBtn.textContent = "엑셀 다운로드";
+      });
     });
 
     applyBtn.addEventListener("click", function () {

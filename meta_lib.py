@@ -204,7 +204,12 @@ def list_account_active_adsets(token, account_id, campaign_ids, cache=None):
 
 
 def list_account_active_ads(token, account_id, campaign_ids, cache=None):
-    """Fetch active ads and their ad-set details once per account."""
+    """Fetch ads that belong to active ad sets once per account.
+
+    PAUSED ads are included so an ACTIVE ad set is not omitted merely because
+    its individual ads are currently paused. The caller separately identifies
+    the actually ACTIVE ads when it needs active creative names.
+    """
     wanted = {str(value) for value in campaign_ids}
     campaign_key = ",".join(sorted(wanted))
     rows = _cached(cache, f"active_ads_account:{account_id}:{campaign_key}", lambda: _paginate(
@@ -213,7 +218,7 @@ def list_account_active_ads(token, account_id, campaign_ids, cache=None):
                "adset{id,name,status,effective_status,daily_budget,created_time,campaign_id}",
         filtering=json.dumps([
             {"field": "campaign.id", "operator": "IN", "value": sorted(wanted)},
-            {"field": "effective_status", "operator": "IN", "value": ["ACTIVE"]},
+            {"field": "effective_status", "operator": "IN", "value": ["ACTIVE", "PAUSED"]},
         ]),
     ))
     return [row for row in rows if str(row.get("campaign_id")) in wanted]

@@ -23,7 +23,7 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
-from flask import Flask, Response, redirect, render_template, request, session
+from flask import Flask, Response, redirect, render_template, request, send_file, session
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import copy_generator  # noqa: E402
@@ -1059,7 +1059,8 @@ def budget_lookup():
                 if not adset_id:
                     continue
                 adsets_by_id[adset_id] = adset
-                ads_by_adset.setdefault(adset_id, []).append(ad)
+                if (ad.get("effective_status") or ad.get("status")) == "ACTIVE":
+                    ads_by_adset.setdefault(adset_id, []).append(ad)
             if not adsets_by_id:
                 continue
             insight_by_adset = meta_lib.get_account_adset_insights(
@@ -1103,6 +1104,121 @@ def budget_lookup():
         "matches": matches,
         "summary": calculation_summary,
     }
+
+
+@app.route("/budget_export", methods=["POST"])
+def budget_export():
+    """Export the currently edited budget table as a two-sheet workbook."""
+    payload = request.get_json(silent=True) or {}
+    rows = payload.get("rows") or []
+    summary = payload.get("summary") or {}
+    if not rows:
+        return {"ok": False, "error": "다운로드할 예산 조정 결과가 없습니다."}, 400
+
+    try:
+        import openpyxl
+        from openpyxl.styles import Alignment, Font, PatternFill
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        return {"ok": False, "error": "엑셀 파일 생성을 위해 openpyxl이 필요합니다."}, 500
+
+    workbook = openpyxl.Workbook()
+    criteria = workbook.active
+    criteria.title = "판정기준 요약"
+    criteria.append(["판정기준 요약", "값"])
+    before_total = sum(float(row.get("current_budget") or 0) for row in rows)
+    changed_total = sum(float(row.get("suggested_budget") or 0) for row in rows)
+    summary_rows = [
+        ("기준일 (PDT)", summary.get("anchor_date") or "-"),
+        ("CPA·CPM 기간", summary.get("cpa_cpm_period") or "-"),
+        ("D.ROAS 기간", summary.get("droas_period") or "-"),
+        ("신규 조정대상 세트 수", summary.get("new_assessable_count", 0)),
+        ("신규 최소배정 세트 수", summary.get("new_minimum_count", 0)),
+        ("신규 목표 총예산", summary.get("new_target", 0)),
+        ("신규 평균 CPA", summary.get("avg_cpa")),
+        ("신규 OFF 기준", summary.get("off_cpa")),
+        ("기존 세트 수", summary.get("existing_count", 0)),
+        ("기존 판정 보류 세트 수", summary.get("existing_hold_count", 0)),
+        ("기존 평균 D.ROAS", summary.get("avg_droas")),
+        ("기존 OFF 기준", summary.get("off_droas", 0.5)),
+        ("변경 전 예산 합계", before_total),
+        ("희망 총예산", summary.get("desired_total", 0)),
+        ("변경 예산 합계", changed_total),
+    ]
+    for label, value in summary_rows:
+        criteria.append([label, "-" if value is None else value])
+
+    detail = workbook.create_sheet("세트별 상세")
+    detail.append([
+        "버킷", "유형", "표시명", "운영일수", "CPA", "D.ROAS", "CPM (3일)",
+        "현재예산", "제안예산", "증감", "분류", "상세설명", "비고",
+    ])
+    for row in rows:
+        current = float(row.get("current_budget") or 0)
+        suggested = float(row.get("suggested_budget") or 0)
+        detail.append([
+            row.get("bucket") or "-", row.get("type") or "-", row.get("display_name") or "-",
+            row.get("operating_days") if row.get("operating_days") is not None else "-",
+            row.get("cpa_3d") if row.get("cpa_3d") is not None else "-",
+            row.get("droas_7d") if row.get("droas_7d") is not None else "-",
+            row.get("cpm_3d") if row.get("cpm_3d") is not None else "-",
+            current, suggested, suggested - current, row.get("classification") or "-",
+            row.get("reason") or "-", row.get("note") or "-",
+        ])
+
+    header_fill = PatternFill("solid", fgColor="1F4E78")
+    header_font = Font(color="FFFFFF", bold=True)
+    warning_fill = PatternFill("solid", fgColor="FFF2CC")
+    off_fill = PatternFill("solid", fgColor="F4CCCC")
+    for sheet in (criteria, detail):
+        sheet.freeze_panes = "A2"
+        sheet.auto_filter.ref = sheet.dimensions
+        for cell in sheet[1]:
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+        for column in range(1, sheet.max_column + 1):
+            values = [str(sheet.cell(row, column).value or "") for row in range(1, sheet.max_row + 1)]
+            sheet.column_dimensions[get_column_letter(column)].width = min(60, max(11, max(map(len, values)) + 2))
+        for row_cells in sheet.iter_rows(min_row=2):
+            for cell in row_cells:
+                cell.alignment = Alignment(vertical="top", wrap_text=True)
+
+    currency_labels = {
+        "신규 목표 총예산", "신규 평균 CPA", "신규 OFF 기준",
+        "변경 전 예산 합계", "희망 총예산", "변경 예산 합계",
+    }
+    for row_index in range(2, criteria.max_row + 1):
+        label = criteria.cell(row_index, 1).value
+        if label in currency_labels and isinstance(criteria.cell(row_index, 2).value, (int, float)):
+            criteria.cell(row_index, 2).number_format = '$#,##0.00'
+        elif label in {"기존 평균 D.ROAS", "기존 OFF 기준"} and isinstance(criteria.cell(row_index, 2).value, (int, float)):
+            criteria.cell(row_index, 2).number_format = '0.0%'
+    for row_index in range(2, detail.max_row + 1):
+        for column in (5, 7, 8, 9, 10):
+            if isinstance(detail.cell(row_index, column).value, (int, float)):
+                detail.cell(row_index, column).number_format = '$#,##0.00'
+        if isinstance(detail.cell(row_index, 6).value, (int, float)):
+            detail.cell(row_index, 6).number_format = '0.0%'
+        classification = str(detail.cell(row_index, 11).value or "")
+        fill = off_fill if "OFF" in classification else (
+            warning_fill if any(term in classification for term in ("보류", "검토", "모니터링", "재개")) else None
+        )
+        if fill:
+            for cell in detail[row_index]:
+                cell.fill = fill
+                cell.font = Font(bold=True)
+
+    output = io.BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    stamp = str(summary.get("anchor_date") or date.today().isoformat()).replace("-", "")
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=f"meta_budget_adjustment_{stamp}.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 @app.route("/apply_budget_changes", methods=["POST"])
