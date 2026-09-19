@@ -266,19 +266,24 @@
   .budget-tool-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:30px;padding:0 10px;border:1px solid var(--border-strong);border-radius:8px;background:var(--surface);color:var(--text-muted);font:600 var(--fs-xs) var(--font-heading);cursor:pointer;}
   .budget-tool-btn.icon-only{width:30px;padding:0;}
   .budget-tool-btn svg{width:14px;height:14px;}
-  .budget-column-menu{position:absolute;right:37px;top:36px;z-index:8;width:190px;padding:10px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow);}
-  .budget-column-menu label{display:flex;align-items:center;gap:8px;padding:5px 3px;font-size:var(--fs-xs);cursor:pointer;}
+  .budget-column-menu{position:absolute;right:37px;top:36px;z-index:8;width:230px;padding:9px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow);}
+  .budget-column-item{display:flex;align-items:center;gap:8px;padding:7px 6px;border-radius:7px;font-size:var(--fs-xs);cursor:grab;user-select:none;}
+  .budget-column-item:hover{background:var(--surface-2);}
+  .budget-column-item.dragging,.budget-table th.dragging{opacity:.45;}
+  .budget-column-drag{color:var(--text-faint);font-size:15px;line-height:1;letter-spacing:-3px;margin-right:3px;}
+  .budget-column-item label{display:flex;align-items:center;gap:8px;flex:1;cursor:pointer;}
   .budget-column-menu input{accent-color:var(--accent);}
   .budget-table-wrap{overflow:auto;border:1px solid var(--border);border-radius:var(--radius-md);max-height:68vh;}
   .budget-table{width:max-content;min-width:100%;border-collapse:collapse;font-size:var(--fs-xs);}
-  .budget-table th,.budget-table td{padding:10px 9px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top;}
-  .budget-table th{position:sticky;top:0;background:var(--table-header);font-family:var(--font-heading);font-weight:700;white-space:nowrap;z-index:1;resize:horizontal;overflow:hidden;min-width:72px;max-width:520px;}
+  .budget-table th,.budget-table td{padding:10px 9px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top;max-width:240px;white-space:normal;overflow-wrap:anywhere;word-break:break-word;}
+  .budget-table th{position:sticky;top:0;background:var(--table-header);font-family:var(--font-heading);font-weight:700;white-space:nowrap;z-index:1;resize:horizontal;overflow:hidden;min-width:72px;max-width:360px;cursor:grab;}
   .budget-table th[data-sort-key]{cursor:pointer;user-select:none;}
   .budget-sort-indicator{display:inline-block;min-width:12px;margin-left:4px;color:var(--text-faint);font-size:10px;}
   .budget-table th[aria-sort="ascending"] .budget-sort-indicator,.budget-table th[aria-sort="descending"] .budget-sort-indicator{color:var(--accent);}
   .budget-total-row td{background:var(--surface-2);font-family:var(--font-heading);font-weight:700;border-bottom:2px solid var(--border-strong);white-space:nowrap;}
-  .budget-table th[data-col="name"]{min-width:260px;}
-  .budget-table th[data-col="note"]{min-width:300px;}
+  .budget-table th[data-col="name"],.budget-table td[data-col="name"]{width:280px;max-width:320px;}
+  .budget-table th[data-col="note"],.budget-table td[data-col="note"]{width:230px;max-width:280px;}
+  .budget-table th[data-col="class"],.budget-table td[data-col="class"]{width:145px;max-width:180px;}
   .budget-col-resizer{position:absolute;right:0;top:0;width:7px;height:100%;cursor:col-resize;border-right:2px solid transparent;user-select:none;}
   .budget-table th:hover .budget-col-resizer{border-right-color:var(--accent);}
   .budget-change{font-family:var(--font-mono);font-weight:700;white-space:nowrap;}
@@ -294,7 +299,13 @@
   .budget-summary-card{background:var(--surface-2);border-radius:var(--radius-sm);padding:12px;}
   .budget-summary-card span{display:block;font-size:var(--fs-2xs);color:var(--text-faint);}
   .budget-summary-card strong{font-size:var(--fs-md);}
+  .budget-allocation-row{display:grid;grid-template-columns:1.2fr repeat(3,minmax(0,.8fr));gap:var(--sp-3);align-items:start;}
+  .budget-allocation-row .field{margin-bottom:var(--sp-3);}
+  .budget-detail-label{display:flex!important;align-items:center;gap:5px;}
+  .budget-optional{font-size:var(--fs-2xs);font-weight:500;color:var(--text-faint);}
   @media(max-width:720px){.budget-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  @media(max-width:900px){.budget-allocation-row{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  @media(max-width:560px){.budget-allocation-row{grid-template-columns:1fr;}}
 
   .record-note.err{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap;}
   .record-note-text{flex:1;min-width:0;overflow-wrap:break-word;word-break:break-word;}
@@ -723,9 +734,15 @@
     <div class="budget-condition-row">
       <div class="field"><label>채널 *</label><input type="text" id="budget_channel_query" placeholder="예: amazon, *uk"><span class="field-hint">쉼표로 여러 값을 입력할 수 있고, *로 시작하는 값은 제외합니다. 대소문자는 구분하지 않습니다.</span></div>
       <div class="field"><label>제품군 *</label><input type="text" id="budget_product_group" placeholder="예: v-srm"><span class="field-hint">캠페인명의 정확한 _v-srm_ 토큰만 조회하며 v-srm&amp;crm은 제외합니다.</span></div>
-      <div class="field"><label>구분 *</label><div class="budget-type-options"><label class="budget-type-option"><input type="checkbox" name="budget_campaign_type" value="CV" checked><span>CV</span></label><label class="budget-type-option"><input type="checkbox" name="budget_campaign_type" value="TF" checked><span>TF</span></label></div><span class="field-hint">하나 또는 둘 다 선택</span></div>
+      <div class="field"><label>구분 *</label><div class="budget-type-options"><label class="budget-type-option"><input type="checkbox" name="budget_campaign_type" value="CV"><span>CV</span></label><label class="budget-type-option"><input type="checkbox" name="budget_campaign_type" value="TF"><span>TF</span></label></div><span class="field-hint">하나 또는 둘 다 선택</span></div>
     </div>
-    <div class="field budget-total-field"><label>희망 총 예산 (USD)</label><input type="text" inputmode="numeric" id="budget_desired_total" autocomplete="off" placeholder="$10,000"></div>
+    <div class="budget-allocation-row">
+      <div class="field"><label>희망 총 예산 (USD)</label><input type="text" inputmode="numeric" id="budget_desired_total" autocomplete="off" placeholder="$35,000"></div>
+      <div class="field"><label class="budget-detail-label">DA 예산 <span class="budget-optional">선택</span></label><input type="text" inputmode="numeric" id="budget_detail_da" class="budget-detail-input" autocomplete="off" placeholder="예: $15,000"></div>
+      <div class="field"><label class="budget-detail-label">PA 예산 <span class="budget-optional">선택</span></label><input type="text" inputmode="numeric" id="budget_detail_pa" class="budget-detail-input" autocomplete="off" placeholder="예: $10,000"></div>
+      <div class="field"><label class="budget-detail-label">PM 예산 <span class="budget-optional">선택</span></label><input type="text" inputmode="numeric" id="budget_detail_pm" class="budget-detail-input" autocomplete="off" placeholder="예: $10,000"></div>
+    </div>
+    <span class="field-hint tight">세부 예산은 선택사항입니다. PM을 입력하면 이름에 _pm_이 포함된 소재를 DA·PA에서 분리해 별도 배분하고, 남은 총 예산은 그 외 광고세트에 배분합니다.</span>
     <div class="field">
       <label>D.ROAS RAW 파일 *</label>
       <div class="file-input-wrap">
@@ -744,21 +761,10 @@
       <div id="budget-summary-cards" class="budget-summary-grid"></div>
       <div class="budget-table-view" id="budget-table-view">
         <div class="budget-result-tools">
-          <button type="button" class="budget-tool-btn" id="budget-columns-btn" aria-expanded="false">컬럼</button>
+          <button type="button" class="budget-tool-btn icon-only" id="budget-columns-btn" aria-expanded="false" aria-label="컬럼 표시 및 순서" title="컬럼 표시 및 순서"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16M4 12h16M4 19h16"/><path d="M8 3v4M15 10v4M11 17v4"/></svg></button>
           <button type="button" class="budget-tool-btn icon-only" id="budget-fullscreen-btn" aria-label="테이블 크게 보기" title="테이블 크게 보기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H3v5M16 3h5v5M8 21H3v-5M16 21h5v-5"/></svg></button>
           <div class="budget-column-menu" id="budget-column-menu" hidden>
-            <label><input type="checkbox" data-budget-column="bucket" checked>구분</label>
-            <label><input type="checkbox" data-budget-column="type" checked>유형</label>
-            <label><input type="checkbox" data-budget-column="name" checked>소재명</label>
-            <label><input type="checkbox" data-budget-column="days" checked>운영 일수</label>
-            <label><input type="checkbox" data-budget-column="droas" checked>D.ROAS</label>
-            <label><input type="checkbox" data-budget-column="cpa" checked>CPA</label>
-            <label><input type="checkbox" data-budget-column="cpm" checked>CPM</label>
-            <label><input type="checkbox" data-budget-column="current" checked>현재 예산</label>
-            <label><input type="checkbox" data-budget-column="suggested" checked>변경 예산</label>
-            <label><input type="checkbox" data-budget-column="change" checked>증감액</label>
-            <label><input type="checkbox" data-budget-column="class" checked>분류</label>
-            <label><input type="checkbox" data-budget-column="note" checked>비고</label>
+            {% for key, label in [('bucket','구분'),('type','유형'),('name','소재명'),('days','운영 일수'),('droas','D.ROAS'),('cpa','CPA'),('cpm','CPM'),('current','현재 예산'),('suggested','변경 예산'),('change','증감액'),('class','분류'),('note','비고')] %}<div class="budget-column-item" draggable="true" data-column-item="{{ key }}"><span class="budget-column-drag" aria-hidden="true">⠿</span><label><input type="checkbox" data-budget-column="{{ key }}" checked>{{ label }}</label></div>{% endfor %}
           </div>
         </div>
         <div class="budget-table-wrap"><table class="budget-table"><thead><tr><th data-col="bucket">구분</th><th data-col="type">유형</th><th data-col="name">소재명</th><th data-col="days" data-sort-key="operating_days">운영 일수 <span class="budget-sort-indicator">↕</span></th><th data-col="droas" data-sort-key="droas_7d">D.ROAS (D-7) <span class="budget-sort-indicator">↕</span></th><th data-col="cpa" data-sort-key="cpa_3d">CPA (D-3) <span class="budget-sort-indicator">↕</span></th><th data-col="cpm" data-sort-key="cpm_3d">CPM (D-3) <span class="budget-sort-indicator">↕</span></th><th data-col="current" data-sort-key="current_budget">현재 예산 <span class="budget-sort-indicator">↕</span></th><th data-col="suggested" data-sort-key="suggested_budget">변경 예산 <span class="budget-sort-indicator">↕</span></th><th data-col="change">증감액</th><th data-col="class">분류</th><th data-col="note">비고</th></tr></thead><tbody id="budget-results-list"></tbody></table></div>
@@ -1272,6 +1278,11 @@
     var productInput = document.getElementById("budget_product_group");
     var typeInputs = Array.prototype.slice.call(document.querySelectorAll('input[name="budget_campaign_type"]'));
     var desiredInput = document.getElementById("budget_desired_total");
+    var detailInputs = {
+      DA: document.getElementById("budget_detail_da"),
+      PA: document.getElementById("budget_detail_pa"),
+      PM: document.getElementById("budget_detail_pm"),
+    };
     var fileInput = document.getElementById("droas_file_input");
     var results = document.getElementById("budget-results");
     var summary = document.getElementById("budget-results-summary");
@@ -1294,7 +1305,7 @@
         var startX = event.clientX;
         var startWidth = th.getBoundingClientRect().width;
         function move(moveEvent) {
-          var width = Math.max(72, startWidth + moveEvent.clientX - startX);
+          var width = Math.min(360, Math.max(72, startWidth + moveEvent.clientX - startX));
           th.style.width = width + "px";
           th.style.minWidth = width + "px";
           th.style.maxWidth = width + "px";
@@ -1339,6 +1350,10 @@
     }
     desiredInput.addEventListener("input", function () { formatWholeMoneyInput(desiredInput); });
     desiredInput.addEventListener("blur", function () { formatWholeMoneyInput(desiredInput); });
+    Object.keys(detailInputs).forEach(function (key) {
+      detailInputs[key].addEventListener("input", function () { formatWholeMoneyInput(detailInputs[key]); });
+      detailInputs[key].addEventListener("blur", function () { formatWholeMoneyInput(detailInputs[key]); });
+    });
     function percent(value) { return value == null ? "-" : (Number(value) * 100).toFixed(1) + "%"; }
     function changeInfo(current, suggested) {
       var value = Number(suggested || 0) - Number(current || 0);
@@ -1355,6 +1370,9 @@
         ["변경 전 예산 합계", money(s.current_total)],
         ["희망 총예산", money(s.desired_total)],
       ];
+      Object.keys(s.detail_budgets || {}).forEach(function (group) {
+        values.push([group + " 세부 예산", money(s.detail_budgets[group])]);
+      });
       cards.innerHTML = values.map(function (v) {
         return '<div class="budget-summary-card"><span>' + esc(v[0]) + '</span><strong>' + esc(v[1]) + '</strong></div>';
       }).join("");
@@ -1418,6 +1436,7 @@
     }
     function renderBudgetTable() {
       tbody.innerHTML = currentRows.length ? renderTotalRow() + currentRows.map(renderRow).join("") : '<tr><td colspan="12" class="empty">조회된 활성 광고세트가 없습니다.</td></tr>';
+      syncColumnOrder();
       applyColumnVisibility();
       updateSortIndicators();
     }
@@ -1444,6 +1463,71 @@
         });
       });
     }
+    function columnOrder() {
+      return Array.prototype.map.call(columnMenu.querySelectorAll("[data-column-item]"), function (item) {
+        return item.getAttribute("data-column-item");
+      });
+    }
+    function syncColumnOrder() {
+      var order = columnOrder();
+      document.querySelectorAll(".budget-table tr").forEach(function (row) {
+        order.forEach(function (col) {
+          var cell = Array.prototype.find.call(row.children, function (child) {
+            return child.getAttribute("data-col") === col;
+          });
+          if (cell) row.appendChild(cell);
+        });
+      });
+    }
+    function moveColumnItem(sourceCol, targetCol, after) {
+      if (!sourceCol || !targetCol || sourceCol === targetCol) return;
+      var source = columnMenu.querySelector('[data-column-item="' + sourceCol + '"]');
+      var target = columnMenu.querySelector('[data-column-item="' + targetCol + '"]');
+      if (!source || !target) return;
+      columnMenu.insertBefore(source, after ? target.nextSibling : target);
+      syncColumnOrder();
+    }
+    var draggedMenuColumn = null;
+    columnMenu.querySelectorAll("[data-column-item]").forEach(function (item) {
+      item.addEventListener("dragstart", function (event) {
+        draggedMenuColumn = item.getAttribute("data-column-item");
+        item.classList.add("dragging");
+        event.dataTransfer.effectAllowed = "move";
+      });
+      item.addEventListener("dragend", function () {
+        item.classList.remove("dragging");
+        draggedMenuColumn = null;
+      });
+      item.addEventListener("dragover", function (event) { event.preventDefault(); });
+      item.addEventListener("drop", function (event) {
+        event.preventDefault();
+        var rect = item.getBoundingClientRect();
+        moveColumnItem(draggedMenuColumn, item.getAttribute("data-column-item"), event.clientY > rect.top + rect.height / 2);
+      });
+    });
+    var draggedHeaderColumn = null;
+    document.querySelectorAll(".budget-table th[data-col]").forEach(function (th) {
+      th.draggable = true;
+      th.addEventListener("dragstart", function (event) {
+        if (event.target.classList.contains("budget-col-resizer")) {
+          event.preventDefault();
+          return;
+        }
+        draggedHeaderColumn = th.getAttribute("data-col");
+        th.classList.add("dragging");
+        event.dataTransfer.effectAllowed = "move";
+      });
+      th.addEventListener("dragend", function () {
+        th.classList.remove("dragging");
+        draggedHeaderColumn = null;
+      });
+      th.addEventListener("dragover", function (event) { event.preventDefault(); });
+      th.addEventListener("drop", function (event) {
+        event.preventDefault();
+        var rect = th.getBoundingClientRect();
+        moveColumnItem(draggedHeaderColumn, th.getAttribute("data-col"), event.clientX > rect.left + rect.width / 2);
+      });
+    });
     columnsBtn.addEventListener("click", function () {
       columnMenu.hidden = !columnMenu.hidden;
       columnsBtn.setAttribute("aria-expanded", String(!columnMenu.hidden));
@@ -1468,9 +1552,18 @@
       var product = productInput.value.trim();
       var campaignTypes = typeInputs.filter(function (input) { return input.checked; }).map(function (input) { return input.value; });
       var desired = parseMoney(desiredInput.value);
+      var detailBudgets = {};
+      Object.keys(detailInputs).forEach(function (group) {
+        if (detailInputs[group].value.trim()) detailBudgets[group] = parseMoney(detailInputs[group].value);
+      });
       var file = fileInput.files[0];
       if (!channel || !product || !campaignTypes.length || desired <= 0 || !file) {
         alert("채널, 제품군, 구분, 희망 총 예산, D.ROAS RAW 파일을 모두 입력해주세요.");
+        return;
+      }
+      var detailTotal = Object.keys(detailBudgets).reduce(function (total, group) { return total + detailBudgets[group]; }, 0);
+      if (detailTotal > desired) {
+        alert("DA·PA·PM 세부 예산 합계는 희망 총 예산을 초과할 수 없습니다.");
         return;
       }
       var body = new FormData();
@@ -1478,6 +1571,9 @@
       body.set("product_group", product);
       campaignTypes.forEach(function (value) { body.append("campaign_types", value); });
       body.set("desired_budget", String(desired));
+      Object.keys(detailBudgets).forEach(function (group) {
+        body.set("detail_budget_" + group.toLowerCase(), String(detailBudgets[group]));
+      });
       body.set("droas_file", file);
       lookupBtn.disabled = true;
       lookupBtn.textContent = "분석 중…";

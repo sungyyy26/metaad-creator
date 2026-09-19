@@ -251,7 +251,90 @@ def _round_allocations(items, target=None):
             break
 
 
-def optimize(adsets, desired_total):
+def _is_pm(item):
+    """Return True when the campaign/ad set/active creative is a PM asset."""
+    values = [item.get("campaign_name"), item.get("adset_name")]
+    values.extend(item.get("active_ad_names") or [])
+    return any(re.search(r"(^|_)pm(_|$)", str(value or ""), re.I) for value in values)
+
+
+def _apply_detail_budgets(adsets, desired_total, detail_budgets, summary):
+    """Keep optional DA/PA/PM pools isolated while preserving base weights.
+
+    PM takes precedence only when a PM pool was explicitly supplied. Otherwise
+    PM rows continue to belong to their normal DA/PA group. Unspecified rows
+    share the remainder of the total budget.
+    """
+    requested = {
+        key: max(0.0, float(value))
+        for key, value in (detail_budgets or {}).items()
+        if key in {"DA", "PA", "PM"} and value is not None
+    }
+    if not requested:
+        return
+
+    pools = {key: [] for key in requested}
+    pools["기타"] = []
+    for item in adsets:
+        group = None
+        if "PM" in requested and _is_pm(item):
+            group = "PM"
+        elif item.get("type") in requested:
+            group = item["type"]
+        else:
+            group = "기타"
+        item["allocation_group"] = group
+        pools[group].append(item)
+
+    remainder = max(0.0, float(desired_total) - sum(requested.values()))
+    targets = dict(requested)
+    targets["기타"] = remainder
+    allocated = {}
+    for group, items in pools.items():
+        target = targets.get(group, 0.0)
+        if not items:
+            allocated[group] = 0.0
+            if target > 0:
+                summary["warnings"].append(f"{group} 세부 예산 ${target:,.0f}을 배분할 광고세트가 없습니다.")
+            continue
+
+        candidates = [item for item in items if item.get("allocation_adjustable")]
+        fixed = [item for item in items if item not in candidates]
+        fixed_total = sum(max(0.0, float(item.get("suggested_budget") or 0)) for item in fixed)
+        adjustable_target = max(0.0, target - fixed_total)
+        if fixed_total > target:
+            summary["warnings"].append(
+                f"{group} 고정·보류 예산 ${fixed_total:,.0f}이 세부 목표 ${target:,.0f}을 초과합니다."
+            )
+        for item in candidates:
+            base = max(0.0, float(item.get("suggested_budget") or 0))
+            if base <= 0:
+                if item.get("cpa_3d"):
+                    base = 1 / float(item["cpa_3d"])
+                elif item.get("droas_7d") is not None:
+                    base = max(0.0, float(item["droas_7d"]))
+                else:
+                    base = max(1.0, float(item.get("current_budget") or 0))
+            item["_detail_weight"] = base
+            item["allocation_adjustable"] = True
+        allocations = _weighted_allocate(candidates, adjustable_target, "_detail_weight")
+        for item in candidates:
+            item["suggested_budget"] = allocations.get(item["adset_id"], 0)
+            item.pop("_detail_weight", None)
+        _round_allocations(candidates, adjustable_target)
+        allocated[group] = sum(item["suggested_budget"] for item in items)
+        if not candidates and target > fixed_total:
+            summary["warnings"].append(
+                f"{group} 세부 목표 중 ${target - fixed_total:,.0f}은 조정 가능한 광고세트가 없어 미배분되었습니다."
+            )
+
+    summary["detail_budgets"] = requested
+    summary["detail_allocated"] = allocated
+    summary["new_allocated"] = sum(item["suggested_budget"] for item in adsets if item["bucket"] == "신규")
+    summary["existing_allocated"] = sum(item["suggested_budget"] for item in adsets if item["bucket"] == "기존")
+
+
+def optimize(adsets, desired_total, detail_budgets=None):
     desired_total = max(0, float(desired_total))
     new = [item for item in adsets if item["bucket"] == "신규"]
     existing = [item for item in adsets if item["bucket"] == "기존"]
@@ -361,6 +444,7 @@ def optimize(adsets, desired_total):
         summary["warnings"].append("기존 버킷 보류 예산 합계가 기존 버킷 목표예산보다 큽니다.")
     if desired_total < new_target:
         summary["warnings"].append("희망 총예산이 신규 버킷 규칙상 목표예산보다 작습니다.")
+    _apply_detail_budgets(adsets, desired_total, detail_budgets, summary)
     allocated_total = summary["new_allocated"] + summary["existing_allocated"]
     if int(round(allocated_total)) != int(round(desired_total)):
         gap = desired_total - allocated_total

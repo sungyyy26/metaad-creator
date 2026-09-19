@@ -1010,6 +1010,18 @@ def budget_lookup():
     product_group = request.form.get("product_group", "").strip()
     campaign_types = [value.upper() for value in request.form.getlist("campaign_types") if value.upper() in {"CV", "TF"}]
     desired_budget_raw = request.form.get("desired_budget", "").strip()
+    detail_budgets = {}
+    for group in ("DA", "PA", "PM"):
+        raw_value = request.form.get(f"detail_budget_{group.lower()}", "").strip()
+        if not raw_value:
+            continue
+        try:
+            value = float(raw_value)
+            if value < 0:
+                raise ValueError
+            detail_budgets[group] = value
+        except ValueError:
+            return {"ok": False, "error": f"{group} 세부 예산은 0 이상의 숫자로 입력해주세요."}, 400
     file = request.files.get("droas_file")
 
     if not channel_query:
@@ -1024,6 +1036,8 @@ def budget_lookup():
             raise ValueError
     except ValueError:
         return {"ok": False, "error": "희망 예산은 0보다 큰 숫자로 입력해주세요."}, 400
+    if sum(detail_budgets.values()) > desired_budget:
+        return {"ok": False, "error": "DA·PA·PM 세부 예산 합계는 희망 총 예산을 초과할 수 없습니다."}, 400
     if not file or not file.filename:
         return {"ok": False, "error": "D.ROAS 계산을 위한 Amazon Attribution 일일 RAW 파일을 업로드해주세요."}, 400
 
@@ -1110,7 +1124,10 @@ def budget_lookup():
                     "active_ad_count": len(active_names),
                     "adset_created_time": adset.get("created_time"),
                     "active_ad_created_times": [ad.get("created_time") for ad in active_ads if ad.get("created_time")],
-                    "display_name": ", ".join(active_names) if is_da and active_names else adset_name,
+                    "display_name": (
+                        f"{active_names[0]} 외 {len(active_names) - 1}개" if len(active_names) > 1
+                        else active_names[0] if is_da and active_names else adset_name
+                    ),
                     "current_budget": int(adset["daily_budget"]) / 100 if adset.get("daily_budget") else 0,
                     "cpa_3d": insight.get("cpa"), "cpm_3d": insight.get("cpm"),
                     "_meta_spend_rows": spend_by_adset.get(adset_id, []),
@@ -1119,7 +1136,7 @@ def budget_lookup():
         return {"ok": False, "error": str(e)}, 400
 
     budget_optimizer.attach_raw_metrics(matches, raw_rows, today=periods["anchor"])
-    matches, calculation_summary = budget_optimizer.optimize(matches, desired_budget)
+    matches, calculation_summary = budget_optimizer.optimize(matches, desired_budget, detail_budgets)
     calculation_summary["anchor_date"] = periods["anchor"].isoformat()
     calculation_summary["cpa_cpm_period"] = f"{periods['three_start'].isoformat()}~{periods['anchor'].isoformat()}"
     calculation_summary["droas_period"] = f"{periods['droas_start'].isoformat()}~{periods['anchor'].isoformat()}"
@@ -1171,6 +1188,9 @@ def budget_export():
         ("희망 총예산", summary.get("desired_total", 0)),
         ("변경 예산 합계", changed_total),
     ]
+    for group, value in (summary.get("detail_budgets") or {}).items():
+        summary_rows.append((f"{group} 세부 예산", value))
+        summary_rows.append((f"{group} 실제 배정", (summary.get("detail_allocated") or {}).get(group, 0)))
     for label, value in summary_rows:
         criteria.append([label, "-" if value is None else value])
 
@@ -1215,6 +1235,10 @@ def budget_export():
         "신규 목표 총예산", "신규 평균 CPA", "신규 OFF 기준",
         "변경 전 예산 합계", "희망 총예산", "변경 예산 합계",
     }
+    currency_labels.update(
+        label for label, _ in summary_rows
+        if label.endswith("세부 예산") or label.endswith("실제 배정")
+    )
     for row_index in range(2, criteria.max_row + 1):
         label = criteria.cell(row_index, 1).value
         if label in currency_labels and isinstance(criteria.cell(row_index, 2).value, (int, float)):
