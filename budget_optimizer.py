@@ -346,12 +346,18 @@ def optimize(adsets, desired_total, detail_budgets=None):
     new = [item for item in adsets if item["bucket"] == "신규"]
     existing = [item for item in adsets if item["bucket"] == "기존"]
 
+    def minimum_budget(item):
+        return 100 * max(1, int(item.get("active_ad_count") or 0))
+
     minimum = [item for item in new if item["operating_days"] <= 3 or item["spend_since_restart"] <= 300]
     assessable = [item for item in new if item not in minimum and item.get("cpa_3d") is not None]
     missing_cpa = [item for item in new if item not in minimum and item.get("cpa_3d") is None]
     avg_cpa = sum(item["cpa_3d"] for item in assessable) / len(assessable) if assessable else None
     off_cpa = max(2.0, avg_cpa * 1.3) if avg_cpa is not None else 2.0
-    new_target = len(assessable + missing_cpa) * 300 + len(minimum) * 100
+    new_target = (
+        sum(max(300, minimum_budget(item)) for item in assessable + missing_cpa)
+        + sum(minimum_budget(item) for item in minimum)
+    )
 
     fixed_new = []
     weighted_new = []
@@ -359,14 +365,20 @@ def optimize(adsets, desired_total, detail_budgets=None):
         item["classification"] = ""
         item["reasons"] = []
         if item in minimum:
-            item["suggested_budget"] = 100
+            item["suggested_budget"] = minimum_budget(item)
             item["classification"] = "최소배정"
-            item["reasons"].append("라이브 3일 이하 또는 재개 후 스펜딩 $300 이하")
+            item["reasons"].append(
+                f"라이브 3일 이하 또는 재개 후 스펜딩 $300 이하 · "
+                f"활성 소재 {max(1, int(item.get('active_ad_count') or 0))}개 × $100"
+            )
             fixed_new.append(item)
         elif item in missing_cpa:
-            item["suggested_budget"] = 100
+            item["suggested_budget"] = minimum_budget(item)
             item["classification"] = "CPA 데이터 없음"
-            item["reasons"].append("PDT D-3 체크아웃 CPA 데이터 없음")
+            item["reasons"].append(
+                f"PDT D-3 체크아웃 CPA 데이터 없음 · 활성 소재 "
+                f"{max(1, int(item.get('active_ad_count') or 0))}개 × $100"
+            )
             fixed_new.append(item)
         else:
             cpa = item["cpa_3d"]
@@ -375,9 +387,12 @@ def optimize(adsets, desired_total, detail_budgets=None):
                 item["reasons"].append(f"CPA ${cpa:.2f} ≥ OFF 기준 ${off_cpa:.2f}")
                 weighted_new.append(item)  # explicitly remains in 1/CPA weighting
             elif avg_cpa is not None and cpa > avg_cpa:
-                item["suggested_budget"] = 100
+                item["suggested_budget"] = minimum_budget(item)
                 item["classification"] = "평균 CPA 초과"
-                item["reasons"].append(f"CPA ${cpa:.2f} > 평균 ${avg_cpa:.2f}")
+                item["reasons"].append(
+                    f"CPA ${cpa:.2f} > 평균 ${avg_cpa:.2f} · 활성 소재 "
+                    f"{max(1, int(item.get('active_ad_count') or 0))}개 × $100"
+                )
                 fixed_new.append(item)
             else:
                 weighted_new.append(item)

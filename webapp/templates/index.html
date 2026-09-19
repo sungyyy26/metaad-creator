@@ -111,6 +111,13 @@
   .tab-btn,.mode-btn{font-family:var(--font-heading);font-weight:600;font-size:var(--fs-sm);color:var(--text-muted);background:none;border:none;border-bottom:2px solid transparent;padding:10px 4px 14px;margin-right:20px;cursor:pointer;white-space:nowrap;}
   .tab-btn.active,.mode-btn.active{color:var(--text);border-bottom-color:var(--accent);}
   .tab-btn:focus-visible,.mode-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .ads-section-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:var(--sp-5);}
+  .ads-section-btn{font-family:var(--font-heading);font-weight:600;font-size:var(--fs-sm);color:var(--text-muted);background:none;border:none;border-bottom:2px solid transparent;padding:10px 4px 14px;margin-right:24px;cursor:pointer;white-space:nowrap;}
+  .ads-section-btn .ads-section-no{font-family:var(--font-mono);font-weight:500;color:var(--text-muted);margin-right:6px;opacity:.7;}
+  .ads-section-btn.active{color:var(--text);border-bottom-color:var(--accent);}
+  .ads-section-btn.active .ads-section-no{color:var(--accent);opacity:1;}
+  .ads-section-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .ads-create-subtabs{margin-top:calc(var(--sp-2) * -1);margin-bottom:var(--sp-5);}
   #top-toggle .top-btn[data-top="ads"].active{background:var(--accent);color:var(--accent-contrast);box-shadow:none;}
   #top-toggle .top-btn[data-top="budget"].active{background:#f5c542;color:#1d1d1f;box-shadow:none;}
   #top-toggle .top-btn[data-top="shopify"].active{background:var(--accent-green);color:var(--accent-green-contrast);box-shadow:none;}
@@ -281,8 +288,10 @@
   .budget-sort-indicator{display:inline-block;min-width:12px;margin-left:4px;color:var(--text-faint);font-size:10px;}
   .budget-table th[aria-sort="ascending"] .budget-sort-indicator,.budget-table th[aria-sort="descending"] .budget-sort-indicator{color:var(--accent);}
   .budget-total-row td{background:var(--surface-2);font-family:var(--font-heading);font-weight:700;border-bottom:2px solid var(--border-strong);white-space:nowrap;}
-  .budget-table th[data-col="name"],.budget-table td[data-col="name"]{width:280px;max-width:320px;}
-  .budget-table th[data-col="note"],.budget-table td[data-col="note"]{width:230px;max-width:280px;}
+  .budget-table th[data-col="name"],.budget-table td[data-col="name"]{width:310px;max-width:360px;}
+  .budget-table td[data-col="name"] strong,.budget-table td[data-col="name"] .record-meta{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .budget-table td[data-col="name"] br{display:none;}
+  .budget-table th[data-col="note"],.budget-table td[data-col="note"]{width:300px;max-width:360px;}
   .budget-table th[data-col="class"],.budget-table td[data-col="class"]{width:145px;max-width:180px;}
   .budget-col-resizer{position:absolute;right:0;top:0;width:7px;height:100%;cursor:col-resize;border-right:2px solid transparent;user-select:none;}
   .budget-table th:hover .budget-col-resizer{border-right-color:var(--accent);}
@@ -551,12 +560,17 @@
   {% endif %}
 
   <div class="panel" id="panel-setting">
-    <div class="tabs">
-      <button type="button" class="tab-btn active" data-tab="bulk">대량 업로드</button>
-      <button type="button" class="tab-btn" data-tab="manual">수동 입력</button>
-      <button type="button" class="tab-btn" data-tab="upload">소재 업로드</button>
-      <button type="button" class="tab-btn" data-tab="copy">카피 생성</button>
+    <div class="ads-section-tabs" id="ads-section-tabs">
+      <button type="button" class="ads-section-btn active" data-ads-section="create"><span class="ads-section-no">01</span>광고 생성</button>
+      <button type="button" class="ads-section-btn" data-ads-section="upload"><span class="ads-section-no">02</span>소재 업로드</button>
+      <button type="button" class="ads-section-btn" data-ads-section="copy"><span class="ads-section-no">03</span>카피 생성</button>
     </div>
+
+    <div id="ads-section-create">
+      <div class="tabs ads-create-subtabs">
+        <button type="button" class="tab-btn active" data-tab="bulk">대량 업로드</button>
+        <button type="button" class="tab-btn" data-tab="manual">수동 입력</button>
+      </div>
 
     <div class="tab-panel" id="tab-manual" hidden>
       <h2>새 광고 생성 요청 [개별]</h2>
@@ -689,6 +703,7 @@
           <button type="submit" class="primary" form="bulk-form">수정한 버전으로 전체 행 실행</button>
         </div>
       </div>
+    </div>
     </div>
 
     <div class="tab-panel" id="tab-upload" hidden>
@@ -1087,14 +1102,16 @@
   function syncHistoryPanels() {
     var activeTopBtn = document.querySelector("#top-toggle .top-btn.active");
     var activeSettingTab = document.querySelector(".tab-btn.active");
+    var activeAdsSection = document.querySelector(".ads-section-btn.active");
     var top = activeTopBtn ? activeTopBtn.getAttribute("data-top") : "ads";
     var settingTab = activeSettingTab ? activeSettingTab.getAttribute("data-tab") : "bulk";
+    var adsSection = activeAdsSection ? activeAdsSection.getAttribute("data-ads-section") : "create";
 
     document.getElementById("panel-setting-history").hidden = !(
-      top === "ads" && (settingTab === "bulk" || settingTab === "manual")
+      top === "ads" && adsSection === "create" && (settingTab === "bulk" || settingTab === "manual")
     );
     document.getElementById("panel-upload-history").hidden = !(
-      top === "ads" && settingTab === "upload"
+      top === "ads" && adsSection === "upload"
     );
     document.getElementById("panel-budget-history").hidden = true;
   }
@@ -1106,8 +1123,18 @@
       var target = btn.getAttribute("data-tab");
       document.getElementById("tab-manual").hidden = target !== "manual";
       document.getElementById("tab-bulk").hidden = target !== "bulk";
-      document.getElementById("tab-upload").hidden = target !== "upload";
-      document.getElementById("tab-copy").hidden = target !== "copy";
+      syncHistoryPanels();
+    });
+  });
+
+  document.querySelectorAll(".ads-section-btn").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      document.querySelectorAll(".ads-section-btn").forEach(function (b) { b.classList.remove("active"); });
+      btn.classList.add("active");
+      var section = btn.getAttribute("data-ads-section");
+      document.getElementById("ads-section-create").hidden = section !== "create";
+      document.getElementById("tab-upload").hidden = section !== "upload";
+      document.getElementById("tab-copy").hidden = section !== "copy";
       syncHistoryPanels();
     });
   });
@@ -1130,11 +1157,11 @@
   });
 
   var requestedSettingTab = new URLSearchParams(window.location.search).get("tab");
-  var requestedSettingTabBtn = ["bulk", "manual", "upload", "copy"].indexOf(requestedSettingTab) !== -1
-    ? document.querySelector('.tab-btn[data-tab="' + requestedSettingTab + '"]')
-    : null;
-  if (requestedSettingTabBtn) {
-    requestedSettingTabBtn.click();
+  if (requestedSettingTab === "upload" || requestedSettingTab === "copy") {
+    document.querySelector('.ads-section-btn[data-ads-section="' + requestedSettingTab + '"]').click();
+  } else if (requestedSettingTab === "bulk" || requestedSettingTab === "manual") {
+    document.querySelector('.ads-section-btn[data-ads-section="create"]').click();
+    document.querySelector('.tab-btn[data-tab="' + requestedSettingTab + '"]').click();
   } else {
     syncHistoryPanels();
   }
