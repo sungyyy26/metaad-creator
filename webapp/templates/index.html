@@ -283,15 +283,15 @@
   .budget-table-wrap{overflow:auto;border:1px solid var(--border);border-radius:var(--radius-md);max-height:68vh;}
   .budget-table{width:max-content;min-width:100%;border-collapse:collapse;font-size:var(--fs-xs);}
   .budget-table th,.budget-table td{padding:10px 9px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top;max-width:240px;white-space:normal;overflow-wrap:anywhere;word-break:break-word;}
-  .budget-table th{position:sticky;top:0;background:var(--table-header);font-family:var(--font-heading);font-weight:700;white-space:nowrap;z-index:1;resize:horizontal;overflow:hidden;min-width:72px;max-width:360px;cursor:grab;}
+  .budget-table th{position:sticky;top:0;background:var(--table-header);font-family:var(--font-heading);font-weight:700;white-space:nowrap;z-index:1;resize:horizontal;overflow:hidden;min-width:72px;max-width:640px;cursor:grab;}
   .budget-table th[data-sort-key]{cursor:pointer;user-select:none;}
   .budget-sort-indicator{display:inline-block;min-width:12px;margin-left:4px;color:var(--text-faint);font-size:10px;}
   .budget-table th[aria-sort="ascending"] .budget-sort-indicator,.budget-table th[aria-sort="descending"] .budget-sort-indicator{color:var(--accent);}
   .budget-total-row td{background:var(--surface-2);font-family:var(--font-heading);font-weight:700;border-bottom:2px solid var(--border-strong);white-space:nowrap;}
-  .budget-table th[data-col="name"],.budget-table td[data-col="name"]{width:310px;max-width:360px;}
-  .budget-table td[data-col="name"] strong,.budget-table td[data-col="name"] .record-meta{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .budget-table th[data-col="name"],.budget-table td[data-col="name"]{width:max-content;min-width:380px;max-width:none;white-space:nowrap;}
+  .budget-table td[data-col="name"] strong,.budget-table td[data-col="name"] .record-meta{display:block;white-space:nowrap;overflow:visible;text-overflow:clip;}
   .budget-table td[data-col="name"] br{display:none;}
-  .budget-table th[data-col="note"],.budget-table td[data-col="note"]{width:300px;max-width:360px;}
+  .budget-table th[data-col="note"],.budget-table td[data-col="note"]{width:440px;min-width:420px;max-width:560px;}
   .budget-table th[data-col="class"],.budget-table td[data-col="class"]{width:145px;max-width:180px;}
   .budget-col-resizer{position:absolute;right:0;top:0;width:7px;height:100%;cursor:col-resize;border-right:2px solid transparent;user-select:none;}
   .budget-table th:hover .budget-col-resizer{border-right-color:var(--accent);}
@@ -559,12 +559,13 @@
     </div>
   {% endif %}
 
+  <div class="ads-section-tabs" id="ads-section-tabs">
+    <button type="button" class="ads-section-btn active" data-ads-section="create"><span class="ads-section-no">01</span>광고 생성</button>
+    <button type="button" class="ads-section-btn" data-ads-section="upload"><span class="ads-section-no">02</span>소재 업로드</button>
+    <button type="button" class="ads-section-btn" data-ads-section="copy"><span class="ads-section-no">03</span>카피 생성</button>
+  </div>
+
   <div class="panel" id="panel-setting">
-    <div class="ads-section-tabs" id="ads-section-tabs">
-      <button type="button" class="ads-section-btn active" data-ads-section="create"><span class="ads-section-no">01</span>광고 생성</button>
-      <button type="button" class="ads-section-btn" data-ads-section="upload"><span class="ads-section-no">02</span>소재 업로드</button>
-      <button type="button" class="ads-section-btn" data-ads-section="copy"><span class="ads-section-no">03</span>카피 생성</button>
-    </div>
 
     <div id="ads-section-create">
       <div class="tabs ads-create-subtabs">
@@ -707,7 +708,7 @@
     </div>
 
     <div class="tab-panel" id="tab-upload" hidden>
-      <h2>Meta 소재 라이브러리에 업로드</h2>
+      <h2>메타 라이브러리 소재 업로드</h2>
       <p class="hint">내 컴퓨터의 영상/이미지 파일을 광고 계정의 소재 라이브러리에 바로 올립니다 (공개 URL 필요 없음). 올린 뒤 "소재" 칸에 이 파일명을 적으면 광고 생성 시 자동으로 매칭됩니다.</p>
       <form method="post" action="/upload_creative" enctype="multipart/form-data">
         <div class="field">
@@ -1151,6 +1152,7 @@
       document.getElementById("page-header-budget").hidden = top !== "budget";
       document.getElementById("panel-shopify").hidden = top !== "shopify";
       document.getElementById("panel-setting").hidden = top !== "ads";
+      document.getElementById("ads-section-tabs").hidden = top !== "ads";
       document.getElementById("panel-budget").hidden = top !== "budget";
       syncHistoryPanels();
     });
@@ -1332,7 +1334,7 @@
         var startX = event.clientX;
         var startWidth = th.getBoundingClientRect().width;
         function move(moveEvent) {
-          var width = Math.min(360, Math.max(72, startWidth + moveEvent.clientX - startX));
+          var width = Math.min(640, Math.max(72, startWidth + moveEvent.clientX - startX));
           th.style.width = width + "px";
           th.style.minWidth = width + "px";
           th.style.maxWidth = width + "px";
