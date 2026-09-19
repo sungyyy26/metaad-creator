@@ -19,7 +19,6 @@ import re
 import sys
 import threading
 import uuid
-from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -1036,52 +1035,54 @@ def budget_lookup():
             "message": f"'{campaign_query}'을 포함하는 캠페인을 찾지 못했습니다.",
         }
 
-    adsets = []
-    try:
-        for campaign in campaigns:
-            for adset in meta_lib.list_campaign_active_adsets(token, campaign["id"], cache=cache):
-                if (adset.get("effective_status") or adset.get("status")) != "ACTIVE":
-                    continue
-                adsets.append({**adset, "campaign_name": campaign["name"]})
-    except meta_lib.MetaApiError as e:
-        return {"ok": False, "error": str(e)}, 400
-
     periods = budget_reporting_periods()
     since_3d = periods["three_start"].isoformat()
     until = periods["anchor"].isoformat()
+    history_since = (periods["anchor"] - timedelta(days=44)).isoformat()
+    campaigns_by_account = {}
+    for campaign in campaigns:
+        campaigns_by_account.setdefault(campaign["account_id"], []).append(campaign)
 
-    def enrich(adset):
-        ads = meta_lib.list_adset_ads(token, adset["id"])
-        active_ads = [ad for ad in ads if (ad.get("effective_status") or ad.get("status")) == "ACTIVE"]
-        insight = meta_lib.get_adset_insights(token, adset["id"], since_3d, until)
-        adset_name = adset.get("name", "")
-        is_da = bool(re.search(r"(^|[_\-\s])DA([_\-\s]|$)", adset_name, re.I))
-        active_names = [ad.get("name", "") for ad in active_ads if ad.get("name")]
-        created_dates = [
-            str(ad.get("created_time", ""))[:10] for ad in active_ads if ad.get("created_time")
-        ]
-        if not created_dates and adset.get("created_time"):
-            created_dates.append(str(adset["created_time"])[:10])
-        history_since = min(created_dates) if created_dates else date.today().isoformat()
-        daily_spend = (
-            meta_lib.get_adset_daily_ad_spend(token, adset["id"], history_since, until)
-            if history_since <= until else []
-        )
-        return {
-            "adset_id": adset["id"], "campaign_name": adset["campaign_name"],
-            "adset_name": adset_name, "type": "DA" if is_da else "PA",
-            "active_ad_names": active_names,
-            "adset_created_time": adset.get("created_time"),
-            "active_ad_created_times": [ad.get("created_time") for ad in active_ads if ad.get("created_time")],
-            "display_name": ", ".join(active_names) if is_da and active_names else adset_name,
-            "current_budget": int(adset["daily_budget"]) / 100 if adset.get("daily_budget") else 0,
-            "cpa_3d": insight["cpa"], "cpm_3d": insight["cpm"],
-            "_meta_spend_rows": daily_spend,
-        }
-
+    matches = []
     try:
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            matches = list(executor.map(enrich, adsets))
+        for account_id, account_campaigns in campaigns_by_account.items():
+            campaign_ids = [campaign["id"] for campaign in account_campaigns]
+            campaign_names = {str(campaign["id"]): campaign["name"] for campaign in account_campaigns}
+            adsets = meta_lib.list_account_active_adsets(token, account_id, campaign_ids, cache=cache)
+            active_adset_ids = {str(adset["id"]) for adset in adsets}
+            if not active_adset_ids:
+                continue
+            ads = meta_lib.list_account_active_ads(token, account_id, campaign_ids, cache=cache)
+            ads_by_adset = {}
+            for ad in ads:
+                adset_id = str(ad.get("adset_id") or "")
+                if adset_id in active_adset_ids:
+                    ads_by_adset.setdefault(adset_id, []).append(ad)
+            insight_by_adset = meta_lib.get_account_adset_insights(
+                token, account_id, campaign_ids, since_3d, until,
+            )
+            spend_by_adset = meta_lib.get_account_daily_ad_spend(
+                token, account_id, campaign_ids, history_since, until,
+            )
+            for adset in adsets:
+                adset_id = str(adset["id"])
+                active_ads = ads_by_adset.get(adset_id, [])
+                insight = insight_by_adset.get(adset_id, {"cpa": None, "cpm": None})
+                adset_name = adset.get("name", "")
+                is_da = bool(re.search(r"(^|[_\-\s])DA([_\-\s]|$)", adset_name, re.I))
+                active_names = [ad.get("name", "") for ad in active_ads if ad.get("name")]
+                matches.append({
+                    "adset_id": adset_id,
+                    "campaign_name": campaign_names.get(str(adset.get("campaign_id")), ""),
+                    "adset_name": adset_name, "type": "DA" if is_da else "PA",
+                    "active_ad_names": active_names,
+                    "adset_created_time": adset.get("created_time"),
+                    "active_ad_created_times": [ad.get("created_time") for ad in active_ads if ad.get("created_time")],
+                    "display_name": ", ".join(active_names) if is_da and active_names else adset_name,
+                    "current_budget": int(adset["daily_budget"]) / 100 if adset.get("daily_budget") else 0,
+                    "cpa_3d": insight.get("cpa"), "cpm_3d": insight.get("cpm"),
+                    "_meta_spend_rows": spend_by_adset.get(adset_id, []),
+                })
     except meta_lib.MetaApiError as e:
         return {"ok": False, "error": str(e)}, 400
 

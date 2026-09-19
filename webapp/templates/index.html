@@ -269,6 +269,9 @@
   .budget-table th[data-col="note"]{min-width:300px;}
   .budget-col-resizer{position:absolute;right:0;top:0;width:7px;height:100%;cursor:col-resize;border-right:2px solid transparent;user-select:none;}
   .budget-table th:hover .budget-col-resizer{border-right-color:var(--accent);}
+  .budget-change{font-family:var(--font-mono);font-weight:700;white-space:nowrap;}
+  .budget-change.up{color:var(--status-done-fg);}
+  .budget-change.down{color:var(--status-error-fg);}
   .budget-table .col-hidden{display:none;}
   .budget-table tr:last-child td{border-bottom:0;}
   .budget-table tr[data-bucket="신규"]{border-left:3px solid var(--accent);}
@@ -527,7 +530,7 @@
     </div>
 
     <div class="tab-panel" id="tab-manual" hidden>
-      <h2>새 광고 생성 요청 [개]</h2>
+      <h2>새 광고 생성 요청 [개별]</h2>
       <p class="hint">달라지는 부분만 입력하세요 — 나머지는 복제할 광고 세트에서 그대로 가져옵니다.</p>
       <form method="post" action="/submit">
         <fieldset>
@@ -739,11 +742,11 @@
             <label><input type="checkbox" data-budget-column="cpm" checked>CPM</label>
             <label><input type="checkbox" data-budget-column="current" checked>현재 예산</label>
             <label><input type="checkbox" data-budget-column="suggested" checked>변경 예산</label>
-            <label><input type="checkbox" data-budget-column="class" checked>분류</label>
+            <label><input type="checkbox" data-budget-column="change" checked>증감액</label>
             <label><input type="checkbox" data-budget-column="note" checked>비고</label>
           </div>
         </div>
-        <div class="budget-table-wrap"><table class="budget-table"><thead><tr><th data-col="bucket">구분</th><th data-col="type">유형</th><th data-col="name">소재명</th><th data-col="days">운영 일수</th><th data-col="droas">D.ROAS (D-7)</th><th data-col="cpa">CPA (D-3)</th><th data-col="cpm">CPM (D-3)</th><th data-col="current">현재 예산</th><th data-col="suggested">변경 예산</th><th data-col="class">분류</th><th data-col="note">비고</th></tr></thead><tbody id="budget-results-list"></tbody></table></div>
+        <div class="budget-table-wrap"><table class="budget-table"><thead><tr><th data-col="bucket">구분</th><th data-col="type">유형</th><th data-col="name">소재명</th><th data-col="days">운영 일수</th><th data-col="droas">D.ROAS (D-7)</th><th data-col="cpa">CPA (D-3)</th><th data-col="cpm">CPM (D-3)</th><th data-col="current">현재 예산</th><th data-col="suggested">변경 예산</th><th data-col="change">증감액</th><th data-col="note">비고</th></tr></thead><tbody id="budget-results-list"></tbody></table></div>
       </div>
       <div class="field-actions-right" id="budget-apply-actions" hidden>
         <button type="button" class="primary" id="budget-apply-btn">적용</button>
@@ -1292,6 +1295,14 @@
     }
     function money(value) { return value == null ? "-" : "$" + Number(value).toFixed(2); }
     function percent(value) { return value == null ? "-" : (Number(value) * 100).toFixed(1) + "%"; }
+    function changeInfo(current, suggested) {
+      var value = Number(suggested || 0) - Number(current || 0);
+      return {
+        value: value,
+        css: value > 0 ? "up" : (value < 0 ? "down" : ""),
+        text: (value > 0 ? "+" : (value < 0 ? "−" : "")) + money(Math.abs(value)),
+      };
+    }
     function renderCards(s) {
       var values = [
         ["희망 총예산", money(s.desired_total)],
@@ -1307,8 +1318,8 @@
       }
     }
     function renderRow(row, index) {
-      var note = [row.reason, row.note].filter(Boolean).join(" / ");
-      var flag = row.classification ? '<span class="budget-flag">' + esc(row.classification) + '</span>' : '-';
+      var note = [row.classification, row.reason, row.note].filter(Boolean).join(" / ");
+      var change = changeInfo(row.current_budget, row.suggested_budget);
       return '<tr data-bucket="' + esc(row.bucket) + '">' +
         '<td data-col="bucket">' + esc(row.bucket) + '</td><td data-col="type">' + esc(row.type) + '</td>' +
         '<td data-col="name"><strong>' + esc(row.display_name) + '</strong><br><span class="record-meta">' + esc(row.campaign_name) + '</span></td>' +
@@ -1316,7 +1327,7 @@
         '<td data-col="cpa">' + money(row.cpa_3d) + '</td><td data-col="cpm">' + money(row.cpm_3d) + '</td>' +
         '<td data-col="current">' + money(row.current_budget) + '</td>' +
         '<td data-col="suggested"><input class="budget-edit" type="number" min="0" step="1" data-budget-index="' + index + '" value="' + esc(row.suggested_budget) + '"></td>' +
-        '<td data-col="class">' + flag + '</td><td data-col="note">' + esc(note || "-") + '</td></tr>';
+        '<td data-col="change"><span class="budget-change ' + change.css + '" data-budget-change-index="' + index + '">' + change.text + '</span></td><td data-col="note">' + esc(note || "-") + '</td></tr>';
     }
 
     function applyColumnVisibility() {
@@ -1388,7 +1399,12 @@
     tbody.addEventListener("input", function (e) {
       var input = e.target.closest("[data-budget-index]");
       if (!input) return;
-      currentRows[Number(input.getAttribute("data-budget-index"))].suggested_budget = Number(input.value);
+      var index = Number(input.getAttribute("data-budget-index"));
+      currentRows[index].suggested_budget = Number(input.value);
+      var output = tbody.querySelector('[data-budget-change-index="' + index + '"]');
+      var change = changeInfo(currentRows[index].current_budget, currentRows[index].suggested_budget);
+      output.className = "budget-change " + change.css;
+      output.textContent = change.text;
     });
 
     applyBtn.addEventListener("click", function () {

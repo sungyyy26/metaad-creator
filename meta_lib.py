@@ -188,6 +188,36 @@ def list_campaign_active_adsets(token, campaign_id, cache=None):
         fields="id,name,status,effective_status,daily_budget,created_time"))
 
 
+def list_account_active_adsets(token, account_id, campaign_ids, cache=None):
+    """Fetch active ad sets once per account, then retain selected campaigns."""
+    wanted = {str(value) for value in campaign_ids}
+    campaign_key = ",".join(sorted(wanted))
+    rows = _cached(cache, f"active_adsets_account:{account_id}:{campaign_key}", lambda: _paginate(
+        token, f"act_{account_id}/adsets", limit=500,
+        fields="id,name,status,effective_status,daily_budget,created_time,campaign_id",
+        filtering=json.dumps([
+            {"field": "campaign.id", "operator": "IN", "value": sorted(wanted)},
+            {"field": "effective_status", "operator": "IN", "value": ["ACTIVE"]},
+        ]),
+    ))
+    return [row for row in rows if str(row.get("campaign_id")) in wanted]
+
+
+def list_account_active_ads(token, account_id, campaign_ids, cache=None):
+    """Fetch active ads once per account for all selected campaigns."""
+    wanted = {str(value) for value in campaign_ids}
+    campaign_key = ",".join(sorted(wanted))
+    rows = _cached(cache, f"active_ads_account:{account_id}:{campaign_key}", lambda: _paginate(
+        token, f"act_{account_id}/ads", limit=500,
+        fields="id,name,status,effective_status,created_time,adset_id,campaign_id",
+        filtering=json.dumps([
+            {"field": "campaign.id", "operator": "IN", "value": sorted(wanted)},
+            {"field": "effective_status", "operator": "IN", "value": ["ACTIVE"]},
+        ]),
+    ))
+    return [row for row in rows if str(row.get("campaign_id")) in wanted]
+
+
 def list_adset_ads(token, adset_id, cache=None):
     return _cached(cache, f"adset_ads:{adset_id}", lambda: _paginate(
         token, f"{adset_id}/ads", limit=200,
@@ -217,6 +247,62 @@ def get_adset_insights(token, adset_id, since, until):
         checkouts = next((actions[action] for action in checkout_types if actions.get(action)), 0)
         cpa = spend / checkouts if checkouts else None
     return {"spend": spend, "cpm": cpm, "cpa": cpa}
+
+
+def _insight_metrics(row):
+    if not row:
+        return {"spend": 0.0, "cpm": None, "cpa": None}
+    spend = float(row.get("spend") or 0)
+    cpm = float(row["cpm"]) if row.get("cpm") not in (None, "") else None
+    checkout_types = (
+        "omni_initiated_checkout", "initiate_checkout",
+        "offsite_conversion.fb_pixel_initiate_checkout",
+    )
+    costs = {item.get("action_type"): item.get("value") for item in row.get("cost_per_action_type") or []}
+    cpa = next((float(costs[action]) for action in checkout_types if costs.get(action) not in (None, "")), None)
+    if cpa is None:
+        actions = {item.get("action_type"): float(item.get("value") or 0) for item in row.get("actions") or []}
+        checkouts = next((actions[action] for action in checkout_types if actions.get(action)), 0)
+        cpa = spend / checkouts if checkouts else None
+    return {"spend": spend, "cpm": cpm, "cpa": cpa}
+
+
+def get_account_adset_insights(token, account_id, campaign_ids, since, until):
+    """One account-level D-3 request instead of one request per ad set."""
+    rows = _paginate(
+        token, f"act_{account_id}/insights", limit=500,
+        fields="adset_id,spend,cpm,actions,cost_per_action_type",
+        time_range=json.dumps({"since": since, "until": until}),
+        filtering=json.dumps([{
+            "field": "campaign.id", "operator": "IN", "value": [str(x) for x in campaign_ids],
+        }]),
+        level="adset",
+    )
+    return {str(row.get("adset_id")): _insight_metrics(row) for row in rows if row.get("adset_id")}
+
+
+def get_account_daily_ad_spend(token, account_id, campaign_ids, since, until):
+    """One account-level daily ad-spend request for selected campaigns."""
+    rows = _paginate(
+        token, f"act_{account_id}/insights", limit=500,
+        fields="adset_id,ad_id,ad_name,spend,date_start",
+        time_range=json.dumps({"since": since, "until": until}),
+        filtering=json.dumps([{
+            "field": "campaign.id", "operator": "IN", "value": [str(x) for x in campaign_ids],
+        }]),
+        time_increment=1,
+        level="ad",
+    )
+    grouped = {}
+    for row in rows:
+        adset_id = str(row.get("adset_id") or "")
+        if not adset_id or not row.get("ad_name") or not row.get("date_start"):
+            continue
+        grouped.setdefault(adset_id, []).append({
+            "date": row["date_start"], "ad_name": row["ad_name"],
+            "spend": float(row.get("spend") or 0),
+        })
+    return grouped
 
 
 def get_adset_daily_ad_spend(token, adset_id, since, until):
