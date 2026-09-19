@@ -1010,18 +1010,27 @@ def budget_lookup():
     product_group = request.form.get("product_group", "").strip()
     campaign_types = [value.upper() for value in request.form.getlist("campaign_types") if value.upper() in {"CV", "TF"}]
     desired_budget_raw = request.form.get("desired_budget", "").strip()
-    detail_budgets = {}
-    for group in ("DA", "PA", "PM"):
-        raw_value = request.form.get(f"detail_budget_{group.lower()}", "").strip()
-        if not raw_value:
-            continue
+    detail_budgets = []
+    try:
+        raw_detail_budgets = json.loads(request.form.get("detail_budgets", "[]"))
+        if not isinstance(raw_detail_budgets, list) or len(raw_detail_budgets) > 20:
+            raise ValueError
+    except (json.JSONDecodeError, ValueError):
+        return {"ok": False, "error": "세부 예산 필터 형식이 올바르지 않습니다."}, 400
+    seen_filters = set()
+    for entry in raw_detail_budgets:
+        filter_value = str(entry.get("filter") or "").strip() if isinstance(entry, dict) else ""
         try:
-            value = float(raw_value)
-            if value < 0:
+            value = float(entry.get("budget"))
+            if not filter_value or value < 0:
                 raise ValueError
-            detail_budgets[group] = value
-        except ValueError:
-            return {"ok": False, "error": f"{group} 세부 예산은 0 이상의 숫자로 입력해주세요."}, 400
+        except (TypeError, ValueError, AttributeError):
+            return {"ok": False, "error": "각 세부 예산에는 필터값과 0 이상의 예산을 모두 입력해주세요."}, 400
+        normalized_filter = filter_value.casefold()
+        if normalized_filter in seen_filters:
+            return {"ok": False, "error": f"중복된 세부 예산 필터입니다: {filter_value}"}, 400
+        seen_filters.add(normalized_filter)
+        detail_budgets.append({"filter": filter_value, "budget": value})
     file = request.files.get("droas_file")
 
     if not channel_query:
@@ -1036,8 +1045,8 @@ def budget_lookup():
             raise ValueError
     except ValueError:
         return {"ok": False, "error": "희망 예산은 0보다 큰 숫자로 입력해주세요."}, 400
-    if sum(detail_budgets.values()) > desired_budget:
-        return {"ok": False, "error": "DA·PA·PM 세부 예산 합계는 희망 총 예산을 초과할 수 없습니다."}, 400
+    if sum(entry["budget"] for entry in detail_budgets) > desired_budget:
+        return {"ok": False, "error": "세부 예산 합계는 희망 총 예산을 초과할 수 없습니다."}, 400
     if not file or not file.filename:
         return {"ok": False, "error": "D.ROAS 계산을 위한 Amazon Attribution 일일 RAW 파일을 업로드해주세요."}, 400
 
@@ -1188,7 +1197,8 @@ def budget_export():
         ("희망 총예산", summary.get("desired_total", 0)),
         ("변경 예산 합계", changed_total),
     ]
-    for group, value in (summary.get("detail_budgets") or {}).items():
+    for entry in summary.get("detail_budgets") or []:
+        group, value = entry.get("filter"), entry.get("budget")
         summary_rows.append((f"{group} 세부 예산", value))
         summary_rows.append((f"{group} 실제 배정", (summary.get("detail_allocated") or {}).get(group, 0)))
     for label, value in summary_rows:

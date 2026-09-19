@@ -299,12 +299,18 @@
   .budget-summary-card{background:var(--surface-2);border-radius:var(--radius-sm);padding:12px;}
   .budget-summary-card span{display:block;font-size:var(--fs-2xs);color:var(--text-faint);}
   .budget-summary-card strong{font-size:var(--fs-md);}
-  .budget-allocation-row{display:grid;grid-template-columns:1.2fr repeat(3,minmax(0,.8fr));gap:var(--sp-3);align-items:start;}
+  .budget-allocation-row{display:grid;grid-template-columns:minmax(220px,.7fr) minmax(420px,1.3fr);gap:var(--sp-4);align-items:start;}
   .budget-allocation-row .field{margin-bottom:var(--sp-3);}
-  .budget-detail-label{display:flex!important;align-items:center;gap:5px;}
+  .budget-detail-label{display:flex!important;align-items:center;gap:6px;}
   .budget-optional{font-size:var(--fs-2xs);font-weight:500;color:var(--text-faint);}
+  .budget-detail-list{display:flex;flex-direction:column;gap:7px;}
+  .budget-detail-row{display:grid;grid-template-columns:minmax(130px,1fr) minmax(130px,.75fr) 32px;gap:7px;align-items:center;}
+  .budget-detail-row input{min-width:0;}
+  .budget-detail-remove{width:32px;height:40px;border:1px solid var(--border-strong);border-radius:var(--radius-sm);background:var(--surface-2);color:var(--text-muted);font-size:18px;cursor:pointer;}
+  .budget-detail-remove:hover{color:var(--status-error-fg);border-color:var(--status-error-fg);}
+  .budget-detail-add{margin-top:8px;border:0;background:transparent;color:var(--accent);font:700 var(--fs-xs) var(--font-heading);padding:3px 0;cursor:pointer;}
   @media(max-width:720px){.budget-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
-  @media(max-width:900px){.budget-allocation-row{grid-template-columns:repeat(2,minmax(0,1fr));}}
+  @media(max-width:900px){.budget-allocation-row{grid-template-columns:1fr;}}
   @media(max-width:560px){.budget-allocation-row{grid-template-columns:1fr;}}
 
   .record-note.err{display:flex;align-items:center;gap:var(--sp-2);flex-wrap:wrap;}
@@ -738,11 +744,8 @@
     </div>
     <div class="budget-allocation-row">
       <div class="field"><label>희망 총 예산 (USD)</label><input type="text" inputmode="numeric" id="budget_desired_total" autocomplete="off" placeholder="$35,000"></div>
-      <div class="field"><label class="budget-detail-label">DA 예산 <span class="budget-optional">선택</span></label><input type="text" inputmode="numeric" id="budget_detail_da" class="budget-detail-input" autocomplete="off" placeholder="예: $15,000"></div>
-      <div class="field"><label class="budget-detail-label">PA 예산 <span class="budget-optional">선택</span></label><input type="text" inputmode="numeric" id="budget_detail_pa" class="budget-detail-input" autocomplete="off" placeholder="예: $10,000"></div>
-      <div class="field"><label class="budget-detail-label">PM 예산 <span class="budget-optional">선택</span></label><input type="text" inputmode="numeric" id="budget_detail_pm" class="budget-detail-input" autocomplete="off" placeholder="예: $10,000"></div>
+      <div class="field"><label class="budget-detail-label">세부 예산 <span class="budget-optional">선택</span></label><div class="budget-detail-list" id="budget-detail-list"></div><button type="button" class="budget-detail-add" id="budget-detail-add">+ 필터 추가</button><span class="field-hint">DA·PA·PM 또는 캠페인·광고세트·소재명에 포함된 다른 필터값을 자유롭게 입력할 수 있습니다. 위 필터부터 우선 적용됩니다.</span></div>
     </div>
-    <span class="field-hint tight">세부 예산은 선택사항입니다. PM을 입력하면 이름에 _pm_이 포함된 소재를 DA·PA에서 분리해 별도 배분하고, 남은 총 예산은 그 외 광고세트에 배분합니다.</span>
     <div class="field">
       <label>D.ROAS RAW 파일 *</label>
       <div class="file-input-wrap">
@@ -1278,11 +1281,8 @@
     var productInput = document.getElementById("budget_product_group");
     var typeInputs = Array.prototype.slice.call(document.querySelectorAll('input[name="budget_campaign_type"]'));
     var desiredInput = document.getElementById("budget_desired_total");
-    var detailInputs = {
-      DA: document.getElementById("budget_detail_da"),
-      PA: document.getElementById("budget_detail_pa"),
-      PM: document.getElementById("budget_detail_pm"),
-    };
+    var detailList = document.getElementById("budget-detail-list");
+    var detailAddBtn = document.getElementById("budget-detail-add");
     var fileInput = document.getElementById("droas_file_input");
     var results = document.getElementById("budget-results");
     var summary = document.getElementById("budget-results-summary");
@@ -1350,10 +1350,23 @@
     }
     desiredInput.addEventListener("input", function () { formatWholeMoneyInput(desiredInput); });
     desiredInput.addEventListener("blur", function () { formatWholeMoneyInput(desiredInput); });
-    Object.keys(detailInputs).forEach(function (key) {
-      detailInputs[key].addEventListener("input", function () { formatWholeMoneyInput(detailInputs[key]); });
-      detailInputs[key].addEventListener("blur", function () { formatWholeMoneyInput(detailInputs[key]); });
-    });
+    function addDetailBudgetRow(filterValue, budgetValue) {
+      var row = document.createElement("div");
+      row.className = "budget-detail-row";
+      row.innerHTML = '<input type="text" class="budget-detail-filter" placeholder="필터값 (예: PM)">' +
+        '<input type="text" inputmode="numeric" class="budget-detail-amount" placeholder="예산 (예: $10,000)">' +
+        '<button type="button" class="budget-detail-remove" aria-label="세부 예산 삭제">×</button>';
+      var filterInput = row.querySelector(".budget-detail-filter");
+      var amountInput = row.querySelector(".budget-detail-amount");
+      filterInput.value = filterValue || "";
+      amountInput.value = budgetValue || "";
+      amountInput.addEventListener("input", function () { formatWholeMoneyInput(amountInput); });
+      amountInput.addEventListener("blur", function () { formatWholeMoneyInput(amountInput); });
+      row.querySelector(".budget-detail-remove").addEventListener("click", function () { row.remove(); });
+      detailList.appendChild(row);
+    }
+    detailAddBtn.addEventListener("click", function () { addDetailBudgetRow("", ""); });
+    addDetailBudgetRow("", "");
     function percent(value) { return value == null ? "-" : (Number(value) * 100).toFixed(1) + "%"; }
     function changeInfo(current, suggested) {
       var value = Number(suggested || 0) - Number(current || 0);
@@ -1370,8 +1383,8 @@
         ["변경 전 예산 합계", money(s.current_total)],
         ["희망 총예산", money(s.desired_total)],
       ];
-      Object.keys(s.detail_budgets || {}).forEach(function (group) {
-        values.push([group + " 세부 예산", money(s.detail_budgets[group])]);
+      (s.detail_budgets || []).forEach(function (entry) {
+        values.push([entry.filter + " 세부 예산", money(entry.budget)]);
       });
       cards.innerHTML = values.map(function (v) {
         return '<div class="budget-summary-card"><span>' + esc(v[0]) + '</span><strong>' + esc(v[1]) + '</strong></div>';
@@ -1552,18 +1565,37 @@
       var product = productInput.value.trim();
       var campaignTypes = typeInputs.filter(function (input) { return input.checked; }).map(function (input) { return input.value; });
       var desired = parseMoney(desiredInput.value);
-      var detailBudgets = {};
-      Object.keys(detailInputs).forEach(function (group) {
-        if (detailInputs[group].value.trim()) detailBudgets[group] = parseMoney(detailInputs[group].value);
+      var detailBudgets = [];
+      var detailError = "";
+      var seenDetailFilters = {};
+      detailList.querySelectorAll(".budget-detail-row").forEach(function (row) {
+        var filterValue = row.querySelector(".budget-detail-filter").value.trim();
+        var amountValue = row.querySelector(".budget-detail-amount").value.trim();
+        if (!filterValue && !amountValue) return;
+        if (!filterValue || !amountValue) {
+          detailError = "세부 예산의 필터값과 예산을 모두 입력해주세요.";
+          return;
+        }
+        var normalized = filterValue.toLowerCase();
+        if (seenDetailFilters[normalized]) {
+          detailError = "중복된 세부 예산 필터입니다: " + filterValue;
+          return;
+        }
+        seenDetailFilters[normalized] = true;
+        detailBudgets.push({ filter: filterValue, budget: parseMoney(amountValue) });
       });
       var file = fileInput.files[0];
       if (!channel || !product || !campaignTypes.length || desired <= 0 || !file) {
         alert("채널, 제품군, 구분, 희망 총 예산, D.ROAS RAW 파일을 모두 입력해주세요.");
         return;
       }
-      var detailTotal = Object.keys(detailBudgets).reduce(function (total, group) { return total + detailBudgets[group]; }, 0);
+      if (detailError) {
+        alert(detailError);
+        return;
+      }
+      var detailTotal = detailBudgets.reduce(function (total, entry) { return total + entry.budget; }, 0);
       if (detailTotal > desired) {
-        alert("DA·PA·PM 세부 예산 합계는 희망 총 예산을 초과할 수 없습니다.");
+        alert("세부 예산 합계는 희망 총 예산을 초과할 수 없습니다.");
         return;
       }
       var body = new FormData();
@@ -1571,9 +1603,7 @@
       body.set("product_group", product);
       campaignTypes.forEach(function (value) { body.append("campaign_types", value); });
       body.set("desired_budget", String(desired));
-      Object.keys(detailBudgets).forEach(function (group) {
-        body.set("detail_budget_" + group.toLowerCase(), String(detailBudgets[group]));
-      });
+      body.set("detail_budgets", JSON.stringify(detailBudgets));
       body.set("droas_file", file);
       lookupBtn.disabled = true;
       lookupBtn.textContent = "분석 중…";

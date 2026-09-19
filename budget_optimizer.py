@@ -251,43 +251,50 @@ def _round_allocations(items, target=None):
             break
 
 
-def _is_pm(item):
-    """Return True when the campaign/ad set/active creative is a PM asset."""
+def _matches_detail_filter(item, filter_value):
+    """Match a custom budget filter against type and Meta naming fields."""
+    needle = str(filter_value or "").strip().casefold()
+    if not needle:
+        return False
+    if str(item.get("type") or "").casefold() == needle:
+        return True
     values = [item.get("campaign_name"), item.get("adset_name")]
     values.extend(item.get("active_ad_names") or [])
-    return any(re.search(r"(^|_)pm(_|$)", str(value or ""), re.I) for value in values)
+    return any(needle in str(value or "").casefold() for value in values)
 
 
 def _apply_detail_budgets(adsets, desired_total, detail_budgets, summary):
     """Keep optional DA/PA/PM pools isolated while preserving base weights.
 
-    PM takes precedence only when a PM pool was explicitly supplied. Otherwise
-    PM rows continue to belong to their normal DA/PA group. Unspecified rows
-    share the remainder of the total budget.
+    Filters are checked in the user's order and the first match wins. DA/PA
+    match the derived type directly; every other value is a case-insensitive
+    substring search across campaign, ad-set and active-ad names. Unmatched
+    rows share the remainder of the total budget.
     """
-    requested = {
-        key: max(0.0, float(value))
-        for key, value in (detail_budgets or {}).items()
-        if key in {"DA", "PA", "PM"} and value is not None
-    }
+    if isinstance(detail_budgets, dict):
+        detail_budgets = [
+            {"filter": key, "budget": value} for key, value in detail_budgets.items()
+        ]
+    requested = []
+    for entry in detail_budgets or []:
+        filter_value = str(entry.get("filter") or "").strip()
+        if filter_value and entry.get("budget") is not None:
+            requested.append({"filter": filter_value, "budget": max(0.0, float(entry["budget"]))})
     if not requested:
         return
 
-    pools = {key: [] for key in requested}
+    pools = {entry["filter"]: [] for entry in requested}
     pools["기타"] = []
     for item in adsets:
-        group = None
-        if "PM" in requested and _is_pm(item):
-            group = "PM"
-        elif item.get("type") in requested:
-            group = item["type"]
-        else:
-            group = "기타"
+        group = next(
+            (entry["filter"] for entry in requested if _matches_detail_filter(item, entry["filter"])),
+            "기타",
+        )
         item["allocation_group"] = group
         pools[group].append(item)
 
-    remainder = max(0.0, float(desired_total) - sum(requested.values()))
-    targets = dict(requested)
+    remainder = max(0.0, float(desired_total) - sum(entry["budget"] for entry in requested))
+    targets = {entry["filter"]: entry["budget"] for entry in requested}
     targets["기타"] = remainder
     allocated = {}
     for group, items in pools.items():
@@ -392,9 +399,9 @@ def optimize(adsets, desired_total, detail_budgets=None):
     held = [item for item in existing if item.get("spend_7d", 0) <= 300]
     evaluable = [item for item in existing if item not in held and item.get("droas_7d") is not None]
     avg_droas = sum(item["droas_7d"] for item in evaluable) / len(evaluable) if evaluable else None
-    # Existing sets are OFF candidates at/below their peer average. The 30%
-    # floor is absolute, so it still applies when the peer average is lower.
-    off_droas = max(0.30, avg_droas) if avg_droas is not None else 0.30
+    # The peer average remains a reference metric; the actual OFF threshold is
+    # fixed at 30% regardless of the current portfolio average.
+    off_droas = 0.30
     off_existing = [item for item in evaluable if item["droas_7d"] <= off_droas]
     weighted_existing = [item for item in evaluable if item not in off_existing]
     for item in existing:
@@ -407,12 +414,7 @@ def optimize(adsets, desired_total, detail_budgets=None):
         elif item in off_existing:
             item["suggested_budget"] = 0
             item["classification"] = "OFF 후보"
-            if item["droas_7d"] <= 0.30:
-                item["reasons"].append("PDT D-7 D.ROAS 30% 이하 (절대 OFF 기준)")
-            else:
-                item["reasons"].append(
-                    f"PDT D-7 D.ROAS {item['droas_7d']:.1%} ≤ 기존 평균 {avg_droas:.1%}"
-                )
+            item["reasons"].append("PDT D-7 D.ROAS 30% 이하 (고정 OFF 기준)")
         else:
             item["droas_weight"] = item["droas_7d"]
             item["allocation_adjustable"] = True
