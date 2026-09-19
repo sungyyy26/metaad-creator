@@ -204,12 +204,13 @@ def list_account_active_adsets(token, account_id, campaign_ids, cache=None):
 
 
 def list_account_active_ads(token, account_id, campaign_ids, cache=None):
-    """Fetch active ads once per account for all selected campaigns."""
+    """Fetch active ads and their ad-set details once per account."""
     wanted = {str(value) for value in campaign_ids}
     campaign_key = ",".join(sorted(wanted))
     rows = _cached(cache, f"active_ads_account:{account_id}:{campaign_key}", lambda: _paginate(
         token, f"act_{account_id}/ads", limit=500,
-        fields="id,name,status,effective_status,created_time,adset_id,campaign_id",
+        fields="id,name,status,effective_status,created_time,campaign_id,"
+               "adset{id,name,status,effective_status,daily_budget,created_time,campaign_id}",
         filtering=json.dumps([
             {"field": "campaign.id", "operator": "IN", "value": sorted(wanted)},
             {"field": "effective_status", "operator": "IN", "value": ["ACTIVE"]},

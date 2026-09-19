@@ -85,6 +85,10 @@
   .mode-toggle{flex:none;margin-top:2px;}
 
   .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow);padding:28px 30px;margin-bottom:var(--sp-5);}
+  /* The two Meta work areas use the same usable width as Shopify's sf-wrap.
+     Their 30px inner padding is offset outside #app so content edges align. */
+  #panel-setting,#panel-budget{width:calc(100% + 60px);margin-left:-30px;margin-right:-30px;}
+  @media(max-width:700px){#panel-setting,#panel-budget{width:100%;margin-left:0;margin-right:0;}}
   .panel h2{font-family:var(--font-heading);font-size:var(--fs-lg);font-weight:700;letter-spacing:-0.01em;margin:0 0 var(--sp-1);}
   .panel .hint{color:var(--text-muted);font-size:var(--fs-sm);margin:0 0 var(--sp-5);}
   .panel-header{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);margin-bottom:var(--sp-1);}
@@ -743,10 +747,11 @@
             <label><input type="checkbox" data-budget-column="current" checked>현재 예산</label>
             <label><input type="checkbox" data-budget-column="suggested" checked>변경 예산</label>
             <label><input type="checkbox" data-budget-column="change" checked>증감액</label>
+            <label><input type="checkbox" data-budget-column="class" checked>분류</label>
             <label><input type="checkbox" data-budget-column="note" checked>비고</label>
           </div>
         </div>
-        <div class="budget-table-wrap"><table class="budget-table"><thead><tr><th data-col="bucket">구분</th><th data-col="type">유형</th><th data-col="name">소재명</th><th data-col="days">운영 일수</th><th data-col="droas">D.ROAS (D-7)</th><th data-col="cpa">CPA (D-3)</th><th data-col="cpm">CPM (D-3)</th><th data-col="current">현재 예산</th><th data-col="suggested">변경 예산</th><th data-col="change">증감액</th><th data-col="note">비고</th></tr></thead><tbody id="budget-results-list"></tbody></table></div>
+        <div class="budget-table-wrap"><table class="budget-table"><thead><tr><th data-col="bucket">구분</th><th data-col="type">유형</th><th data-col="name">소재명</th><th data-col="days">운영 일수</th><th data-col="droas">D.ROAS (D-7)</th><th data-col="cpa">CPA (D-3)</th><th data-col="cpm">CPM (D-3)</th><th data-col="current">현재 예산</th><th data-col="suggested">변경 예산</th><th data-col="change">증감액</th><th data-col="class">분류</th><th data-col="note">비고</th></tr></thead><tbody id="budget-results-list"></tbody></table></div>
       </div>
       <div class="field-actions-right" id="budget-apply-actions" hidden>
         <button type="button" class="primary" id="budget-apply-btn">적용</button>
@@ -1318,16 +1323,18 @@
       }
     }
     function renderRow(row, index) {
-      var note = [row.classification, row.reason, row.note].filter(Boolean).join(" / ");
+      var note = [row.reason, row.note].filter(Boolean).join(" / ");
       var change = changeInfo(row.current_budget, row.suggested_budget);
+      var flag = row.classification ? '<span class="budget-flag">' + esc(row.classification) + '</span>' : '-';
+      var operatingDays = Number(row.operating_days) >= 30 ? "30일+" : esc(row.operating_days) + "일";
       return '<tr data-bucket="' + esc(row.bucket) + '">' +
         '<td data-col="bucket">' + esc(row.bucket) + '</td><td data-col="type">' + esc(row.type) + '</td>' +
         '<td data-col="name"><strong>' + esc(row.display_name) + '</strong><br><span class="record-meta">' + esc(row.campaign_name) + '</span></td>' +
-        '<td data-col="days">' + esc(row.operating_days) + '일</td><td data-col="droas">' + percent(row.droas_7d) + '</td>' +
+        '<td data-col="days">' + operatingDays + '</td><td data-col="droas">' + percent(row.droas_7d) + '</td>' +
         '<td data-col="cpa">' + money(row.cpa_3d) + '</td><td data-col="cpm">' + money(row.cpm_3d) + '</td>' +
         '<td data-col="current">' + money(row.current_budget) + '</td>' +
         '<td data-col="suggested"><input class="budget-edit" type="number" min="0" step="1" data-budget-index="' + index + '" value="' + esc(row.suggested_budget) + '"></td>' +
-        '<td data-col="change"><span class="budget-change ' + change.css + '" data-budget-change-index="' + index + '">' + change.text + '</span></td><td data-col="note">' + esc(note || "-") + '</td></tr>';
+        '<td data-col="change"><span class="budget-change ' + change.css + '" data-budget-change-index="' + index + '">' + change.text + '</span></td><td data-col="class">' + flag + '</td><td data-col="note">' + esc(note || "-") + '</td></tr>';
     }
 
     function applyColumnVisibility() {
@@ -1379,7 +1386,7 @@
           currentRows = data.matches || [];
           summary.textContent = data.message || ("캠페인 " + data.campaigns.length + "개 · 활성 광고세트 " + currentRows.length + "개 · 기준 " + data.summary.anchor_date + " PDT · CPA/CPM " + data.summary.cpa_cpm_period + " · D.ROAS " + data.summary.droas_period);
           renderCards(data.summary || {});
-          tbody.innerHTML = currentRows.map(renderRow).join("") || '<tr><td colspan="11" class="empty">조회된 활성 광고세트가 없습니다.</td></tr>';
+          tbody.innerHTML = currentRows.map(renderRow).join("") || '<tr><td colspan="12" class="empty">조회된 활성 광고세트가 없습니다.</td></tr>';
           applyColumnVisibility();
           applyActions.hidden = !currentRows.length;
         })

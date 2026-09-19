@@ -1038,7 +1038,7 @@ def budget_lookup():
     periods = budget_reporting_periods()
     since_3d = periods["three_start"].isoformat()
     until = periods["anchor"].isoformat()
-    history_since = (periods["anchor"] - timedelta(days=44)).isoformat()
+    history_since = (periods["anchor"] - timedelta(days=29)).isoformat()
     campaigns_by_account = {}
     for campaign in campaigns:
         campaigns_by_account.setdefault(campaign["account_id"], []).append(campaign)
@@ -1048,32 +1048,37 @@ def budget_lookup():
         for account_id, account_campaigns in campaigns_by_account.items():
             campaign_ids = [campaign["id"] for campaign in account_campaigns]
             campaign_names = {str(campaign["id"]): campaign["name"] for campaign in account_campaigns}
-            adsets = meta_lib.list_account_active_adsets(token, account_id, campaign_ids, cache=cache)
-            active_adset_ids = {str(adset["id"]) for adset in adsets}
-            if not active_adset_ids:
-                continue
             ads = meta_lib.list_account_active_ads(token, account_id, campaign_ids, cache=cache)
+            adsets_by_id = {}
             ads_by_adset = {}
             for ad in ads:
-                adset_id = str(ad.get("adset_id") or "")
-                if adset_id in active_adset_ids:
-                    ads_by_adset.setdefault(adset_id, []).append(ad)
+                adset = ad.get("adset") or {}
+                if (adset.get("effective_status") or adset.get("status")) != "ACTIVE":
+                    continue
+                adset_id = str(adset.get("id") or "")
+                if not adset_id:
+                    continue
+                adsets_by_id[adset_id] = adset
+                ads_by_adset.setdefault(adset_id, []).append(ad)
+            if not adsets_by_id:
+                continue
             insight_by_adset = meta_lib.get_account_adset_insights(
                 token, account_id, campaign_ids, since_3d, until,
             )
             spend_by_adset = meta_lib.get_account_daily_ad_spend(
                 token, account_id, campaign_ids, history_since, until,
             )
-            for adset in adsets:
+            for adset in adsets_by_id.values():
                 adset_id = str(adset["id"])
                 active_ads = ads_by_adset.get(adset_id, [])
                 insight = insight_by_adset.get(adset_id, {"cpa": None, "cpm": None})
                 adset_name = adset.get("name", "")
+                campaign_id = adset.get("campaign_id") or (active_ads[0].get("campaign_id") if active_ads else "")
                 is_da = bool(re.search(r"(^|[_\-\s])DA([_\-\s]|$)", adset_name, re.I))
                 active_names = [ad.get("name", "") for ad in active_ads if ad.get("name")]
                 matches.append({
                     "adset_id": adset_id,
-                    "campaign_name": campaign_names.get(str(adset.get("campaign_id")), ""),
+                    "campaign_name": campaign_names.get(str(campaign_id), ""),
                     "adset_name": adset_name, "type": "DA" if is_da else "PA",
                     "active_ad_names": active_names,
                     "adset_created_time": adset.get("created_time"),
