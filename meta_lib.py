@@ -128,7 +128,7 @@ def list_campaigns(token, account_id, cache=None):
     adjustment tab to search by keyword, unlike resolve_campaign_and_account's
     exact-name lookup."""
     return _cached(cache, f"all_campaigns:{account_id}", lambda: _paginate(
-        token, f"act_{account_id}/campaigns", fields="id,name", limit=200))
+        token, f"act_{account_id}/campaigns", fields="id,name", limit=500))
 
 
 def find_matching_campaigns(token, account_ids, keywords, exclusions=None, cache=None):
@@ -141,6 +141,34 @@ def find_matching_campaigns(token, account_ids, keywords, exclusions=None, cache
             name_lower = c["name"].casefold()
             if all(k in name_lower for k in needles) and not any(k in name_lower for k in blocked):
                 matches.append({"id": c["id"], "name": c["name"], "account_id": account_id})
+    return matches
+
+
+def find_matching_budget_campaigns(token, account_ids, channel_terms, channel_exclusions,
+                                   product_group, campaign_types, cache=None):
+    """Match the budget page's structured campaign-name conditions.
+
+    Channel includes/excludes use case-insensitive substring matching. Product
+    and CV/TF use exact underscore-delimited campaign-name tokens so `v-srm`
+    cannot accidentally match `v-srm&crm`.
+    """
+    includes = [value.strip().casefold() for value in channel_terms if value.strip()]
+    excludes = [value.strip().casefold() for value in channel_exclusions if value.strip()]
+    product_token = f"_{product_group.strip().strip('_').casefold()}_"
+    type_tokens = {f"_{value.strip().strip('_').casefold()}_" for value in campaign_types if value.strip()}
+    matches = []
+    for account_id in account_ids:
+        for campaign in list_campaigns(token, account_id, cache=cache):
+            name_lower = campaign["name"].casefold()
+            if not all(value in name_lower for value in includes):
+                continue
+            if any(value in name_lower for value in excludes):
+                continue
+            if product_token not in name_lower:
+                continue
+            if not any(value in name_lower for value in type_tokens):
+                continue
+            matches.append({"id": campaign["id"], "name": campaign["name"], "account_id": account_id})
     return matches
 
 
@@ -213,7 +241,7 @@ def list_account_active_ads(token, account_id, campaign_ids, cache=None):
     wanted = {str(value) for value in campaign_ids}
     campaign_key = ",".join(sorted(wanted))
     rows = _cached(cache, f"active_ads_account:{account_id}:{campaign_key}", lambda: _paginate(
-        token, f"act_{account_id}/ads", limit=500,
+        token, f"act_{account_id}/ads", limit=1000,
         fields="id,name,status,effective_status,created_time,campaign_id,"
                "adset{id,name,status,effective_status,daily_budget,created_time,campaign_id}",
         filtering=json.dumps([
@@ -273,28 +301,28 @@ def _insight_metrics(row):
     return {"spend": spend, "cpm": cpm, "cpa": cpa}
 
 
-def get_account_adset_insights(token, account_id, campaign_ids, since, until):
-    """One account-level D-3 request instead of one request per ad set."""
+def get_account_adset_insights(token, account_id, adset_ids, since, until):
+    """One targeted account-level D-3 request instead of one per ad set."""
     rows = _paginate(
-        token, f"act_{account_id}/insights", limit=500,
+        token, f"act_{account_id}/insights", limit=1000,
         fields="adset_id,spend,cpm,actions,cost_per_action_type",
         time_range=json.dumps({"since": since, "until": until}),
         filtering=json.dumps([{
-            "field": "campaign.id", "operator": "IN", "value": [str(x) for x in campaign_ids],
+            "field": "adset.id", "operator": "IN", "value": [str(x) for x in adset_ids],
         }]),
         level="adset",
     )
     return {str(row.get("adset_id")): _insight_metrics(row) for row in rows if row.get("adset_id")}
 
 
-def get_account_daily_ad_spend(token, account_id, campaign_ids, since, until):
-    """One account-level daily ad-spend request for selected campaigns."""
+def get_account_daily_ad_spend(token, account_id, ad_ids, since, until):
+    """One account-level daily spend request limited to current active ads."""
     rows = _paginate(
-        token, f"act_{account_id}/insights", limit=500,
+        token, f"act_{account_id}/insights", limit=1000,
         fields="adset_id,ad_id,ad_name,spend,date_start",
         time_range=json.dumps({"since": since, "until": until}),
         filtering=json.dumps([{
-            "field": "campaign.id", "operator": "IN", "value": [str(x) for x in campaign_ids],
+            "field": "ad.id", "operator": "IN", "value": [str(x) for x in ad_ids],
         }]),
         time_increment=1,
         level="ad",

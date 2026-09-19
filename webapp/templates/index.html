@@ -20,7 +20,7 @@
 <style>
   :root{
     --bg:#f5f5f7; --surface:#ffffff; --surface-2:#f5f5f7; --surface-3:#e8e8ed;
-    --border:#e5e5ea; --border-strong:#d1d1d6;
+    --border:#e5e5ea; --border-strong:#d1d1d6; --table-header:#d8d8dc;
     --text:#1d1d1f; --text-muted:#6e6e73; --text-faint:#8e8e93;
     --accent:#0066cc; --accent-hover:#0077ed; --accent-contrast:#ffffff; --accent-soft:#e8f2ff;
     --accent-green:#248a3d; --accent-green-contrast:#ffffff;
@@ -42,7 +42,7 @@
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){
       --bg:#000000; --surface:#1c1c1e; --surface-2:#242426; --surface-3:#2c2c2e;
-      --border:#38383a; --border-strong:#48484a;
+      --border:#38383a; --border-strong:#48484a; --table-header:#141416;
       --text:#f5f5f7; --text-muted:#98989d; --text-faint:#6e6e73;
       --accent:#2997ff; --accent-hover:#5aabff; --accent-contrast:#ffffff; --accent-soft:#0a2a4a;
       --accent-green:#30d158; --accent-green-contrast:#04150a;
@@ -56,7 +56,7 @@
   /* Explicit dark selection wins even when the OS itself is in light mode. */
   :root[data-theme="dark"]{
     --bg:#000000; --surface:#1c1c1e; --surface-2:#242426; --surface-3:#2c2c2e;
-    --border:#38383a; --border-strong:#48484a;
+    --border:#38383a; --border-strong:#48484a; --table-header:#141416;
     --text:#f5f5f7; --text-muted:#98989d; --text-faint:#6e6e73;
     --accent:#2997ff; --accent-hover:#5aabff; --accent-contrast:#ffffff; --accent-soft:#0a2a4a;
     --accent-green:#30d158; --accent-green-contrast:#04150a;
@@ -144,6 +144,9 @@
   .file-input-name{font-size:var(--fs-sm);color:var(--text-muted);}
   .radio-group{display:flex;gap:var(--sp-4);}
   .radio-group label{display:flex;align-items:center;gap:6px;font-size:var(--fs-sm);font-weight:500;}
+  .budget-type-options{display:flex;align-items:center;gap:18px;min-height:42px;padding:0 2px;}
+  .budget-type-options label{display:flex;align-items:center;gap:7px;margin:0;font-weight:600;cursor:pointer;}
+  .budget-type-options input{width:17px;height:17px;accent-color:var(--accent);}
 
   details.columns{border:1px dashed var(--border-strong);border-radius:var(--radius-md);padding:2px 16px;margin-bottom:var(--sp-4);}
   details.columns summary{cursor:pointer;padding:11px 0;font-weight:600;font-size:var(--fs-sm);color:var(--text);}
@@ -264,7 +267,10 @@
   .budget-table-wrap{overflow:auto;border:1px solid var(--border);border-radius:var(--radius-md);max-height:68vh;}
   .budget-table{width:max-content;min-width:100%;border-collapse:collapse;font-size:var(--fs-xs);}
   .budget-table th,.budget-table td{padding:10px 9px;border-bottom:1px solid var(--border);text-align:left;vertical-align:top;}
-  .budget-table th{position:sticky;top:0;background:var(--surface-2);font-family:var(--font-heading);font-weight:700;white-space:nowrap;z-index:1;resize:horizontal;overflow:hidden;min-width:72px;max-width:520px;}
+  .budget-table th{position:sticky;top:0;background:var(--table-header);font-family:var(--font-heading);font-weight:700;white-space:nowrap;z-index:1;resize:horizontal;overflow:hidden;min-width:72px;max-width:520px;}
+  .budget-table th[data-sort-key]{cursor:pointer;user-select:none;}
+  .budget-sort-indicator{display:inline-block;min-width:12px;margin-left:4px;color:var(--text-faint);font-size:10px;}
+  .budget-table th[aria-sort="ascending"] .budget-sort-indicator,.budget-table th[aria-sort="descending"] .budget-sort-indicator{color:var(--accent);}
   .budget-total-row td{background:var(--surface-2);font-family:var(--font-heading);font-weight:700;border-bottom:2px solid var(--border-strong);white-space:nowrap;}
   .budget-table th[data-col="name"]{min-width:260px;}
   .budget-table th[data-col="note"]{min-width:300px;}
@@ -277,7 +283,7 @@
   .budget-table tr:last-child td{border-bottom:0;}
   .budget-table tr[data-bucket="신규"]{border-left:3px solid var(--accent);}
   .budget-table tr[data-bucket="기존"]{border-left:3px solid #8e8e93;}
-  .budget-edit{width:86px!important;min-width:86px;padding:7px 8px!important;font-family:var(--font-mono)!important;}
+  .budget-edit{width:112px!important;min-width:112px;padding:7px 8px!important;font-family:var(--font-mono)!important;}
   .budget-flag{font-weight:700;color:var(--status-error-fg);}
   .budget-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-top:12px;}
   .budget-summary-card{background:var(--surface-2);border-radius:var(--radius-sm);padding:12px;}
@@ -707,11 +713,15 @@
 
   <div class="panel" id="panel-budget" hidden>
     <h2>메타 예산 조정</h2>
-    <p class="hint">캠페인 조회값을 포함하는 활성 광고세트를 분석하고, CPA·D.ROAS 기준으로 희망 총예산을 재배분합니다.</p>
+    <p class="hint">채널·제품군·구분 조건에 맞는 활성 광고세트를 분석하고, CPA·D.ROAS 기준으로 희망 총예산을 재배분합니다.</p>
     <div class="step-label">1단계 · 조회 조건</div>
     <div class="field-row">
-      <div class="field"><label>캠페인 조회 *</label><input type="text" id="budget_campaign_query" placeholder="예: amazon, v-srm, *UK"><span class="field-hint">쉼표 조건은 모두 포함(AND)하며, 앞에 *를 붙인 값은 제외합니다. 대소문자는 구분하지 않습니다.</span></div>
-      <div class="field"><label>희망 총예산 (USD) *</label><div class="budget-wrap"><span class="prefix">$</span><input type="number" id="budget_desired_total" min="1" step="1" placeholder="예: 10000"></div></div>
+      <div class="field"><label>채널 *</label><input type="text" id="budget_channel_query" placeholder="예: amazon, *uk"><span class="field-hint">쉼표로 여러 값을 입력할 수 있고, *로 시작하는 값은 제외합니다. 대소문자는 구분하지 않습니다.</span></div>
+      <div class="field"><label>제품군 *</label><input type="text" id="budget_product_group" placeholder="예: v-srm"><span class="field-hint">캠페인명의 정확한 _v-srm_ 토큰만 조회하며 v-srm&amp;crm은 제외합니다.</span></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>구분 *</label><div class="budget-type-options"><label><input type="checkbox" name="budget_campaign_type" value="CV" checked>CV</label><label><input type="checkbox" name="budget_campaign_type" value="TF" checked>TF</label></div><span class="field-hint">하나 또는 둘 다 선택할 수 있습니다.</span></div>
+      <div class="field"><label>희망 총 예산 (USD)</label><div class="budget-wrap"><span class="prefix">$</span><input type="number" id="budget_desired_total" min="1" step="1" placeholder="예: 10000"></div></div>
     </div>
     <div class="field">
       <label>D.ROAS RAW 파일 *</label>
@@ -748,7 +758,7 @@
             <label><input type="checkbox" data-budget-column="note" checked>비고</label>
           </div>
         </div>
-        <div class="budget-table-wrap"><table class="budget-table"><thead><tr><th data-col="bucket">구분</th><th data-col="type">유형</th><th data-col="name">소재명</th><th data-col="days">운영 일수</th><th data-col="droas">D.ROAS (D-7)</th><th data-col="cpa">CPA (D-3)</th><th data-col="cpm">CPM (D-3)</th><th data-col="current">현재 예산</th><th data-col="suggested">변경 예산</th><th data-col="change">증감액</th><th data-col="class">분류</th><th data-col="note">비고</th></tr></thead><tbody id="budget-results-list"></tbody></table></div>
+        <div class="budget-table-wrap"><table class="budget-table"><thead><tr><th data-col="bucket">구분</th><th data-col="type">유형</th><th data-col="name">소재명</th><th data-col="days" data-sort-key="operating_days">운영 일수 <span class="budget-sort-indicator">↕</span></th><th data-col="droas" data-sort-key="droas_7d">D.ROAS (D-7) <span class="budget-sort-indicator">↕</span></th><th data-col="cpa" data-sort-key="cpa_3d">CPA (D-3) <span class="budget-sort-indicator">↕</span></th><th data-col="cpm" data-sort-key="cpm_3d">CPM (D-3) <span class="budget-sort-indicator">↕</span></th><th data-col="current" data-sort-key="current_budget">현재 예산 <span class="budget-sort-indicator">↕</span></th><th data-col="suggested" data-sort-key="suggested_budget">변경 예산 <span class="budget-sort-indicator">↕</span></th><th data-col="change">증감액</th><th data-col="class">분류</th><th data-col="note">비고</th></tr></thead><tbody id="budget-results-list"></tbody></table></div>
       </div>
       <div class="field-actions-right" id="budget-apply-actions" hidden>
         <button type="button" class="secondary" id="budget-export-btn">엑셀 다운로드</button>
@@ -1255,7 +1265,9 @@
     var applyBtn = document.getElementById("budget-apply-btn");
     var exportBtn = document.getElementById("budget-export-btn");
     if (!lookupBtn || !applyBtn) return;
-    var queryInput = document.getElementById("budget_campaign_query");
+    var channelInput = document.getElementById("budget_channel_query");
+    var productInput = document.getElementById("budget_product_group");
+    var typeInputs = Array.prototype.slice.call(document.querySelectorAll('input[name="budget_campaign_type"]'));
     var desiredInput = document.getElementById("budget_desired_total");
     var fileInput = document.getElementById("droas_file_input");
     var results = document.getElementById("budget-results");
@@ -1269,6 +1281,7 @@
     var fullscreenBtn = document.getElementById("budget-fullscreen-btn");
     var currentRows = [];
     var currentSummary = {};
+    var sortState = { key: null, direction: "asc" };
 
     document.querySelectorAll(".budget-table th[data-col]").forEach(function (th) {
       var handle = document.createElement("span");
@@ -1293,12 +1306,30 @@
       th.appendChild(handle);
     });
 
+    document.querySelectorAll('.budget-table th[data-sort-key]').forEach(function (th) {
+      th.addEventListener("click", function (event) {
+        if (event.target.classList.contains("budget-col-resizer")) return;
+        var key = th.getAttribute("data-sort-key");
+        sortState.direction = sortState.key === key && sortState.direction === "asc" ? "desc" : "asc";
+        sortState.key = key;
+        sortAndRender();
+      });
+    });
+
     function esc(value) {
       return String(value == null ? "" : value).replace(/[&<>"']/g, function (c) {
         return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
       });
     }
-    function money(value) { return value == null ? "-" : "$" + Number(value).toFixed(2); }
+    function money(value) {
+      return value == null ? "-" : "$" + Number(value).toLocaleString("en-US", {
+        minimumFractionDigits: 2, maximumFractionDigits: 2,
+      });
+    }
+    function parseMoney(value) {
+      var number = Number(String(value == null ? "" : value).replace(/[$,\s]/g, ""));
+      return Number.isFinite(number) ? number : 0;
+    }
     function percent(value) { return value == null ? "-" : (Number(value) * 100).toFixed(1) + "%"; }
     function changeInfo(current, suggested) {
       var value = Number(suggested || 0) - Number(current || 0);
@@ -1333,7 +1364,7 @@
       var total = totals();
       var change = changeInfo(total.current, total.suggested);
       return '<tr class="budget-total-row">' +
-        '<td data-col="bucket">합계</td><td data-col="type">-</td><td data-col="name">전체 활성 광고세트</td>' +
+        '<td data-col="bucket">합계</td><td data-col="type">-</td><td data-col="name">전체 활성 광고세트 (' + currentRows.length + '개)</td>' +
         '<td data-col="days">-</td><td data-col="droas">-</td><td data-col="cpa">-</td><td data-col="cpm">-</td>' +
         '<td data-col="current" id="budget-current-total">' + money(total.current) + '</td>' +
         '<td data-col="suggested" id="budget-suggested-total">' + money(total.suggested) + '</td>' +
@@ -1360,12 +1391,40 @@
       var operatingDays = Number(row.operating_days) >= 30 ? "30일+" : esc(row.operating_days) + "일";
       return '<tr data-bucket="' + esc(row.bucket) + '">' +
         '<td data-col="bucket">' + esc(row.bucket) + '</td><td data-col="type">' + esc(row.type) + '</td>' +
-        '<td data-col="name"><strong>' + esc(row.display_name) + '</strong><br><span class="record-meta">' + esc(row.campaign_name) + '</span></td>' +
+        '<td data-col="name"><strong>' + esc(row.display_name) + '</strong><br><span class="record-meta">' + esc(row.campaign_name) + ' · 활성 광고 ' + esc(row.active_ad_count || 0) + '개</span></td>' +
         '<td data-col="days">' + operatingDays + '</td><td data-col="droas">' + percent(row.droas_7d) + '</td>' +
         '<td data-col="cpa">' + money(row.cpa_3d) + '</td><td data-col="cpm">' + money(row.cpm_3d) + '</td>' +
         '<td data-col="current">' + money(row.current_budget) + '</td>' +
-        '<td data-col="suggested"><input class="budget-edit" type="number" min="0" step="1" data-budget-index="' + index + '" value="' + esc(row.suggested_budget) + '"></td>' +
+        '<td data-col="suggested"><input class="budget-edit" type="text" inputmode="decimal" data-budget-index="' + index + '" value="' + esc(money(row.suggested_budget)) + '"></td>' +
         '<td data-col="change"><span class="budget-change ' + change.css + '" data-budget-change-index="' + index + '">' + change.text + '</span></td><td data-col="class">' + flag + '</td><td data-col="note">' + esc(note || "-") + '</td></tr>';
+    }
+
+    function updateSortIndicators() {
+      document.querySelectorAll('.budget-table th[data-sort-key]').forEach(function (th) {
+        var active = th.getAttribute("data-sort-key") === sortState.key;
+        th.setAttribute("aria-sort", active ? (sortState.direction === "asc" ? "ascending" : "descending") : "none");
+        var indicator = th.querySelector(".budget-sort-indicator");
+        if (indicator) indicator.textContent = active ? (sortState.direction === "asc" ? "▲" : "▼") : "↕";
+      });
+    }
+    function renderBudgetTable() {
+      tbody.innerHTML = currentRows.length ? renderTotalRow() + currentRows.map(renderRow).join("") : '<tr><td colspan="12" class="empty">조회된 활성 광고세트가 없습니다.</td></tr>';
+      applyColumnVisibility();
+      updateSortIndicators();
+    }
+    function sortAndRender() {
+      if (sortState.key) {
+        currentRows.sort(function (left, right) {
+          var a = left[sortState.key];
+          var b = right[sortState.key];
+          if (a == null && b == null) return 0;
+          if (a == null) return 1;
+          if (b == null) return -1;
+          var difference = Number(a) - Number(b);
+          return sortState.direction === "asc" ? difference : -difference;
+        });
+      }
+      renderBudgetTable();
     }
 
     function applyColumnVisibility() {
@@ -1396,15 +1455,19 @@
     });
 
     lookupBtn.addEventListener("click", function () {
-      var query = queryInput.value.trim();
+      var channel = channelInput.value.trim();
+      var product = productInput.value.trim();
+      var campaignTypes = typeInputs.filter(function (input) { return input.checked; }).map(function (input) { return input.value; });
       var desired = desiredInput.value.trim();
       var file = fileInput.files[0];
-      if (!query || !desired || !file) {
-        alert("캠페인 조회값, 희망 총예산, D.ROAS RAW 파일을 모두 입력해주세요.");
+      if (!channel || !product || !campaignTypes.length || !desired || !file) {
+        alert("채널, 제품군, 구분, 희망 총 예산, D.ROAS RAW 파일을 모두 입력해주세요.");
         return;
       }
       var body = new FormData();
-      body.set("campaign_query", query);
+      body.set("channel_query", channel);
+      body.set("product_group", product);
+      campaignTypes.forEach(function (value) { body.append("campaign_types", value); });
       body.set("desired_budget", desired);
       body.set("droas_file", file);
       lookupBtn.disabled = true;
@@ -1416,10 +1479,10 @@
           results.hidden = false;
           currentRows = data.matches || [];
           currentSummary = data.summary || {};
+          sortState = { key: null, direction: "asc" };
           summary.textContent = data.message || ("캠페인 " + data.campaigns.length + "개 · 활성 광고세트 " + currentRows.length + "개 · 기준 " + data.summary.anchor_date + " PDT · CPA/CPM " + data.summary.cpa_cpm_period + " · D.ROAS " + data.summary.droas_period);
           renderCards(currentSummary);
-          tbody.innerHTML = currentRows.length ? renderTotalRow() + currentRows.map(renderRow).join("") : '<tr><td colspan="12" class="empty">조회된 활성 광고세트가 없습니다.</td></tr>';
-          applyColumnVisibility();
+          renderBudgetTable();
           applyActions.hidden = !currentRows.length;
         })
         .catch(function (error) {
@@ -1439,13 +1502,18 @@
       var input = e.target.closest("[data-budget-index]");
       if (!input) return;
       var index = Number(input.getAttribute("data-budget-index"));
-      currentRows[index].suggested_budget = Number(input.value);
+      currentRows[index].suggested_budget = parseMoney(input.value);
       var output = tbody.querySelector('[data-budget-change-index="' + index + '"]');
       var change = changeInfo(currentRows[index].current_budget, currentRows[index].suggested_budget);
       output.className = "budget-change " + change.css;
       output.textContent = change.text;
       refreshTotals();
     });
+    tbody.addEventListener("blur", function (e) {
+      var input = e.target.closest("[data-budget-index]");
+      if (!input) return;
+      input.value = money(currentRows[Number(input.getAttribute("data-budget-index"))].suggested_budget);
+    }, true);
 
     exportBtn.addEventListener("click", function () {
       if (!currentRows.length) return;

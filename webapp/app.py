@@ -18,6 +18,7 @@ import secrets
 import re
 import sys
 import threading
+import time
 import uuid
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -39,12 +40,27 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", os.urandom(24))
 DB_PATH = os.path.join(os.path.dirname(__file__), "requests.json")
 UPLOADS_DB_PATH = os.path.join(os.path.dirname(__file__), "uploads.json")
 LOCK = threading.Lock()
+BUDGET_CACHE_LOCK = threading.Lock()
+BUDGET_META_CACHE = {}
+BUDGET_META_CACHE_EXPIRES = 0.0
+BUDGET_META_CACHE_TTL = 60
 
 ACCOUNTS = {
     "1298298124998350": "EQQUALBERRY_AMAZON_US (USD)",
 }
 CANDIDATE_ACCOUNT_IDS = list(ACCOUNTS.keys())
 PACIFIC = ZoneInfo("America/Los_Angeles")
+
+
+def budget_meta_cache():
+    """Short-lived read cache for campaign/ad inventory across repeat lookups."""
+    global BUDGET_META_CACHE, BUDGET_META_CACHE_EXPIRES
+    now = time.monotonic()
+    with BUDGET_CACHE_LOCK:
+        if now >= BUDGET_META_CACHE_EXPIRES:
+            BUDGET_META_CACHE = {}
+            BUDGET_META_CACHE_EXPIRES = now + BUDGET_META_CACHE_TTL
+        return BUDGET_META_CACHE
 
 
 def budget_reporting_periods(now=None):
@@ -990,12 +1006,18 @@ def delete_all_uploads():
 @app.route("/budget_lookup", methods=["POST"])
 def budget_lookup():
     """Builds the full budget recommendation table without changing Meta."""
-    campaign_query = request.form.get("campaign_query", "").strip()
+    channel_query = request.form.get("channel_query", "").strip()
+    product_group = request.form.get("product_group", "").strip()
+    campaign_types = [value.upper() for value in request.form.getlist("campaign_types") if value.upper() in {"CV", "TF"}]
     desired_budget_raw = request.form.get("desired_budget", "").strip()
     file = request.files.get("droas_file")
 
-    if not campaign_query:
-        return {"ok": False, "error": "캠페인 조회값을 입력해주세요."}, 400
+    if not channel_query:
+        return {"ok": False, "error": "채널을 입력해주세요."}, 400
+    if not product_group:
+        return {"ok": False, "error": "제품군을 입력해주세요."}, 400
+    if not campaign_types:
+        return {"ok": False, "error": "구분에서 CV 또는 TF를 하나 이상 선택해주세요."}, 400
     try:
         desired_budget = float(desired_budget_raw)
         if desired_budget <= 0:
@@ -1014,17 +1036,17 @@ def budget_lookup():
     except budget_optimizer.BudgetDataError as e:
         return {"ok": False, "error": str(e)}, 400
 
-    tokens = [token.strip() for token in campaign_query.split(",") if token.strip()]
+    tokens = [token.strip() for token in channel_query.split(",") if token.strip()]
     include_terms = [token for token in tokens if not token.startswith("*")]
     exclude_terms = [token[1:].strip() for token in tokens if token.startswith("*") and token[1:].strip()]
-    if not include_terms and not exclude_terms:
-        return {"ok": False, "error": "캠페인 조회 조건을 하나 이상 입력해주세요."}, 400
+    if not include_terms:
+        return {"ok": False, "error": "채널에는 제외값이 아닌 포함값을 하나 이상 입력해주세요."}, 400
 
-    cache = {}
+    cache = budget_meta_cache()
     try:
-        campaigns = meta_lib.find_matching_campaigns(
-            token, CANDIDATE_ACCOUNT_IDS, include_terms,
-            exclusions=exclude_terms, cache=cache,
+        campaigns = meta_lib.find_matching_budget_campaigns(
+            token, CANDIDATE_ACCOUNT_IDS, include_terms, exclude_terms,
+            product_group, campaign_types, cache=cache,
         )
     except meta_lib.MetaApiError as e:
         return {"ok": False, "error": str(e)}, 400
@@ -1032,7 +1054,7 @@ def budget_lookup():
     if not campaigns:
         return {
             "ok": True, "campaigns": [], "matches": [], "summary": {},
-            "message": f"'{campaign_query}'을 포함하는 캠페인을 찾지 못했습니다.",
+            "message": "입력한 채널·제품군·구분 조건에 맞는 캠페인을 찾지 못했습니다.",
         }
 
     periods = budget_reporting_periods()
@@ -1063,11 +1085,14 @@ def budget_lookup():
                     ads_by_adset.setdefault(adset_id, []).append(ad)
             if not adsets_by_id:
                 continue
+            adset_ids = list(adsets_by_id)
+            active_ad_ids = [str(ad["id"]) for group in ads_by_adset.values() for ad in group if ad.get("id")]
             insight_by_adset = meta_lib.get_account_adset_insights(
-                token, account_id, campaign_ids, since_3d, until,
+                token, account_id, adset_ids, since_3d, until,
             )
-            spend_by_adset = meta_lib.get_account_daily_ad_spend(
-                token, account_id, campaign_ids, history_since, until,
+            spend_by_adset = (
+                meta_lib.get_account_daily_ad_spend(token, account_id, active_ad_ids, history_since, until)
+                if active_ad_ids else {}
             )
             for adset in adsets_by_id.values():
                 adset_id = str(adset["id"])
@@ -1082,6 +1107,7 @@ def budget_lookup():
                     "campaign_name": campaign_names.get(str(campaign_id), ""),
                     "adset_name": adset_name, "type": "DA" if is_da else "PA",
                     "active_ad_names": active_names,
+                    "active_ad_count": len(active_names),
                     "adset_created_time": adset.get("created_time"),
                     "active_ad_created_times": [ad.get("created_time") for ad in active_ads if ad.get("created_time")],
                     "display_name": ", ".join(active_names) if is_da and active_names else adset_name,
@@ -1140,7 +1166,7 @@ def budget_export():
         ("기존 세트 수", summary.get("existing_count", 0)),
         ("기존 판정 보류 세트 수", summary.get("existing_hold_count", 0)),
         ("기존 평균 D.ROAS", summary.get("avg_droas")),
-        ("기존 OFF 기준", summary.get("off_droas", 0.5)),
+        ("기존 OFF 기준", summary.get("off_droas", 0.3)),
         ("변경 전 예산 합계", before_total),
         ("희망 총예산", summary.get("desired_total", 0)),
         ("변경 예산 합계", changed_total),
@@ -1150,7 +1176,7 @@ def budget_export():
 
     detail = workbook.create_sheet("세트별 상세")
     detail.append([
-        "버킷", "유형", "표시명", "운영일수", "CPA", "D.ROAS", "CPM (3일)",
+        "버킷", "유형", "표시명", "활성 광고 수", "운영일수", "CPA", "D.ROAS", "CPM (3일)",
         "현재예산", "제안예산", "증감", "분류", "상세설명", "비고",
     ])
     for row in rows:
@@ -1158,6 +1184,7 @@ def budget_export():
         suggested = float(row.get("suggested_budget") or 0)
         detail.append([
             row.get("bucket") or "-", row.get("type") or "-", row.get("display_name") or "-",
+            int(row.get("active_ad_count") or 0),
             row.get("operating_days") if row.get("operating_days") is not None else "-",
             row.get("cpa_3d") if row.get("cpa_3d") is not None else "-",
             row.get("droas_7d") if row.get("droas_7d") is not None else "-",
@@ -1195,12 +1222,12 @@ def budget_export():
         elif label in {"기존 평균 D.ROAS", "기존 OFF 기준"} and isinstance(criteria.cell(row_index, 2).value, (int, float)):
             criteria.cell(row_index, 2).number_format = '0.0%'
     for row_index in range(2, detail.max_row + 1):
-        for column in (5, 7, 8, 9, 10):
+        for column in (6, 8, 9, 10, 11):
             if isinstance(detail.cell(row_index, column).value, (int, float)):
                 detail.cell(row_index, column).number_format = '$#,##0.00'
-        if isinstance(detail.cell(row_index, 6).value, (int, float)):
-            detail.cell(row_index, 6).number_format = '0.0%'
-        classification = str(detail.cell(row_index, 11).value or "")
+        if isinstance(detail.cell(row_index, 7).value, (int, float)):
+            detail.cell(row_index, 7).number_format = '0.0%'
+        classification = str(detail.cell(row_index, 12).value or "")
         fill = off_fill if "OFF" in classification else (
             warning_fill if any(term in classification for term in ("보류", "검토", "모니터링", "재개")) else None
         )

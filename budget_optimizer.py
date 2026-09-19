@@ -309,7 +309,10 @@ def optimize(adsets, desired_total):
     held = [item for item in existing if item.get("spend_7d", 0) <= 300]
     evaluable = [item for item in existing if item not in held and item.get("droas_7d") is not None]
     avg_droas = sum(item["droas_7d"] for item in evaluable) / len(evaluable) if evaluable else None
-    off_existing = [item for item in evaluable if item["droas_7d"] <= 0.50]
+    # Existing sets are OFF candidates at/below their peer average. The 30%
+    # floor is absolute, so it still applies when the peer average is lower.
+    off_droas = max(0.30, avg_droas) if avg_droas is not None else 0.30
+    off_existing = [item for item in evaluable if item["droas_7d"] <= off_droas]
     weighted_existing = [item for item in evaluable if item not in off_existing]
     for item in existing:
         item["classification"] = ""
@@ -321,7 +324,12 @@ def optimize(adsets, desired_total):
         elif item in off_existing:
             item["suggested_budget"] = 0
             item["classification"] = "OFF 후보"
-            item["reasons"].append("PDT D-7 D.ROAS 50% 이하")
+            if item["droas_7d"] <= 0.30:
+                item["reasons"].append("PDT D-7 D.ROAS 30% 이하 (절대 OFF 기준)")
+            else:
+                item["reasons"].append(
+                    f"PDT D-7 D.ROAS {item['droas_7d']:.1%} ≤ 기존 평균 {avg_droas:.1%}"
+                )
         else:
             item["droas_weight"] = item["droas_7d"]
             item["allocation_adjustable"] = True
@@ -343,7 +351,7 @@ def optimize(adsets, desired_total):
         "new_count": len(new), "new_minimum_count": len(minimum), "new_assessable_count": len(assessable),
         "new_target": new_target, "avg_cpa": avg_cpa, "off_cpa": off_cpa,
         "existing_count": len(existing), "existing_target": existing_target,
-        "existing_hold_count": len(held), "avg_droas": avg_droas, "off_droas": 0.50,
+        "existing_hold_count": len(held), "avg_droas": avg_droas, "off_droas": off_droas,
         "current_total": sum(float(item.get("current_budget") or 0) for item in adsets),
         "new_allocated": sum(item["suggested_budget"] for item in new),
         "existing_allocated": sum(item["suggested_budget"] for item in existing),
