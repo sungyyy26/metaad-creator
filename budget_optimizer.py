@@ -4,6 +4,7 @@ import io
 import os
 import re
 from datetime import date, datetime, timedelta
+from statistics import median
 
 
 class BudgetDataError(ValueError):
@@ -228,6 +229,46 @@ def _weighted_allocate(items, pool, weight_key, cap_key=None):
     return allocations
 
 
+def _capped_weighted_allocate(items, pool, weight_key, lower_key=None, upper_key=None):
+    """Like _weighted_allocate but supports both a floor and a ceiling per
+    item, iteratively pinning whichever items hit either bound and
+    redistributing the remainder among the rest."""
+    allocations = {}
+    remaining = list(items)
+    remaining_pool = max(0.0, float(pool))
+    while remaining:
+        weight_sum = sum(max(0.0, float(item.get(weight_key) or 0)) for item in remaining)
+        if weight_sum <= 0:
+            equal = remaining_pool / len(remaining)
+            for item in remaining:
+                allocations[item["adset_id"]] = max(0.0, equal)
+            break
+        pinned = []
+        for item in remaining:
+            share = remaining_pool * float(item[weight_key]) / weight_sum
+            upper = item.get(upper_key) if upper_key else None
+            lower = item.get(lower_key) if lower_key else None
+            bound = None
+            if upper is not None and share > upper:
+                bound = float(upper)
+            elif lower is not None and share < lower:
+                bound = float(lower)
+            if bound is not None:
+                allocations[item["adset_id"]] = bound
+                remaining_pool -= bound
+                pinned.append(item)
+        if not pinned:
+            for item in remaining:
+                allocations[item["adset_id"]] = remaining_pool * float(item[weight_key]) / weight_sum
+            break
+        remaining = [item for item in remaining if item not in pinned]
+        if remaining_pool <= 0 and remaining:
+            for item in remaining:
+                allocations[item["adset_id"]] = 0.0
+            remaining = []
+    return allocations
+
+
 def _round_allocations(items, target=None):
     for item in items:
         item["suggested_budget"] = max(0, int(round(item.get("suggested_budget", 0))))
@@ -242,8 +283,10 @@ def _round_allocations(items, target=None):
                 break
             step = 1 if difference > 0 else -1
             cap = item.get("increase_cap")
+            floor = item.get("decrease_floor")
             within_cap = cap is None or item["suggested_budget"] + step <= cap
-            if item["suggested_budget"] + step >= 0 and within_cap:
+            within_floor = floor is None or item["suggested_budget"] + step >= floor
+            if item["suggested_budget"] + step >= 0 and within_cap and within_floor:
                 item["suggested_budget"] += step
                 difference -= step
                 changed = True
@@ -467,6 +510,169 @@ def optimize(adsets, desired_total, detail_budgets=None):
         gap = desired_total - allocated_total
         summary["warnings"].append(
             f"증액 상한 또는 보류 예산 때문에 목표 대비 ${abs(gap):.0f} "
+            + ("미배분되었습니다." if gap > 0 else "초과 배정되었습니다.")
+        )
+    return adsets, summary
+
+
+def _confidence(item):
+    """How much to trust this item's own D-7 D.ROAS: 0 (just launched, no
+    real signal yet) to 1 (7+ days live AND $300+ D-7 spend, fully mature).
+    Requires both a time gate and a volume gate — a set can be old but
+    low-spend (still thin data) or high-spend but very new (still noisy)."""
+    day_conf = min(1.0, (item.get("operating_days") or 0) / 7.0)
+    spend_conf = min(1.0, (item.get("spend_7d") or 0) / 300.0)
+    return max(0.0, min(day_conf, spend_conf))
+
+
+def optimize_v2(adsets, desired_total, detail_budgets=None):
+    """Confidence-blended D.ROAS allocator ('신규 로직').
+
+    Unlike optimize(), new and existing sets are judged on the same metric
+    (D.ROAS) instead of switching from CPA to D.ROAS at day 14. A set's own
+    D-7 D.ROAS is blended with a CPA-derived prior in proportion to how much
+    real data it has (_confidence) — CPA is only ever a stand-in for D.ROAS
+    while data is thin, never the primary judge, since the two don't
+    reliably correlate. Allocation weight, the OFF gate, and how far a
+    budget can move are all scaled by that same confidence, so a noisy new
+    set can't swing wildly while a proven winner can be pushed hard.
+    """
+    desired_total = max(0, float(desired_total))
+
+    def floor_budget(item):
+        return 100 * max(1, int(item.get("active_ad_count") or 0))
+
+    for item in adsets:
+        item["confidence"] = _confidence(item)
+
+    # --- CPA -> D.ROAS prior, calibrated from this run's own mature sets ---
+    calib = [
+        item for item in adsets
+        if item["confidence"] >= 0.8 and item.get("cpa_3d") and item["cpa_3d"] > 0
+        and item.get("droas_7d") is not None
+    ]
+    prior_a = prior_b = None
+    if len(calib) >= 3:
+        xs = [1 / item["cpa_3d"] for item in calib]
+        ys = [item["droas_7d"] for item in calib]
+        n = len(xs)
+        mean_x = sum(xs) / n
+        mean_y = sum(ys) / n
+        var_x = sum((x - mean_x) ** 2 for x in xs)
+        if var_x > 1e-9:
+            prior_b = sum((x - mean_x) * (y - mean_y) for x, y in zip(xs, ys)) / var_x
+            prior_a = mean_y - prior_b * mean_x
+    droas_pool = [item["droas_7d"] for item in adsets if item.get("droas_7d") is not None]
+    fallback_prior = (sum(droas_pool) / len(droas_pool)) if droas_pool else 0.0
+
+    def prior_droas(item):
+        if prior_a is not None and item.get("cpa_3d") and item["cpa_3d"] > 0:
+            return max(0.0, prior_a + prior_b * (1 / item["cpa_3d"]))
+        return fallback_prior
+
+    for item in adsets:
+        conf = item["confidence"]
+        raw = item["droas_7d"] if item.get("droas_7d") is not None else 0.0
+        item["effective_droas"] = conf * raw + (1 - conf) * prior_droas(item)
+
+    # --- OFF gate: relative (portfolio median) AND absolute floor must both trip ---
+    gated = [item for item in adsets if item["confidence"] >= 0.5 and item.get("droas_7d") is not None]
+    median_droas = median(item["droas_7d"] for item in gated) if gated else None
+    off_relative = median_droas * 0.8 if median_droas is not None else None
+    off_absolute = 0.30
+
+    brand_new, off_items, circuit_breaker, pool_items = [], [], [], []
+    for item in adsets:
+        item["classification"] = ""
+        item["reasons"] = []
+        conf = item["confidence"]
+        active_count = max(1, int(item.get("active_ad_count") or 0))
+        if (item.get("operating_days") or 0) <= 2:
+            item["suggested_budget"] = floor_budget(item)
+            item["classification"] = "신규 보호(최소예산)"
+            item["reasons"].append(f"세팅 2일 이내 · 활성 소재 {active_count}개 × $100 고정")
+            brand_new.append(item)
+        elif (
+            conf >= 0.5 and item.get("droas_7d") is not None and off_relative is not None
+            and item["droas_7d"] <= off_relative and item["droas_7d"] <= off_absolute
+        ):
+            item["suggested_budget"] = 0
+            item["classification"] = "OFF 후보"
+            item["reasons"].append(
+                f"D.ROAS {item['droas_7d'] * 100:.0f}% ≤ 중앙값×0.8({off_relative * 100:.0f}%) 및 "
+                f"절대 하한({off_absolute * 100:.0f}%) 동시 충족"
+            )
+            off_items.append(item)
+        elif conf < 0.5 and item.get("cpa_3d") is not None and item["cpa_3d"] >= 2.0:
+            item["suggested_budget"] = 0
+            item["classification"] = "OFF 후보 (CPA 조기경보)"
+            item["reasons"].append(f"실측 D.ROAS 신뢰도 확보 전 · CPA ${item['cpa_3d']:.2f} ≥ $2.00 조기 경고")
+            circuit_breaker.append(item)
+        else:
+            pool_items.append(item)
+
+    fixed_total = sum(item["suggested_budget"] for item in brand_new + off_items + circuit_breaker)
+    pool_target = max(0.0, desired_total - fixed_total)
+
+    for item in pool_items:
+        conf = item["confidence"]
+        base_current = item["current_budget"] if item.get("current_budget") else floor_budget(item)
+        cap_pct = 0.30 + conf * (1.00 - 0.30)
+        item["_v2_weight"] = max(0.0, item["effective_droas"]) ** (1 + conf)
+        item["_v2_lower"] = max(floor_budget(item), base_current * (1 - cap_pct))
+        item["_v2_upper"] = base_current * (1 + cap_pct)
+        item["_v2_cap_pct"] = cap_pct
+        item["allocation_adjustable"] = True
+        item["increase_cap"] = item["_v2_upper"]
+        item["decrease_floor"] = item["_v2_lower"]
+
+    allocations = _capped_weighted_allocate(pool_items, pool_target, "_v2_weight", "_v2_lower", "_v2_upper")
+    for item in pool_items:
+        item["suggested_budget"] = allocations.get(item["adset_id"], 0)
+        conf = item["confidence"]
+        item["classification"] = (
+            "증액" if item["suggested_budget"] > item["current_budget"]
+            else "감액" if item["suggested_budget"] < item["current_budget"] else "유지"
+        )
+        item["reasons"].append(
+            f"신뢰도 {conf * 100:.0f}% · 유효 D.ROAS {item['effective_droas'] * 100:.0f}% · "
+            f"가중치 지수 {1 + conf:.2f} · 허용폭 ±{item['_v2_cap_pct'] * 100:.0f}%"
+        )
+
+    _round_allocations(brand_new + off_items + circuit_breaker)
+    _round_allocations(pool_items, pool_target)
+
+    for item in adsets:
+        if item.get("cpm_3d") is not None and item["cpm_3d"] >= 30:
+            item["classification"] = (item["classification"] + " · " if item["classification"] else "") + "추가 모니터링"
+            item["reasons"].append("CPM $30불 이상이지만 추가 모니터링")
+        item["reason"] = " / ".join(item["reasons"])
+        item.pop("reasons", None)
+        item.pop("allocation_adjustable", None)
+        for key in ("_v2_weight", "_v2_lower", "_v2_upper", "_v2_cap_pct", "increase_cap", "decrease_floor"):
+            item.pop(key, None)
+
+    summary = {
+        "desired_total": desired_total,
+        "logic": "v2",
+        "brand_new_count": len(brand_new),
+        "off_count": len(off_items) + len(circuit_breaker),
+        "pool_count": len(pool_items),
+        "pool_target": pool_target,
+        "median_droas_7d": median_droas,
+        "off_relative": off_relative,
+        "off_absolute": off_absolute,
+        "current_total": sum(float(item.get("current_budget") or 0) for item in adsets),
+        "warnings": [],
+    }
+    if fixed_total > desired_total:
+        summary["warnings"].append("신규 보호·OFF 고정 예산 합계가 희망 총예산보다 큽니다.")
+    _apply_detail_budgets(adsets, desired_total, detail_budgets, summary)
+    allocated_total = sum(item["suggested_budget"] for item in adsets)
+    if int(round(allocated_total)) != int(round(desired_total)):
+        gap = desired_total - allocated_total
+        summary["warnings"].append(
+            f"증감 상한 또는 최소예산 때문에 목표 대비 ${abs(gap):.0f} "
             + ("미배분되었습니다." if gap > 0 else "초과 배정되었습니다.")
         )
     return adsets, summary

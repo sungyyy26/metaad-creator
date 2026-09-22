@@ -1008,6 +1008,9 @@ def budget_lookup():
     """Builds the full budget recommendation table without changing Meta."""
     channel_query = request.form.get("channel_query", "").strip()
     product_group = request.form.get("product_group", "").strip()
+    budget_logic = request.form.get("budget_logic", "legacy").strip()
+    if budget_logic not in ("legacy", "v2"):
+        budget_logic = "legacy"
     campaign_types = [value.upper() for value in request.form.getlist("campaign_types") if value.upper() in {"CV", "TF"}]
     desired_budget_raw = request.form.get("desired_budget", "").strip()
     detail_budgets = []
@@ -1145,7 +1148,9 @@ def budget_lookup():
         return {"ok": False, "error": str(e)}, 400
 
     budget_optimizer.attach_raw_metrics(matches, raw_rows, today=periods["anchor"])
-    matches, calculation_summary = budget_optimizer.optimize(matches, desired_budget, detail_budgets)
+    optimize_fn = budget_optimizer.optimize_v2 if budget_logic == "v2" else budget_optimizer.optimize
+    matches, calculation_summary = optimize_fn(matches, desired_budget, detail_budgets)
+    calculation_summary["logic"] = budget_logic
     calculation_summary["anchor_date"] = periods["anchor"].isoformat()
     calculation_summary["cpa_cpm_period"] = f"{periods['three_start'].isoformat()}~{periods['anchor'].isoformat()}"
     calculation_summary["droas_period"] = f"{periods['droas_start'].isoformat()}~{periods['anchor'].isoformat()}"
@@ -1180,19 +1185,36 @@ def budget_export():
     criteria.append(["판정기준 요약", "값"])
     before_total = sum(float(row.get("current_budget") or 0) for row in rows)
     changed_total = sum(float(row.get("suggested_budget") or 0) for row in rows)
+    is_v2 = summary.get("logic") == "v2"
     summary_rows = [
+        ("계산 로직", "신규 로직 (신뢰도 블렌딩)" if is_v2 else "기존 로직"),
         ("기준일 (PDT)", summary.get("anchor_date") or "-"),
         ("CPA·CPM 기간", summary.get("cpa_cpm_period") or "-"),
         ("D.ROAS 기간", summary.get("droas_period") or "-"),
-        ("신규 조정대상 세트 수", summary.get("new_assessable_count", 0)),
-        ("신규 최소배정 세트 수", summary.get("new_minimum_count", 0)),
-        ("신규 목표 총예산", summary.get("new_target", 0)),
-        ("신규 평균 CPA", summary.get("avg_cpa")),
-        ("신규 OFF 기준", summary.get("off_cpa")),
-        ("기존 세트 수", summary.get("existing_count", 0)),
-        ("기존 판정 보류 세트 수", summary.get("existing_hold_count", 0)),
-        ("기존 평균 D.ROAS", summary.get("avg_droas")),
-        ("기존 OFF 기준", summary.get("off_droas", 0.3)),
+    ]
+    if is_v2:
+        summary_rows += [
+            ("신규 보호(2일 이내) 세트 수", summary.get("brand_new_count", 0)),
+            ("OFF 후보 세트 수", summary.get("off_count", 0)),
+            ("배분 대상(pool) 세트 수", summary.get("pool_count", 0)),
+            ("배분 대상 목표예산", summary.get("pool_target", 0)),
+            ("D.ROAS 중앙값 (신뢰도 50%+ 세트)", summary.get("median_droas_7d")),
+            ("OFF 상대 기준 (중앙값×0.8)", summary.get("off_relative")),
+            ("OFF 절대 하한", summary.get("off_absolute", 0.3)),
+        ]
+    else:
+        summary_rows += [
+            ("신규 조정대상 세트 수", summary.get("new_assessable_count", 0)),
+            ("신규 최소배정 세트 수", summary.get("new_minimum_count", 0)),
+            ("신규 목표 총예산", summary.get("new_target", 0)),
+            ("신규 평균 CPA", summary.get("avg_cpa")),
+            ("신규 OFF 기준", summary.get("off_cpa")),
+            ("기존 세트 수", summary.get("existing_count", 0)),
+            ("기존 판정 보류 세트 수", summary.get("existing_hold_count", 0)),
+            ("기존 평균 D.ROAS", summary.get("avg_droas")),
+            ("기존 OFF 기준", summary.get("off_droas", 0.3)),
+        ]
+    summary_rows += [
         ("변경 전 예산 합계", before_total),
         ("희망 총예산", summary.get("desired_total", 0)),
         ("변경 예산 합계", changed_total),
@@ -1243,17 +1265,21 @@ def budget_export():
 
     currency_labels = {
         "신규 목표 총예산", "신규 평균 CPA", "신규 OFF 기준",
-        "변경 전 예산 합계", "희망 총예산", "변경 예산 합계",
+        "변경 전 예산 합계", "희망 총예산", "변경 예산 합계", "배분 대상 목표예산",
     }
     currency_labels.update(
         label for label, _ in summary_rows
         if label.endswith("세부 예산") or label.endswith("실제 배정")
     )
+    percent_labels = {
+        "기존 평균 D.ROAS", "기존 OFF 기준",
+        "D.ROAS 중앙값 (신뢰도 50%+ 세트)", "OFF 상대 기준 (중앙값×0.8)", "OFF 절대 하한",
+    }
     for row_index in range(2, criteria.max_row + 1):
         label = criteria.cell(row_index, 1).value
         if label in currency_labels and isinstance(criteria.cell(row_index, 2).value, (int, float)):
             criteria.cell(row_index, 2).number_format = '$#,##0.00'
-        elif label in {"기존 평균 D.ROAS", "기존 OFF 기준"} and isinstance(criteria.cell(row_index, 2).value, (int, float)):
+        elif label in percent_labels and isinstance(criteria.cell(row_index, 2).value, (int, float)):
             criteria.cell(row_index, 2).number_format = '0.0%'
     for row_index in range(2, detail.max_row + 1):
         for column in (6, 8, 9, 10, 11):
