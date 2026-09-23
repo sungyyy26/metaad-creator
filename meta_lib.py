@@ -3,6 +3,7 @@ and the local web dashboard (webapp/app.py)."""
 import json
 import os
 import time
+from datetime import datetime
 
 import requests
 
@@ -173,13 +174,25 @@ def find_matching_budget_campaigns(token, account_ids, channel_terms, channel_ex
 
 
 def list_recent_ad_copies(token, account_ids, since, limit_per_account=500):
-    """Fetch recent Meta ad names and creative copy for the local copy DB."""
+    """Fetch recent Meta ad names and creative copy for the local copy DB.
+
+    Only requests the creative sub-fields _creative_texts() actually reads
+    (not the full object_story_spec/asset_feed_spec, which can be huge for
+    dynamic/Advantage+ creative and trip Meta's "reduce the amount of data
+    you're asking for" error) and filters server-side by updated_time so a
+    large account doesn't pull months of ads just to keep the last 30 days."""
+    since_epoch = int(datetime.strptime(since, "%Y-%m-%d").timestamp())
+    filtering = json.dumps([{"field": "updated_time", "operator": "GREATER_THAN", "value": since_epoch}])
     collected = []
     for account_id in account_ids:
         rows = api(
             "GET", f"act_{account_id}/ads", token,
-            fields="id,name,created_time,updated_time,effective_status,"
-                   "creative{id,object_story_spec,asset_feed_spec}",
+            fields="name,created_time,updated_time,"
+                   "creative{"
+                   "object_story_spec{link_data{title,message},video_data{title,message},photo_data{title,message}},"
+                   "asset_feed_spec{titles{text},bodies{text}}"
+                   "}",
+            filtering=filtering,
             limit=limit_per_account,
         ).get("data", [])
         for row in rows:
