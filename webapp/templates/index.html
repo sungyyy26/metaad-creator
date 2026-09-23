@@ -2017,7 +2017,7 @@
         .then(function (r) { return r.json(); })
         .then(function (data) {
           if (!data.ok) throw new Error(data.error || "업데이트에 실패했습니다.");
-          refreshResult.innerHTML = '<div class="record-note" style="color:var(--status-done-fg);">최근 30일 Meta 카피 업데이트 완료 · 광고 ' +
+          refreshResult.innerHTML = '<div class="record-note" style="color:var(--status-done-fg);">최근 3일 Meta 카피 업데이트 완료 · 광고 ' +
             data.matched_ads + '개 매칭 · 헤드라인 ' + data.headlines + '개 · Primary Text ' + data.primary_texts + '개 추가</div>';
           refreshResult.hidden = false;
         })

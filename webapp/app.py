@@ -570,11 +570,11 @@ def copy_database_download():
 
 @app.route("/copy_database_refresh", methods=["POST"])
 def copy_database_refresh():
-    """Merge copy from Meta ads updated during the last 30 PDT days."""
+    """Merge copy from Meta ads updated during the last 3 PDT days."""
     token = os.environ.get("META_ACCESS_TOKEN")
     if not token:
         return {"ok": False, "error": "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."}, 400
-    since = (datetime.now(PACIFIC).date() - timedelta(days=30)).isoformat()
+    since = (datetime.now(PACIFIC).date() - timedelta(days=3)).isoformat()
     try:
         ads = meta_lib.list_recent_ad_copies(token, CANDIDATE_ACCOUNT_IDS, since)
         result = copy_generator.merge_meta_copies(ads)
