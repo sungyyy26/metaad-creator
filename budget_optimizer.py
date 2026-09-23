@@ -517,10 +517,12 @@ def optimize(adsets, desired_total, detail_budgets=None):
 
 def _confidence(item):
     """How much to trust this item's own D-7 D.ROAS: 0 (just launched, no
-    real signal yet) to 1 (7+ days live AND $300+ D-7 spend, fully mature).
-    Requires both a time gate and a volume gate — a set can be old but
-    low-spend (still thin data) or high-spend but very new (still noisy)."""
-    day_conf = min(1.0, (item.get("operating_days") or 0) / 7.0)
+    real signal yet) to 1 (14+ days live AND $300+ D-7 spend, fully mature;
+    7 days gives half-trust — the D-7 window is complete but the read is
+    still early). Requires both a time gate and a volume gate — a set can
+    be old but low-spend (still thin data) or high-spend but very new
+    (still noisy)."""
+    day_conf = min(1.0, (item.get("operating_days") or 0) / 14.0)
     spend_conf = min(1.0, (item.get("spend_7d") or 0) / 300.0)
     return max(0.0, min(day_conf, spend_conf))
 
