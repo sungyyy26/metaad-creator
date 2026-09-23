@@ -173,10 +173,12 @@ def _product_code_from_ad_name(name):
 def _creative_texts(creative):
     headlines, bodies = [], []
     story = (creative or {}).get("object_story_spec") or {}
-    for key in ("link_data", "video_data", "photo_data"):
+    for key in ("link_data", "video_data"):
         block = story.get(key) or {}
-        if block.get("title"):
-            headlines.append(str(block["title"]).strip())
+        # link_data's headline field is "name", not "title" — video_data uses "title".
+        headline = block.get("name") or block.get("title")
+        if headline:
+            headlines.append(str(headline).strip())
         if block.get("message"):
             bodies.append(str(block["message"]).strip())
     feed = (creative or {}).get("asset_feed_spec") or {}

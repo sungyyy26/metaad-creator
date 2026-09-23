@@ -189,7 +189,7 @@ def list_recent_ad_copies(token, account_ids, since, limit_per_account=500):
             "GET", f"act_{account_id}/ads", token,
             fields="name,created_time,updated_time,"
                    "creative{"
-                   "object_story_spec{link_data{title,message},video_data{title,message},photo_data{title,message}},"
+                   "object_story_spec{link_data{name,message},video_data{title,message}},"
                    "asset_feed_spec{titles{text},bodies{text}}"
                    "}",
             filtering=filtering,
