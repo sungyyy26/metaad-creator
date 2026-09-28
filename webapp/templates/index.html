@@ -222,6 +222,9 @@
   .page-btn:hover{background:var(--surface-3);}
   .page-btn.active{background:var(--accent);color:var(--accent-contrast);border-color:var(--accent);}
   .page-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .page-btn.page-arrow{font-family:var(--font-mono);}
+  .page-btn:disabled{opacity:.35;cursor:not-allowed;}
+  .page-btn:disabled:hover{background:var(--surface-2);}
   .record-row{position:relative;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md);padding:var(--sp-4) 44px var(--sp-4) var(--sp-4);transition:border-color .12s;}
   .record-row:hover{border-color:var(--border-strong);}
   .record-top{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-2) var(--sp-4);margin-bottom:var(--sp-2);}
@@ -1255,15 +1258,24 @@
         row.hidden = Math.floor(idx / PAGE_SIZE) !== (currentPage - 1);
       });
 
-      var html = "";
-      for (var p = 1; p <= totalPages; p++) {
+      var windowSize = Math.min(5, totalPages);
+      var start = Math.max(1, currentPage - Math.floor(windowSize / 2));
+      var end = Math.min(totalPages, start + windowSize - 1);
+      start = Math.max(1, end - windowSize + 1);
+
+      var html = '<button type="button" class="page-btn page-arrow" data-page="' + (currentPage - 1) + '"' +
+        (currentPage <= 1 ? " disabled" : "") + ' aria-label="이전 페이지">‹</button>';
+      for (var p = start; p <= end; p++) {
         html += '<button type="button" class="page-btn' + (p === currentPage ? ' active' : '') +
           '" data-page="' + p + '">' + p + '</button>';
       }
+      html += '<button type="button" class="page-btn page-arrow" data-page="' + (currentPage + 1) + '"' +
+        (currentPage >= totalPages ? " disabled" : "") + ' aria-label="다음 페이지">›</button>';
       pagination.innerHTML = html;
       pagination.hidden = false;
       pagination.querySelectorAll(".page-btn").forEach(function (btn) {
         btn.addEventListener("click", function () {
+          if (btn.disabled) return;
           currentPage = Number(btn.getAttribute("data-page"));
           render();
         });
@@ -2178,8 +2190,13 @@
         el.hidden = true;
         return;
       }
+      var windowSize = Math.min(5, totalPages);
+      var start = Math.max(1, page - Math.floor(windowSize / 2));
+      var end = Math.min(totalPages, start + windowSize - 1);
+      start = Math.max(1, end - windowSize + 1);
+
       var html = '<button type="button" data-page="' + (page - 1) + '"' + (page === 1 ? " disabled" : "") + '>‹</button>';
-      for (var p = 1; p <= totalPages; p++) {
+      for (var p = start; p <= end; p++) {
         html += '<button type="button" data-page="' + p + '" class="' + (p === page ? "current" : "") + '">' + p + '</button>';
       }
       html += '<button type="button" data-page="' + (page + 1) + '"' + (page === totalPages ? " disabled" : "") + '>›</button>';
