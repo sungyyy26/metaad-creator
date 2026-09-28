@@ -218,6 +218,24 @@ def merge_meta_copies(ads):
     return {**additions, "matched_ads": matched_ads, "fetched_ads": len(ads)}
 
 
+def _expand_bundle_code(raw):
+    """Expand a bundle product code into its full component codes.
+
+    Accepts both a fully-qualified join ("v-srm+v-crm") and the shorthand
+    Meta campaign/ad names actually use, which shares one family prefix
+    across "&"-joined suffixes ("v-srm&crm&tnr" -> ["v-srm","v-crm","v-tnr"]).
+    A plain single code ("v-srm") returns as a one-item list unchanged.
+    """
+    segments = re.split(r"[&+]", raw)
+    if len(segments) == 1:
+        return segments
+    family = segments[0].split("-")[0] if "-" in segments[0] else None
+    parts = [segments[0]]
+    for seg in segments[1:]:
+        parts.append(seg if "-" in seg or not family else f"{family}-{seg}")
+    return parts
+
+
 def _parse_creative_name(name):
     tokens = name.strip().split("_")
     if not tokens or not tokens[0]:
@@ -231,10 +249,13 @@ def _parse_creative_name(name):
 
     product_token = tokens[idx]
     idx += 1
-    # A resolved code may be a single product ("v-srm") or a bundle ("n-srm+n-crm")
-    # — each "+"-joined part must itself be a registered product.
+    # A resolved code may be a single product ("v-srm") or a bundle. Bundles
+    # in the wild (campaign/ad names, asin_map) are written either fully
+    # qualified ("v-srm+v-crm") or in the real shorthand Meta naming uses,
+    # sharing one family prefix ("v-srm&crm&tnr") — both expand the same way.
     product_code = _PATTERNS["asin_map"].get(product_token, product_token)
-    missing = [part for part in product_code.split("+") if part not in _PATTERNS["products"]]
+    product_parts = _expand_bundle_code(product_code)
+    missing = [part for part in product_parts if part not in _PATTERNS["products"]]
     if missing:
         known = ", ".join(sorted(_PATTERNS["products"].keys()))
         raise CopyGenerationError(
@@ -271,6 +292,7 @@ def _parse_creative_name(name):
 
     return {
         "product_code": product_code,
+        "product_parts": product_parts,
         "part_code": part_code,
         "concern_code": concern_code,
         "hook_tokens": hook_tokens,
@@ -287,10 +309,10 @@ def generate(creative_name):
     same as before this feature existed.
     """
     parsed = _parse_creative_name(creative_name)
-    # A bundle code ("n-srm+n-crm") has no copy of its own — pool each real
+    # A bundle code ("n-srm&crm") has no copy of its own — pool each real
     # registered component's own headline/body templates, each rendered with
     # that component's own hero_ingredient, rather than inventing set copy.
-    products = [_PATTERNS["products"][code] for code in parsed["product_code"].split("+")]
+    products = [_PATTERNS["products"][code] for code in parsed["product_parts"]]
 
     part_singular = _PATTERNS["part_singular"].get(parsed["part_code"], "Skin")
     part_display = _PATTERNS["part_display"].get(parsed["part_code"], "Skin")
