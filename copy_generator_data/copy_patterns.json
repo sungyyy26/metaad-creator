@@ -75,7 +75,10 @@
     }
   },
   "asin_map": {
-    "BA00021": "b-srm"
+    "BA00021": "b-srm",
+    "BA00073": "v-srm",
+    "BA00074": "v-srm",
+    "BA00075": "n-srm"
   },
   "concern_copy": {
     "color": {"noun": "Discoloration", "adj": "Discoloration"},
