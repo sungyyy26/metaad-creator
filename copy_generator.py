@@ -231,11 +231,14 @@ def _parse_creative_name(name):
 
     product_token = tokens[idx]
     idx += 1
+    # A resolved code may be a single product ("v-srm") or a bundle ("n-srm+n-crm")
+    # — each "+"-joined part must itself be a registered product.
     product_code = _PATTERNS["asin_map"].get(product_token, product_token)
-    if product_code not in _PATTERNS["products"]:
+    missing = [part for part in product_code.split("+") if part not in _PATTERNS["products"]]
+    if missing:
         known = ", ".join(sorted(_PATTERNS["products"].keys()))
         raise CopyGenerationError(
-            f"소재명 '{name}' 에서 알 수 없는 제품 코드 '{product_token}' 입니다. "
+            f"소재명 '{name}' 에서 알 수 없는 제품 코드 '{', '.join(missing)}' 입니다. "
             f"등록된 제품 코드: {known} (또는 asin_map에 등록된 ASIN 코드)"
         )
 
@@ -284,7 +287,10 @@ def generate(creative_name):
     same as before this feature existed.
     """
     parsed = _parse_creative_name(creative_name)
-    product = _PATTERNS["products"][parsed["product_code"]]
+    # A bundle code ("n-srm+n-crm") has no copy of its own — pool each real
+    # registered component's own headline/body templates, each rendered with
+    # that component's own hero_ingredient, rather than inventing set copy.
+    products = [_PATTERNS["products"][code] for code in parsed["product_code"].split("+")]
 
     part_singular = _PATTERNS["part_singular"].get(parsed["part_code"], "Skin")
     part_display = _PATTERNS["part_display"].get(parsed["part_code"], "Skin")
@@ -295,32 +301,37 @@ def generate(creative_name):
     care_scope = (
         "body" if parsed["part_code"] in _PATTERNS["care_scope"]["body_parts"] else "face"
     )
-
-    fmt = {
-        "part": part_singular,
-        "part_lower": part_display.lower(),
-        "concern": concern_noun,
-        "concern_lower": concern_noun.lower(),
-        "concern_upper": "PORE" if parsed["concern_code"] == "pore" else "PLUMPING",
-        "hero_ingredient": product["hero_ingredient"],
-        "care_scope": care_scope,
-    }
-
-    headline_shapes = list(product["headline_shapes"])
     hook_text = " ".join(parsed["hook_tokens"]).lower()
+    hook_headline = None
     for key, shape in _PATTERNS["hook_shapes"].items():
         if key in hook_text:
-            headline_shapes.insert(0, shape["headline"])
+            hook_headline = shape["headline"]
             break
 
     headlines = []
-    for shape in headline_shapes:
-        try:
-            headlines.append(shape.format(**fmt))
-        except KeyError:
-            continue
+    primary_texts = []
+    for product in products:
+        fmt = {
+            "part": part_singular,
+            "part_lower": part_display.lower(),
+            "concern": concern_noun,
+            "concern_lower": concern_noun.lower(),
+            "concern_upper": "PORE" if parsed["concern_code"] == "pore" else "PLUMPING",
+            "hero_ingredient": product["hero_ingredient"],
+            "care_scope": care_scope,
+        }
+        headline_shapes = list(product["headline_shapes"])
+        if hook_headline:
+            headline_shapes.insert(0, hook_headline)
+        for shape in headline_shapes:
+            try:
+                headlines.append(shape.format(**fmt))
+            except KeyError:
+                continue
+        primary_texts.extend(tpl.format(**fmt) for tpl in product["body_templates"])
 
-    primary_texts = [tpl.format(**fmt) for tpl in product["body_templates"]]
+    headlines = list(dict.fromkeys(headlines))
+    primary_texts = list(dict.fromkeys(primary_texts))
 
     # A static database can still yield a different mix/order on each click.
     # Weekly JSON uploads expand this pool without requiring an AI/API call.
@@ -332,16 +343,21 @@ def generate(creative_name):
 
     part_entry = _PART_BY_CODE.get(parsed["part_code"])
     concern_entry_raw = _CONCERN_BY_CODE.get(parsed["concern_code"])
+    is_bundle = len(products) > 1
 
     return {
         "product_code": parsed["product_code"],
-        "product_name_ko": product["name_ko"],
-        "product_short_ko": product["short_ko"],
+        "product_name_ko": (
+            " + ".join(p["short_ko"] for p in products) + " 세트" if is_bundle else products[0]["name_ko"]
+        ),
+        "product_short_ko": (
+            " + ".join(p["short_ko"] for p in products) + " 세트" if is_bundle else products[0]["short_ko"]
+        ),
         "part_ko": part_entry["ko"] if part_entry else None,
         "part_en": part_entry["en"] if part_entry else None,
         "concern_ko": concern_entry_raw["ko"] if concern_entry_raw else None,
         "concern_en": concern_entry_raw["en"] if concern_entry_raw else None,
         "headlines": headlines,
         "primary_texts": primary_texts,
-        "cta": product["cta"],
+        "cta": products[0]["cta"],
     }
