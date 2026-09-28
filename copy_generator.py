@@ -240,6 +240,9 @@ def _parse_creative_name(name):
     tokens = name.strip().split("_")
     if not tokens or not tokens[0]:
         raise CopyGenerationError("소재명이 비어 있습니다.")
+    # Any "es" token anywhere in the 소재명 marks it as a Spanish-language
+    # creative — Meta ad naming doesn't fix its position.
+    language = "es" if any(t.lower() == "es" for t in tokens) else "en"
 
     idx = 0
     if re.fullmatch(r"\d{6}", tokens[idx]):
@@ -296,6 +299,7 @@ def _parse_creative_name(name):
         "part_code": part_code,
         "concern_code": concern_code,
         "hook_tokens": hook_tokens,
+        "language": language,
     }
 
 
@@ -309,25 +313,35 @@ def generate(creative_name):
     same as before this feature existed.
     """
     parsed = _parse_creative_name(creative_name)
+    es = parsed["language"] == "es"
     # A bundle code ("n-srm&crm") has no copy of its own — pool each real
     # registered component's own headline/body templates, each rendered with
     # that component's own hero_ingredient, rather than inventing set copy.
     products = [_PATTERNS["products"][code] for code in parsed["product_parts"]]
 
-    part_singular = _PATTERNS["part_singular"].get(parsed["part_code"], "Skin")
-    part_display = _PATTERNS["part_display"].get(parsed["part_code"], "Skin")
-    concern_entry = _PATTERNS["concern_copy"].get(
-        parsed["concern_code"], {"noun": "Skin Concerns"}
+    part_singular = (_PATTERNS["part_singular_es"] if es else _PATTERNS["part_singular"]).get(
+        parsed["part_code"], "Piel" if es else "Skin"
     )
-    concern_noun = concern_entry["noun"]
+    part_display = (_PATTERNS["part_display_es"] if es else _PATTERNS["part_display"]).get(
+        parsed["part_code"], "Piel" if es else "Skin"
+    )
+    concern_entry = _PATTERNS["concern_copy"].get(parsed["concern_code"]) or {}
+    concern_noun = concern_entry.get("noun_es" if es else "noun") or (
+        "Preocupaciones de la Piel" if es else "Skin Concerns"
+    )
     care_scope = (
         "body" if parsed["part_code"] in _PATTERNS["care_scope"]["body_parts"] else "face"
+    )
+    care_scope_word = ("cuerpo" if care_scope == "body" else "rostro") if es else care_scope
+    concern_upper = (
+        ("POROS" if parsed["concern_code"] == "pore" else "REAFIRMANTE") if es
+        else ("PORE" if parsed["concern_code"] == "pore" else "PLUMPING")
     )
     hook_text = " ".join(parsed["hook_tokens"]).lower()
     hook_headline = None
     for key, shape in _PATTERNS["hook_shapes"].items():
         if key in hook_text:
-            hook_headline = shape["headline"]
+            hook_headline = (shape.get("headline_es") if es else None) or shape["headline"]
             break
 
     headlines = []
@@ -338,11 +352,11 @@ def generate(creative_name):
             "part_lower": part_display.lower(),
             "concern": concern_noun,
             "concern_lower": concern_noun.lower(),
-            "concern_upper": "PORE" if parsed["concern_code"] == "pore" else "PLUMPING",
-            "hero_ingredient": product["hero_ingredient"],
-            "care_scope": care_scope,
+            "concern_upper": concern_upper,
+            "hero_ingredient": (product.get("hero_ingredient_es") if es else None) or product["hero_ingredient"],
+            "care_scope": care_scope_word,
         }
-        headline_shapes = list(product["headline_shapes"])
+        headline_shapes = list((product.get("headline_shapes_es") if es else None) or product["headline_shapes"])
         if hook_headline:
             headline_shapes.insert(0, hook_headline)
         for shape in headline_shapes:
@@ -350,7 +364,8 @@ def generate(creative_name):
                 headlines.append(shape.format(**fmt))
             except KeyError:
                 continue
-        primary_texts.extend(tpl.format(**fmt) for tpl in product["body_templates"])
+        body_templates = (product.get("body_templates_es") if es else None) or product["body_templates"]
+        primary_texts.extend(tpl.format(**fmt) for tpl in body_templates)
 
     headlines = list(dict.fromkeys(headlines))
     primary_texts = list(dict.fromkeys(primary_texts))
@@ -369,6 +384,7 @@ def generate(creative_name):
 
     return {
         "product_code": parsed["product_code"],
+        "language": parsed["language"],
         "product_name_ko": (
             " + ".join(p["short_ko"] for p in products) + " 세트" if is_bundle else products[0]["name_ko"]
         ),

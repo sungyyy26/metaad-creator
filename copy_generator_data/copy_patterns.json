@@ -17,6 +17,18 @@
         "✨ THE VITAMIN C SERUM FOR REAL RADIANCE ✨\nDull, tired-looking skin? One serum. Two weeks of consistent use.\n\nThe Vitamin Illuminating Serum combines {hero_ingredient} to visibly fade the look of {concern_lower} and even out your skin tone.\n\n💛 Fast-absorbing capsule formula\n💛 Lightweight and non-sticky\n💛 Visibly more radiant skin in as little as 2 weeks\n\nREVEAL YOUR GLOW, ONE DROP AT A TIME →",
         "Say Goodbye to {concern}!\n\nUnlock your natural glow with our lightweight daily serum, packed with vitamin C, niacinamide & arbutin.\nNon-sticky, fast-absorbing and easy to layer into your routine.\nShop now on Amazon!",
         "Get ready to glow!\nBrighten up with our daily even-tone care, featuring niacinamide, arbutin & antioxidants that target {concern_lower}. Even-looking complexion, no heavy feel!\nShop now on Amazon!"
+      ],
+      "hero_ingredient_es": "Vitamina C encapsulada, Niacinamida, Arbutina y TXA",
+      "headline_shapes_es": [
+        "✨ Tu Luminosidad Comienza Aquí",
+        "Combate {concern} y Descubre tu Brillo | Sérum de Vitamina",
+        "La Radiancia de tu {part} Empieza Aquí ✨",
+        "Adiós {concern}, Hola Brillo"
+      ],
+      "body_templates_es": [
+        "✨ EL SÉRUM DE VITAMINA C PARA UN BRILLO REAL ✨\n¿Piel opaca y cansada? Un sérum. Dos semanas de uso constante.\n\nEl Sérum Iluminador de Vitamina combina {hero_ingredient} para reducir visiblemente {concern_lower} y unificar el tono de tu piel.\n\n💛 Fórmula de cápsulas de rápida absorción\n💛 Ligera y no pegajosa\n💛 Piel visiblemente más radiante en tan solo 2 semanas\n\nDESCUBRE TU BRILLO, GOTA A GOTA →",
+        "¡Adiós {concern}!\n\nDescubre tu brillo natural con nuestro sérum diario ligero, con vitamina C, niacinamida y arbutina.\nNo pegajoso, de rápida absorción y fácil de incorporar a tu rutina.\n¡Cómpralo ahora en Amazon!",
+        "¡Prepárate para brillar!\nIlumina tu piel con nuestro cuidado diario de tono uniforme, con niacinamida, arbutina y antioxidantes que combaten {concern_lower}. ¡Piel de tono uniforme, sin sensación pesada!\n¡Cómpralo ahora en Amazon!"
       ]
     },
     "n-srm": {
@@ -36,6 +48,19 @@
         "Give Your {part} the Firming Care It Deserves. 💗\n\nOur NAD+ Peptide Boosting Serum helps soften the look of {concern_lower} while supporting firmer, smoother-looking skin. Lightweight, non-sticky, and made for daily {care_scope} care.\n\nPowered by {hero_ingredient} for skin that looks beautifully renewed. ✨\n\n*Individual results may vary.",
         "{part} {concern} bothering you? This NAD+ serum targets it at the cellular level for a firmer, smoother look. See the transformation — shop now.",
         "Real customers are seeing real change with our NAD+ Peptide Boosting Serum — formulated to visibly smooth {concern_lower} on the {part_lower}, using the same NAD+ and peptide science behind cellular longevity.\n\nLightweight and fast-absorbing for daily use.\n*Individual results may vary."
+      ],
+      "hero_ingredient_es": "NAD+ y péptidos, la misma ciencia detrás de la longevidad celular",
+      "headline_shapes_es": [
+        "Suaviza {concern} Rápido",
+        "Adiós {part} con {concern}",
+        "{concern}? Tu Solución Reafirmante ✨",
+        "El Sérum para {part} que Todos Quieren",
+        "Resultados Reales para {part} con {concern} ✨"
+      ],
+      "body_templates_es": [
+        "Dale a tu {part} el Cuidado Reafirmante que Merece. 💗\n\nNuestro Sérum Reafirmante NAD+ Péptidos ayuda a suavizar la apariencia de {concern_lower} mientras favorece una piel más firme y lisa. Ligero, no pegajoso y pensado para el cuidado diario de tu {care_scope}.\n\nPotenciado por {hero_ingredient} para una piel visiblemente renovada. ✨\n\n*Los resultados individuales pueden variar.",
+        "¿{part} con {concern} molestándote? Este sérum NAD+ actúa a nivel celular para una piel más firme y lisa. Ve la transformación — cómpralo ahora.",
+        "Nuestros clientes están viendo cambios reales con el Sérum Reafirmante NAD+ Péptidos — formulado para suavizar visiblemente {concern_lower} en {part_lower}, con la misma ciencia de NAD+ y péptidos detrás de la longevidad celular.\n\nLigero y de rápida absorción para uso diario.\n*Los resultados individuales pueden variar."
       ]
     },
     "n-crm": {
@@ -55,6 +80,19 @@
         "Give Your {part} the Firming Care It Deserves. 💗\n\nOur NAD+ Peptide Boosting Cream helps soften the look of {concern_lower} while supporting smoother, firmer-looking skin. Lightweight, non-sticky, and made for daily {care_scope} care.\n\nPowered by {hero_ingredient} for skin that looks beautifully renewed. ✨\n\n*Individual results may vary.",
         "Documenting the change — our NAD+ Peptide Cream for {part} works with NAD+ and peptides to visibly firm and smooth {concern_lower}.\n\nLightweight, fast-absorbing, made for daily use.\n*Individual results may vary.",
         "See the remarkable difference — our NAD+ Peptide Cream for {part} visibly firms and smooths with NAD+ and peptides, the same science behind cellular longevity.\n\nLightweight, fast-absorbing, made for daily use.\n*Individual results may vary."
+      ],
+      "hero_ingredient_es": "NAD+ y péptidos, la misma ciencia detrás de la longevidad celular",
+      "headline_shapes_es": [
+        "Rostro y Cuello: Una Sola Crema NAD+ ✨",
+        "Suaviza {concern} en Todo tu {part}",
+        "Adiós {part} con {concern} ✨",
+        "Cuida tu {part} Cada Día ✨",
+        "El Antes Que No Vas a Creer ✨"
+      ],
+      "body_templates_es": [
+        "Dale a tu {part} el Cuidado Reafirmante que Merece. 💗\n\nNuestra Crema Reafirmante NAD+ Péptidos ayuda a suavizar la apariencia de {concern_lower} mientras favorece una piel más lisa y firme. Ligera, no pegajosa y pensada para el cuidado diario de tu {care_scope}.\n\nPotenciada por {hero_ingredient} para una piel visiblemente renovada. ✨\n\n*Los resultados individuales pueden variar.",
+        "Documentando el cambio — nuestra Crema NAD+ Péptidos para {part} actúa con NAD+ y péptidos para reafirmar y suavizar visiblemente {concern_lower}.\n\nLigera, de rápida absorción, pensada para uso diario.\n*Los resultados individuales pueden variar.",
+        "Mira la diferencia notable — nuestra Crema NAD+ Péptidos para {part} reafirma y suaviza visiblemente con NAD+ y péptidos, la misma ciencia detrás de la longevidad celular.\n\nLigera, de rápida absorción, pensada para uso diario.\n*Los resultados individuales pueden variar."
       ]
     },
     "b-srm": {
@@ -71,6 +109,16 @@
         "{concern}, visibly smoothed ✨\n\nPowered by {hero_ingredient}, this gentle retinol alternative helps visibly smooth the appearance of {concern_lower} while leaving skin looking plump and refreshed.\n\nDon't just take our word for it—see why Amazon shoppers love this purple serum 💜",
         "Amazon's #1 Plumping Serum🪻\n\nVisibly smooth and plump your skin\nwith {hero_ingredient}.\n\nShop now and say goodbye to {concern_lower}.",
         "{concern} showing up? Not anymore.\n\nMinimize the look of {concern_lower} and smooth uneven texture with EQQUALBERRY's purple serum 💜\n\nShop now on Amazon!"
+      ],
+      "hero_ingredient_es": "0.5% de bakuchiol",
+      "headline_shapes_es": [
+        "🏆EL SÉRUM #1 DE {concern_upper} EN AMAZON",
+        "Suaviza {concern} Con Bakuchiol"
+      ],
+      "body_templates_es": [
+        "{concern}, visiblemente suavizadas ✨\n\nPotenciado por {hero_ingredient}, esta alternativa suave al retinol ayuda a suavizar visiblemente la apariencia de {concern_lower} dejando la piel con aspecto más firme y renovado.\n\nNo lo tomes solo de nuestra palabra—descubre por qué a los compradores de Amazon les encanta este sérum morado 💜",
+        "El Sérum Reafirmante #1 de Amazon🪻\n\nSuaviza y da firmeza visible a tu piel\ncon {hero_ingredient}.\n\nCómpralo ahora y dile adiós a {concern_lower}.",
+        "¿{concern} apareciendo? Ya no más.\n\nMinimiza la apariencia de {concern_lower} y suaviza la textura irregular con el sérum morado de EQQUALBERRY 💜\n\n¡Cómpralo ahora en Amazon!"
       ]
     }
   },
@@ -81,24 +129,114 @@
     "BA00075": "n-srm&crm"
   },
   "concern_copy": {
-    "color": {"noun": "Discoloration", "adj": "Discoloration"},
-    "krtpl": {"noun": "Keratosis Pilaris Bumps", "adj": "Rough, Bumpy Texture"},
-    "wrnk": {"noun": "Wrinkles", "adj": "Fine Lines & Wrinkles"},
-    "elst": {"noun": "Loose, Sagging Skin", "adj": "Firmness"},
-    "white": {"noun": "Uneven Tone", "adj": "Uneven Tone"},
-    "hydr": {"noun": "Dryness", "adj": "Hydration"},
-    "glow": {"noun": "Dullness", "adj": "Glow"},
-    "pacne": {"noun": "Post-Acne Marks", "adj": "Post-Acne Marks"},
-    "spot": {"noun": "Dark Spots", "adj": "Dark Spots"},
-    "smark": {"noun": "Stretch Marks", "adj": "Stretch Marks"},
-    "puff": {"noun": "Puffiness", "adj": "Puffiness"},
-    "pore": {"noun": "Pores", "adj": "Pores"},
-    "flaky": {"noun": "Flaky Skin", "adj": "Flaky Skin"},
-    "dehyd": {"noun": "Dehydration", "adj": "Dehydration"},
-    "retburn": {"noun": "Retinol Irritation", "adj": "Retinol Irritation"},
-    "sunburn": {"noun": "Sun-Stressed Skin", "adj": "Sun-Stressed Skin"},
-    "rosacea": {"noun": "Redness", "adj": "Redness"},
-    "barr": {"noun": "Redness & Sensitivity", "adj": "Redness & Sensitivity"}
+    "color": {
+      "noun": "Discoloration",
+      "adj": "Discoloration",
+      "noun_es": "Discoloración",
+      "adj_es": "Discoloración"
+    },
+    "krtpl": {
+      "noun": "Keratosis Pilaris Bumps",
+      "adj": "Rough, Bumpy Texture",
+      "noun_es": "Bultos de Queratosis Pilar",
+      "adj_es": "Textura Áspera e Irregular"
+    },
+    "wrnk": {
+      "noun": "Wrinkles",
+      "adj": "Fine Lines & Wrinkles",
+      "noun_es": "Arrugas",
+      "adj_es": "Líneas Finas y Arrugas"
+    },
+    "elst": {
+      "noun": "Loose, Sagging Skin",
+      "adj": "Firmness",
+      "noun_es": "Piel Flácida",
+      "adj_es": "Firmeza"
+    },
+    "white": {
+      "noun": "Uneven Tone",
+      "adj": "Uneven Tone",
+      "noun_es": "Tono Desigual",
+      "adj_es": "Tono Desigual"
+    },
+    "hydr": {
+      "noun": "Dryness",
+      "adj": "Hydration",
+      "noun_es": "Sequedad",
+      "adj_es": "Hidratación"
+    },
+    "glow": {
+      "noun": "Dullness",
+      "adj": "Glow",
+      "noun_es": "Piel Opaca",
+      "adj_es": "Luminosidad"
+    },
+    "pacne": {
+      "noun": "Post-Acne Marks",
+      "adj": "Post-Acne Marks",
+      "noun_es": "Marcas de Acné",
+      "adj_es": "Marcas de Acné"
+    },
+    "spot": {
+      "noun": "Dark Spots",
+      "adj": "Dark Spots",
+      "noun_es": "Manchas Oscuras",
+      "adj_es": "Manchas Oscuras"
+    },
+    "smark": {
+      "noun": "Stretch Marks",
+      "adj": "Stretch Marks",
+      "noun_es": "Estrías",
+      "adj_es": "Estrías"
+    },
+    "puff": {
+      "noun": "Puffiness",
+      "adj": "Puffiness",
+      "noun_es": "Hinchazón",
+      "adj_es": "Hinchazón"
+    },
+    "pore": {
+      "noun": "Pores",
+      "adj": "Pores",
+      "noun_es": "Poros",
+      "adj_es": "Poros"
+    },
+    "flaky": {
+      "noun": "Flaky Skin",
+      "adj": "Flaky Skin",
+      "noun_es": "Piel Descamada",
+      "adj_es": "Piel Descamada"
+    },
+    "dehyd": {
+      "noun": "Dehydration",
+      "adj": "Dehydration",
+      "noun_es": "Deshidratación",
+      "adj_es": "Deshidratación"
+    },
+    "retburn": {
+      "noun": "Retinol Irritation",
+      "adj": "Retinol Irritation",
+      "noun_es": "Irritación por Retinol",
+      "adj_es": "Irritación por Retinol"
+    },
+    "sunburn": {
+      "noun": "Sun-Stressed Skin",
+      "adj": "Sun-Stressed Skin",
+      "noun_es": "Piel Dañada por el Sol",
+      "adj_es": "Piel Dañada por el Sol"
+    },
+    "rosacea": {
+      "noun": "Redness",
+      "adj": "Redness",
+      "noun_es": "Enrojecimiento",
+      "adj_es": "Enrojecimiento"
+    },
+    "barr": {
+      "noun": "Redness & Sensitivity",
+      "adj": "Redness & Sensitivity",
+      "noun_es": "Enrojecimiento y Sensibilidad",
+      "adj_es": "Enrojecimiento y Sensibilidad"
+    }
   },
   "part_display": {
     "armp": "Underarms",
@@ -152,14 +290,43 @@
   },
   "care_scope": {
     "default": "face",
-    "body_parts": ["armp", "elbow", "hip", "groin", "chest", "back", "farm", "calf", "thigh", "hand", "belly", "knee", "ankle", "heel", "toe", "full"],
+    "body_parts": [
+      "armp",
+      "elbow",
+      "hip",
+      "groin",
+      "chest",
+      "back",
+      "farm",
+      "calf",
+      "thigh",
+      "hand",
+      "belly",
+      "knee",
+      "ankle",
+      "heel",
+      "toe",
+      "full"
+    ],
     "body_label": "face and body"
   },
   "hook_shapes": {
-    "review": {"headline": "The {part} Serum Reviewers Love"},
-    "bna": {"headline": "The Before & After Is Real"},
-    "pov": {"headline": "POV: You Finally Found a Fix for {concern}"},
-    "viral": {"headline": "The {part} Fix Everyone's Obsessed With"}
+    "review": {
+      "headline": "The {part} Serum Reviewers Love",
+      "headline_es": "El Sérum para {part} que Aman las Reseñas"
+    },
+    "bna": {
+      "headline": "The Before & After Is Real",
+      "headline_es": "El Antes y Después Es Real"
+    },
+    "pov": {
+      "headline": "POV: You Finally Found a Fix for {concern}",
+      "headline_es": "POV: Por Fin Encontraste la Solución para {concern}"
+    },
+    "viral": {
+      "headline": "The {part} Fix Everyone's Obsessed With",
+      "headline_es": "La Solución para {part} que Todos Aman"
+    }
   },
   "platform_map": {
     "ig": "이미지 (Image)",
@@ -169,5 +336,55 @@
   "adtype_map": {
     "da": "Display Ad",
     "pa": "Partnership Ad"
+  },
+  "part_singular_es": {
+    "armp": "Axila",
+    "elbow": "Codo",
+    "hip": "Cadera",
+    "groin": "Ingle",
+    "chest": "Pecho",
+    "back": "Espalda",
+    "farm": "Antebrazo",
+    "calf": "Pantorrilla",
+    "thigh": "Muslo",
+    "hand": "Mano",
+    "belly": "Vientre",
+    "neck": "Cuello",
+    "knee": "Rodilla",
+    "ankle": "Tobillo",
+    "heel": "Talón",
+    "toe": "Dedo del Pie",
+    "eye": "Ojo",
+    "lip": "Labio",
+    "phlm": "Filtrum",
+    "cheek": "Mejilla",
+    "glbla": "Entrecejo",
+    "full": "Cuerpo Completo",
+    "fface": "Rostro"
+  },
+  "part_display_es": {
+    "armp": "Axilas",
+    "elbow": "Codos",
+    "hip": "Caderas",
+    "groin": "Ingle",
+    "chest": "Pecho",
+    "back": "Espalda",
+    "farm": "Antebrazos",
+    "calf": "Pantorrillas",
+    "thigh": "Muslos",
+    "hand": "Manos",
+    "belly": "Vientre",
+    "neck": "Cuello",
+    "knee": "Rodillas",
+    "ankle": "Tobillos",
+    "heel": "Talones",
+    "toe": "Dedos de los Pies",
+    "eye": "Área de los Ojos",
+    "lip": "Labios",
+    "phlm": "Filtrum",
+    "cheek": "Mejillas",
+    "glbla": "Líneas de Entrecejo",
+    "full": "Todo el Cuerpo",
+    "fface": "Rostro"
   }
 }
