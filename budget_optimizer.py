@@ -384,6 +384,32 @@ def _apply_detail_budgets(adsets, desired_total, detail_budgets, summary):
     summary["existing_allocated"] = sum(item["suggested_budget"] for item in adsets if item["bucket"] == "기존")
 
 
+def _secondary_efficiency_factor(items, cpa_exp=0.5, cpm_exp=0.25):
+    """Pool-relative CPA/CPM tiebreaker for D.ROAS-driven weighting.
+
+    When several items have similar D.ROAS, this nudges budget toward the
+    more efficient (lower CPA/CPM) ones — e.g. D.ROAS 44%/44.1%/44% with
+    CPA $1.30/$1.90/$1.20 should send relatively less to the middle one
+    despite its slightly higher D.ROAS. Ratios are computed relative to the
+    pool's own average, so it works at any price scale; the exponents are
+    small on purpose so a real D.ROAS gap still dominates — this only
+    meaningfully reorders items that are already close.
+    """
+    cpa_values = [item["cpa_3d"] for item in items if item.get("cpa_3d")]
+    avg_cpa = sum(cpa_values) / len(cpa_values) if cpa_values else None
+    cpm_values = [item["cpm_3d"] for item in items if item.get("cpm_3d")]
+    avg_cpm = sum(cpm_values) / len(cpm_values) if cpm_values else None
+    factors = {}
+    for item in items:
+        factor = 1.0
+        if avg_cpa and item.get("cpa_3d"):
+            factor /= (item["cpa_3d"] / avg_cpa) ** cpa_exp
+        if avg_cpm and item.get("cpm_3d"):
+            factor /= (item["cpm_3d"] / avg_cpm) ** cpm_exp
+        factors[item["adset_id"]] = factor
+    return factors
+
+
 def optimize(adsets, desired_total, detail_budgets=None):
     desired_total = max(0, float(desired_total))
     new = [item for item in adsets if item["bucket"] == "신규"]
@@ -462,6 +488,11 @@ def optimize(adsets, desired_total, detail_budgets=None):
     off_droas = 0.30
     off_existing = [item for item in evaluable if item["droas_7d"] <= off_droas]
     weighted_existing = [item for item in evaluable if item not in off_existing]
+    # D.ROAS is squared so it stays the dominant signal even after the CPA/CPM
+    # tiebreak below — that secondary factor is deliberately gentle (small
+    # exponents), so it only meaningfully reorders items whose D.ROAS is
+    # already close, not ones with a genuinely different D.ROAS.
+    secondary_factor = _secondary_efficiency_factor(weighted_existing)
     for item in existing:
         item["classification"] = ""
         item["reasons"] = []
@@ -474,8 +505,11 @@ def optimize(adsets, desired_total, detail_budgets=None):
             item["classification"] = "OFF 후보"
             item["reasons"].append("PDT D-7 D.ROAS 30% 이하 (고정 OFF 기준)")
         else:
-            item["droas_weight"] = item["droas_7d"]
+            factor = secondary_factor[item["adset_id"]]
+            item["droas_weight"] = (item["droas_7d"] ** 2) * factor
             item["allocation_adjustable"] = True
+            if abs(factor - 1.0) >= 0.01:
+                item["reasons"].append(f"D.ROAS 유사 소재 대비 CPA/CPM 효율 보정 ×{factor:.2f}")
     hold_total = sum(item["suggested_budget"] for item in held)
     existing_allocations = _weighted_allocate(weighted_existing, existing_target - hold_total, "droas_weight")
     for item in weighted_existing:
@@ -616,11 +650,14 @@ def optimize_v2(adsets, desired_total, detail_budgets=None):
     fixed_total = sum(item["suggested_budget"] for item in brand_new + off_items + circuit_breaker)
     pool_target = max(0.0, desired_total - fixed_total)
 
+    # Same gentle CPA/CPM tiebreak as optimize(): only reorders items whose
+    # effective D.ROAS is already close to each other.
+    secondary_factor = _secondary_efficiency_factor(pool_items)
     for item in pool_items:
         conf = item["confidence"]
         base_current = item["current_budget"] if item.get("current_budget") else floor_budget(item)
         cap_pct = 0.30 + conf * (1.00 - 0.30)
-        item["_v2_weight"] = max(0.0, item["effective_droas"]) ** (1 + conf)
+        item["_v2_weight"] = (max(0.0, item["effective_droas"]) ** (1 + conf)) * secondary_factor[item["adset_id"]]
         item["_v2_lower"] = max(floor_budget(item), base_current * (1 - cap_pct))
         item["_v2_upper"] = base_current * (1 + cap_pct)
         item["_v2_cap_pct"] = cap_pct
@@ -640,6 +677,9 @@ def optimize_v2(adsets, desired_total, detail_budgets=None):
             f"신뢰도 {conf * 100:.0f}% · 유효 D.ROAS {item['effective_droas'] * 100:.0f}% · "
             f"가중치 지수 {1 + conf:.2f} · 허용폭 ±{item['_v2_cap_pct'] * 100:.0f}%"
         )
+        factor = secondary_factor[item["adset_id"]]
+        if abs(factor - 1.0) >= 0.01:
+            item["reasons"].append(f"D.ROAS 유사 소재 대비 CPA/CPM 효율 보정 ×{factor:.2f}")
 
     _round_allocations(brand_new + off_items + circuit_breaker)
     _round_allocations(pool_items, pool_target)
