@@ -280,8 +280,8 @@ python webapp/app.py</code></pre>
     <tr><td>5</td><td>일일 예산</td><td>필수</td></tr>
     <tr><td>6</td><td>웹사이트 URL</td><td>필수</td></tr>
     <tr><td>7</td><td>소재</td><td>필수 — 라이브러리 파일명 일부</td></tr>
-    <tr><td>8</td><td>헤드라인</td><td>실제 문구 (자동 생성 미지원)</td></tr>
-    <tr><td>9</td><td>기본 텍스트</td><td>실제 문구 (자동 생성 미지원)</td></tr>
+    <tr><td>8</td><td>헤드라인</td><td>실제 문구를 입력하거나 <strong>"생성"</strong>이라고 입력해 자동 작성 (아래 참고)</td></tr>
+    <tr><td>9</td><td>기본 텍스트</td><td>실제 문구를 입력하거나 <strong>"생성"</strong>이라고 입력해 자동 작성 (아래 참고)</td></tr>
     <tr><td>10</td><td>시작</td><td>비우면 즉시 — <code>2026/09/08 12AM</code> 형식</td></tr>
     <tr><td>11</td><td>종료</td><td>비우면 없음</td></tr>
     <tr><td>12</td><td>생성 후 상태</td><td>더 이상 사용되지 않음 — 값을 적어도 무시됩니다 (아래 참고)</td></tr>
@@ -293,9 +293,9 @@ python webapp/app.py</code></pre>
     <tr><td>18</td><td>복제할 Shopify 페이지 태그</td><td>선택 — 비우면 페이지 복제 없음 (아래 참고)</td></tr>
   </table>
   </div>
-  <div class="callout warn">
-    <span class="label">주의사항</span>
-    헤드라인·기본 텍스트에 <strong>"생성"</strong>이라고 입력하면 오류로 거부됩니다 — 이 로컬 도구는 Claude를 호출하지 않아 자동 카피 작성을 지원하지 않습니다. 실제 문구를 직접 써서 넣으세요.
+  <div class="callout tip">
+    <span class="label">헤드라인·기본 텍스트 자동 작성</span>
+    헤드라인·기본 텍스트에 <strong>"생성"</strong>이라고 입력하면 "소재" 값을 EQQUALBERRY 소재명 규칙으로 해석해 로컬 카피 데이터베이스에서 자동으로 채워줍니다 (Claude나 Meta를 호출하지 않는 완전 오프라인 처리). 다만 <strong>같은 광고 세트에 이미 광고가 있는 "광고만 추가" 행</strong>(2번 열을 비워서 기존 세트에 광고만 추가하는 경우)은 예외입니다 — 이때는 새 카피를 생성하는 대신 그 광고 세트에 이미 있는 광고의 헤드라인·기본 텍스트를 그대로 가져와 씁니다 (한 세트 안의 여러 소재가 같은 카피를 쓰도록). 두 경우 모두 미리보기 화면에서 결과를 확인하고 최종 등록 전에 자유롭게 수정할 수 있습니다.
   </div>
   <div class="callout tip">
     <span class="label">참고</span>

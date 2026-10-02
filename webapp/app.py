@@ -158,6 +158,41 @@ def _resolve_generated_copy(headline, primary_text, creative_name, used_headline
     return headline, primary_text, None
 
 
+def _resolve_copy(token, *, campaign_id, account_override, source_adset_name, new_adset_name,
+                   headline, primary_text, creative_name,
+                   used_headlines=None, used_primary_texts=None, cache=None):
+    """Resolves '생성' placeholders, preferring an ad set's own existing copy
+    over freshly generated text: for an "ads-only" row (source_adset_name
+    blank, i.e. just adding another ad into new_adset_name) whose target ad
+    set already has an ad, reuse that ad's exact headline/primary text — this
+    is what makes several creatives dropped into the same ad set look like a
+    matched set instead of each getting independently generated copy. Only
+    fields still holding a '생성' placeholder are touched; anything the row
+    already specifies literally is left alone. Falls through to the offline
+    copy_generator template path (_resolve_generated_copy) for whichever
+    field, if any, no reusable existing copy covered. Returns (headline,
+    primary_text, error, reused_existing)."""
+    reused = False
+    if token and is_blank(source_adset_name) and (
+        is_generate_placeholder(headline) or is_generate_placeholder(primary_text)
+    ):
+        existing = meta_lib.find_existing_ad_copy(
+            token, campaign_id, CANDIDATE_ACCOUNT_IDS, new_adset_name,
+            account_override=account_override or None, cache=cache,
+        )
+        if existing:
+            if is_generate_placeholder(headline) and existing["headline"]:
+                headline = existing["headline"]
+                reused = True
+            if is_generate_placeholder(primary_text) and existing["primary_text"]:
+                primary_text = existing["primary_text"]
+                reused = True
+    headline, primary_text, gen_err = _resolve_generated_copy(
+        headline, primary_text, creative_name, used_headlines, used_primary_texts
+    )
+    return headline, primary_text, gen_err, reused
+
+
 def extract_shopify_page_identifier(url):
     """Pulls the campaign/ad identifier out of a Shopify page URL, e.g.
     'https://x.com/pages/261006_..._2?utm_source_IG' -> '261006_..._2'. Used
@@ -640,9 +675,13 @@ def copy_database_refresh():
 @app.route("/submit", methods=["POST"])
 def submit():
     form = request.form
+    token = os.environ.get("META_ACCESS_TOKEN")
     headline, primary_text = form.get("headline", ""), form.get("primary_text", "")
-    headline, primary_text, generation_error = _resolve_generated_copy(
-        headline, primary_text, form.get("creative_name", "")
+    headline, primary_text, generation_error, _reused = _resolve_copy(
+        token,
+        campaign_id=form.get("campaign_id", ""), account_override=form.get("account_override", "").strip(),
+        source_adset_name=form.get("source_adset_name", ""), new_adset_name=form.get("new_adset_name", ""),
+        headline=headline, primary_text=primary_text, creative_name=form.get("creative_name", ""),
     )
     entry = new_entry(
         type="setting",
@@ -655,7 +694,6 @@ def submit():
     )
     upsert(entry)
 
-    token = os.environ.get("META_ACCESS_TOKEN")
     if not token:
         entry["status"] = "error"
         entry["error"] = "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다. 터미널에서 export/set 하고 서버를 다시 시작하세요."
@@ -758,18 +796,23 @@ def submit_bulk():
                 row["headline"] = edited_headline
                 row["primary_text"] = edited_primary
 
-            headline, primary_text, gen_err = _resolve_generated_copy(
-                row["headline"], row["primary_text"], row["creative_name"], used_headlines, used_primary_texts
+            headline, primary_text, gen_err, reused = _resolve_copy(
+                token,
+                campaign_id=row["campaign_id"], account_override="",
+                source_adset_name=row["source_adset_name"], new_adset_name=row["new_adset_name"],
+                headline=row["headline"], primary_text=row["primary_text"], creative_name=row["creative_name"],
+                used_headlines=used_headlines, used_primary_texts=used_primary_texts, cache=meta_cache,
             )
             if gen_err:
                 fail += 1
                 details.append(f"{lineno}행 ({row['new_ad_name']}): '생성' 자동 카피 실패 — {gen_err}")
                 continue
-            generated = headline != row["headline"] or primary_text != row["primary_text"]
+            changed = headline != row["headline"] or primary_text != row["primary_text"]
             row["headline"], row["primary_text"] = headline, primary_text
-            if generated:
+            if changed:
+                note = "헤드라인/기본 텍스트를 같은 광고 세트의 기존 광고 카피로 채움" if reused else "헤드라인/기본 텍스트 자동 생성됨"
                 row["warning"] = " / ".join(w for w in (
-                    row["warning"], "헤드라인/기본 텍스트 자동 생성됨 (검수 후 게재를 권장합니다)",
+                    row["warning"], f"{note} (검수 후 게재를 권장합니다)",
                 ) if w)
 
             entry = new_entry(
@@ -845,11 +888,16 @@ def submit_bulk():
 
 @app.route("/preview_bulk", methods=["POST"])
 def preview_bulk():
-    """Parses the pasted bulk text the same way /submit_bulk does, but only
-    parses — never calls Meta/Shopify — so the page can show what each row
-    will do before the user commits to running it."""
+    """Parses the pasted bulk text the same way /submit_bulk does — nothing
+    is created until the user clicks 제출. The one read-only exception: an
+    'ads-only' row whose '생성' placeholder could be filled from an ad
+    already sitting in its target ad set makes a read-only Meta lookup here
+    too (via _resolve_copy), so the user sees — and can still edit — the
+    exact copy that would otherwise only appear after submission."""
     text = request.form.get("bulk_text", "")
     rows = list(enumerate(split_bulk_rows(text), start=1))
+    token = os.environ.get("META_ACCESS_TOKEN")
+    meta_cache = {}
 
     preview = []
     used_headlines = set()
@@ -861,17 +909,22 @@ def preview_bulk():
             preview.append({"lineno": lineno, "ok": False, "error": str(e)})
             continue
 
-        headline, primary_text, gen_err = _resolve_generated_copy(
-            row["headline"], row["primary_text"], row["creative_name"], used_headlines, used_primary_texts
+        headline, primary_text, gen_err, reused = _resolve_copy(
+            token,
+            campaign_id=row["campaign_id"], account_override="",
+            source_adset_name=row["source_adset_name"], new_adset_name=row["new_adset_name"],
+            headline=row["headline"], primary_text=row["primary_text"], creative_name=row["creative_name"],
+            used_headlines=used_headlines, used_primary_texts=used_primary_texts, cache=meta_cache,
         )
         if gen_err:
             preview.append({"lineno": lineno, "ok": False, "error": f"'생성' 자동 카피 실패 — {gen_err}"})
             continue
-        generated = headline != row["headline"] or primary_text != row["primary_text"]
+        changed = headline != row["headline"] or primary_text != row["primary_text"]
         row["headline"], row["primary_text"] = headline, primary_text
-        if generated:
+        if changed:
+            note = "헤드라인/기본 텍스트를 같은 광고 세트의 기존 광고 카피로 채움" if reused else "헤드라인/기본 텍스트 자동 생성됨"
             row["warning"] = " / ".join(w for w in (
-                row["warning"], "헤드라인/기본 텍스트 자동 생성됨 (검수 후 게재를 권장합니다)",
+                row["warning"], f"{note} (검수 후 게재를 권장합니다)",
             ) if w)
 
         preview.append({

@@ -410,6 +410,33 @@ def find_template_ad(token, adset_id, cache=None):
     return _cached(cache, f"template_ad:{adset_id}", fetch)
 
 
+def find_existing_ad_copy(token, campaign_id_or_name, candidate_account_ids, adset_name,
+                           account_override=None, cache=None):
+    """Looks for an ad that's already inside the named ad set and, if found,
+    returns its exact headline/primary text — lets the "ads-only" bulk-upload
+    path (adding another ad into an ad set that already has one) default to
+    reusing that ad's own copy instead of auto-generating new text. Returns
+    None (never raises) when the campaign/ad set/ad can't be found or the
+    ad's creative has no text to reuse — callers then fall back to their own
+    copy source."""
+    try:
+        account_id, campaign_id = resolve_campaign_and_account(
+            token, campaign_id_or_name, candidate_account_ids,
+            account_override=account_override, cache=cache)
+        adset = find_adset_by_name(token, campaign_id, adset_name, cache=cache)
+        template_ad = find_template_ad(token, adset["id"], cache=cache)
+    except MetaApiError:
+        return None
+
+    story_spec = template_ad.get("creative", {}).get("object_story_spec", {})
+    data = story_spec.get("link_data") or story_spec.get("video_data") or {}
+    headline = data.get("name") or data.get("title") or ""
+    primary_text = data.get("message") or ""
+    if not headline or not primary_text:
+        return None
+    return {"headline": headline, "primary_text": primary_text}
+
+
 def find_creative_asset(token, account_id, name_query, cache=None):
     def fetch_library():
         library = []
