@@ -19,6 +19,14 @@ class ShopifyApiError(RuntimeError):
     pass
 
 
+class ShopifyNotFoundError(ShopifyApiError):
+    """Raised specifically when a lookup (product handle, page tag) finds no
+    match — as opposed to any other ShopifyApiError (auth, network, GraphQL
+    errors), which callers should treat as a hard failure rather than a
+    reason to try a different resource type."""
+    pass
+
+
 def _gql(shop, token, query, variables=None):
     url = f"https://{shop}/admin/api/{API_VERSION}/graphql.json"
     r = requests.post(
@@ -55,7 +63,7 @@ def get_product_by_handle(shop, token, handle):
     data = _gql(shop, token, query, {"handle": handle})
     product = data.get("productByHandle")
     if not product:
-        raise ShopifyApiError(f"핸들 '{handle}'에 해당하는 상품을 찾지 못했습니다.")
+        raise ShopifyNotFoundError(f"핸들 '{handle}'에 해당하는 상품을 찾지 못했습니다.")
     return product
 
 
@@ -714,7 +722,7 @@ def get_page_by_tag(shop, token, tag_value):
     data = _gql(shop, token, query, {"search": search})
     edges = data["pages"]["edges"]
     if not edges:
-        raise ShopifyApiError(f"태그 '{tag_value}'에 해당하는 Shopify 페이지를 찾지 못했습니다.")
+        raise ShopifyNotFoundError(f"태그 '{tag_value}'에 해당하는 Shopify 페이지를 찾지 못했습니다.")
     return edges[0]["node"]
 
 

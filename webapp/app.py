@@ -87,7 +87,8 @@ BULK_COLUMNS = [
     "시작 (비워두면 즉시; 형식 YYYY/MM/DD H(:MM)AM/PM, 예: 2026/09/08 12AM — 해당 광고 계정의 Meta 시간대 기준)",
     "종료 (비워두면 종료일 없음; 형식은 시작과 동일, 예: 2026/09/08 11:59PM)",
     "생성 후 상태 (더 이상 사용되지 않음 — 값을 적어도 무시됩니다: 광고는 항상 즉시 활성화, 새로 만들어지는 광고 세트는 항상 일시중지 상태로 생성됩니다)",
-    "복제할 Shopify 상품 핸들 (선택 — 비워두면 브릿지 페이지 없음; 제목이 아니라 핸들)",
+    "복제할 Shopify 상품 핸들 (선택 — 비워두면 복제 없음; 이 핸들에 해당하는 상품이 없으면 같은 값을 "
+    "Shopify 페이지의 '태그'로 자동 재시도합니다)",
     "Shopify 제목 재지정 (선택)",
     "Shopify 태그 재지정 (선택, 쉼표로 구분)",
     "Shopify 테마 템플릿 재지정 (선택)",
@@ -489,12 +490,19 @@ def run_duplicate(token, entry, *, campaign_id, source_adset_name, new_adset_nam
         return False, entry["error"]
 
 
-def run_shopify_bridge(entry, *, new_ad_name, source_handle, title_override=None,
+def run_shopify_bridge(entry, *, new_ad_name, website_url, source_handle, title_override=None,
                         tags_override=None, template_override=None, amazon_link_override=None):
     """Only called after a successful Meta duplicate_ad. Downgrades a 'done'
     entry to 'incomplete' (never touches the already-created Meta ad) if the
     Shopify side fails, matching the original artifact's rule that Meta
-    success + Shopify failure is never reported as fully 'done'."""
+    success + Shopify failure is never reported as fully 'done'.
+
+    source_handle is tried as a Shopify PRODUCT handle first (unchanged
+    behavior when it matches one). If no product exists with that exact
+    handle, the same value is retried as a Shopify PAGE's 태그 metafield
+    instead — this lets a single input column duplicate whichever Shopify
+    resource the value actually matches, without also requiring the
+    separate page-tag column to be filled in."""
     shop = os.environ.get("SHOPIFY_SHOP")
     shopify_token = os.environ.get("SHOPIFY_ACCESS_TOKEN")
     if not shop or not shopify_token:
@@ -513,6 +521,36 @@ def run_shopify_bridge(entry, *, new_ad_name, source_handle, title_override=None
             storefront_domain=os.environ.get("SHOPIFY_STOREFRONT_DOMAIN"),
         )
         entry["resultShopifyUrl"] = bridge["url"]
+        return
+    except shopify_lib.ShopifyNotFoundError:
+        pass  # not a product handle -- fall through and try it as a page tag
+    except shopify_lib.ShopifyApiError as e:
+        entry["status"] = "incomplete"
+        entry["shopifyError"] = str(e)
+        return
+    except Exception as e:  # noqa: BLE001
+        entry["status"] = "incomplete"
+        entry["shopifyError"] = f"예상치 못한 오류: {e}"
+        return
+
+    new_identifier = extract_shopify_page_identifier(website_url)
+    if not new_identifier:
+        entry["status"] = "incomplete"
+        entry["shopifyError"] = (
+            f"핸들 '{source_handle}'에 해당하는 상품이 없고, 웹사이트 URL도 /pages/ 형식이 아니라 "
+            f"페이지로도 시도하지 못했습니다."
+        )
+        return
+    try:
+        bridge = shopify_lib.create_page_bridge(
+            shop, shopify_token,
+            source_tag=source_handle,
+            new_handle=new_identifier,
+            new_tag=new_identifier,
+            amazon_url_override=amazon_link_override or None,
+            storefront_domain=os.environ.get("SHOPIFY_STOREFRONT_DOMAIN"),
+        )
+        entry["resultShopifyPageUrl"] = bridge["url"]
     except shopify_lib.ShopifyApiError as e:
         entry["status"] = "incomplete"
         entry["shopifyError"] = str(e)
@@ -718,7 +756,8 @@ def submit():
         shopify_amazon_override = form.get("shopify_amazon_override", "").strip()
         if ok and shopify_source_handle:
             run_shopify_bridge(
-                entry, new_ad_name=form["new_ad_name"], source_handle=shopify_source_handle,
+                entry, new_ad_name=form["new_ad_name"], website_url=form["website_url"],
+                source_handle=shopify_source_handle,
                 title_override=form.get("shopify_title_override", "").strip(),
                 tags_override=form.get("shopify_tags_override", "").strip(),
                 template_override=form.get("shopify_template_override", "").strip(),
@@ -856,7 +895,8 @@ def submit_bulk():
             )
             if ok and row["shopify_source_handle"]:
                 run_shopify_bridge(
-                    entry, new_ad_name=row["new_ad_name"], source_handle=row["shopify_source_handle"],
+                    entry, new_ad_name=row["new_ad_name"], website_url=row["website_url"],
+                    source_handle=row["shopify_source_handle"],
                     title_override=row["shopify_title"], tags_override=row["shopify_tags"],
                     template_override=row["shopify_template"], amazon_link_override=row["shopify_amazon"],
                 )
@@ -990,7 +1030,8 @@ def retry(req_id):
     )
     if ok and inp.get("shopify_source_handle"):
         run_shopify_bridge(
-            entry, new_ad_name=inp["new_ad_name"], source_handle=inp["shopify_source_handle"],
+            entry, new_ad_name=inp["new_ad_name"], website_url=inp["website_url"],
+            source_handle=inp["shopify_source_handle"],
             title_override=inp.get("shopify_title"), tags_override=inp.get("shopify_tags"),
             template_override=inp.get("shopify_template"), amazon_link_override=inp.get("shopify_amazon"),
         )

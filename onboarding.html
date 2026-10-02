@@ -285,7 +285,7 @@ python webapp/app.py</code></pre>
     <tr><td>10</td><td>시작</td><td>비우면 즉시 — <code>2026/09/08 12AM</code> 형식</td></tr>
     <tr><td>11</td><td>종료</td><td>비우면 없음</td></tr>
     <tr><td>12</td><td>생성 후 상태</td><td>더 이상 사용되지 않음 — 값을 적어도 무시됩니다 (아래 참고)</td></tr>
-    <tr><td>13</td><td>Shopify 상품 핸들</td><td>선택 — 비우면 상품 복제 없음</td></tr>
+    <tr><td>13</td><td>Shopify 상품 핸들</td><td>선택 — 비우면 복제 없음. 이 핸들에 해당하는 상품이 없으면 같은 값을 Shopify 페이지의 "태그"로 자동 재시도합니다 (아래 참고)</td></tr>
     <tr><td>14</td><td>Shopify 제목 재지정</td><td>선택</td></tr>
     <tr><td>15</td><td>Shopify 태그 재지정</td><td>선택, 쉼표 구분 (상품의 태그 목록)</td></tr>
     <tr><td>16</td><td>Shopify 템플릿 재지정</td><td>선택</td></tr>
@@ -312,6 +312,7 @@ python webapp/app.py</code></pre>
     <li><strong>상품 복제</strong> (13~16번 열, 수동 입력의 "복제할 상품의 핸들") — 상품을 통째로 복제해 <code>/products/...</code> 비공개(UNLISTED) 브릿지 페이지를 만듭니다.</li>
     <li><strong>페이지 복제</strong> (18번 열, 수동 입력의 "복제할 페이지 태그") — Shopify의 <code>/pages/...</code> 페이지를 복제합니다. 입력값은 복제할 원본 페이지의 <strong>"태그" 메타필드 값</strong>입니다 (페이지 URL 핸들이 아님). 이 값으로 원본 페이지를 찾은 뒤, 새 페이지의 <strong>URL 핸들</strong>과 <strong>"태그" 메타필드</strong>는 같은 행의 "웹사이트 URL"에서 <code>/pages/</code> 뒤 식별자를 그대로 가져와 자동으로 맞춥니다 — 따로 입력할 필요 없습니다. "Shopify 아마존 링크 재지정" 값은 새 페이지의 <strong>"아마존 상품 URL" 메타필드</strong>에 들어갑니다.</li>
   </ul>
+  <p><strong>13번 열 하나로 둘 다 가능</strong> — 13번(복제할 Shopify 상품 핸들)에 넣은 값이 실제 상품 핸들과 일치하면 상품 복제가 그대로 실행되고, 일치하는 상품이 없으면 같은 값을 자동으로 Shopify 페이지의 "태그"로 다시 찾아 페이지 복제를 실행합니다 — 18번 열을 따로 채우지 않아도 됩니다. 즉 13번 열에는 상품 핸들이든 페이지 태그든 그냥 넣으면 되고, 시스템이 어느 쪽인지 알아서 판단합니다.</p>
   <div class="callout warn">
     <span class="label">주의사항</span>
     페이지 복제가 작동하려면 <code>SHOPIFY_ACCESS_TOKEN</code>이 발급된 Shopify 커스텀 앱에 <code>read_content</code>·<code>write_content</code>·<code>read_online_store_pages</code>·<code>write_online_store_pages</code> 권한(scope)이 있어야 합니다. 상품 복제용 권한만 부여된 토큰이라면 Shopify 관리자에서 앱 권한을 추가하고 토큰을 다시 발급받아야 합니다.
