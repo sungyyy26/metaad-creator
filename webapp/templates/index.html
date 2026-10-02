@@ -688,10 +688,16 @@
         </fieldset>
         <fieldset>
           <legend>Shopify 브릿지 페이지 (선택)</legend>
-          <p class="hint field-hint tight">복제할 상품의 핸들을 비워두면 브릿지 페이지를 만들지 않습니다. 새 페이지의 URL 핸들은 위의 "새 광고 이름"과 자동으로 동일하게 설정됩니다.</p>
+          <p class="hint field-hint tight">상품을 복제하려면 아래 "복제할 상품의 핸들"을, 페이지를 복제하려면 "복제할 페이지 태그"를 입력하세요 (필요하면 둘 다 입력 가능). 둘 다 비워두면 Shopify 작업을 하지 않습니다.</p>
           <div class="field">
             <label>복제할 상품의 핸들</label>
             <input type="text" name="shopify_source_handle" placeholder="예: vitamin-illuminating-serum — 상품 URL의 /products/ 뒤 부분 (제목 아님)">
+            <span class="field-hint">새 페이지의 URL 핸들은 위의 "새 광고 이름"과 자동으로 동일하게 설정됩니다.</span>
+          </div>
+          <div class="field">
+            <label>복제할 페이지 태그</label>
+            <input type="text" name="shopify_page_tag" placeholder="예: 261006_n-srm_pm_da_vd_sglsh-benefit-save-srm_ksh_20260929-1">
+            <span class="field-hint">복제할 Shopify 페이지의 "태그" 메타필드 값을 입력하세요. 새 페이지의 URL 핸들과 태그는 위 "웹사이트 URL"의 /pages/ 뒤 식별자로 자동 설정됩니다.</span>
           </div>
           <div class="field-row">
             <div class="field">
@@ -729,7 +735,7 @@
       <form method="post" action="/submit_bulk" id="bulk-form">
         <input type="hidden" name="copy_overrides" id="bulk-copy-overrides" value="{}">
         <div class="field">
-          <textarea class="bulk-textarea" name="bulk_text" id="bulk_text" placeholder="[캠페인]	[복제할 광고 세트 — 광고만 추가하려면 비움]	[새 광고 세트 이름]	[새 광고 이름]	[예산]	[URL]	[소재]	[헤드라인]	[기본 텍스트]	[시작 — 비우면 즉시]	[종료 — 비우면 없음]	[생성 후 상태 — 더 이상 사용 안 함, 비워두세요]	[Shopify 핸들 — 선택]	[제목 재지정]	[태그 재지정]	[템플릿 재지정]	[아마존 링크 재지정]"></textarea>
+          <textarea class="bulk-textarea" name="bulk_text" id="bulk_text" placeholder="[캠페인]	[복제할 광고 세트 — 광고만 추가하려면 비움]	[새 광고 세트 이름]	[새 광고 이름]	[예산]	[URL]	[소재]	[헤드라인]	[기본 텍스트]	[시작 — 비우면 즉시]	[종료 — 비우면 없음]	[생성 후 상태 — 더 이상 사용 안 함, 비워두세요]	[Shopify 핸들 — 선택]	[제목 재지정]	[태그 재지정]	[템플릿 재지정]	[아마존 링크 재지정]	[복제할 페이지 태그 — 선택]"></textarea>
         </div>
         <div class="bulk-actions">
           <button type="button" class="secondary" id="bulk-preview-btn">행 미리보기</button>
@@ -1032,16 +1038,20 @@
         </div>
         {% if it.campaign %}<div class="record-campaign"><span class="record-label">C:</span>{{ it.campaign }}</div>{% endif %}
         <div class="record-main"><span class="record-label">AS:</span><span class="adset">{{ it.adSetName }}</span><span class="arrow">→</span><span class="record-label">AD:</span><span class="adname">{{ it.adName }}</span></div>
-        {% if it.result or it.resultShopifyUrl or it.status in ('incomplete', 'error') %}
+        {% if it.result or it.resultShopifyUrl or it.resultShopifyPageUrl or it.status in ('incomplete', 'error') %}
         <div class="record-result">
           {% if it.result %}
             <a href="{{ it.result.ads_manager_url }}" target="_blank" rel="noopener">Ads Manager →</a>
           {% endif %}
           {% if it.resultShopifyUrl %}
-            <a href="{{ it.resultShopifyUrl }}" target="_blank" rel="noopener">Shopify 페이지 →</a>
+            <a href="{{ it.resultShopifyUrl }}" target="_blank" rel="noopener">Shopify 상품 →</a>
           {% endif %}
-          {% if it.status == 'incomplete' and it.shopifyError %}
-            <div class="record-note warn">Shopify: {{ it.shopifyError }}</div>
+          {% if it.resultShopifyPageUrl %}
+            <a href="{{ it.resultShopifyPageUrl }}" target="_blank" rel="noopener">Shopify 페이지 →</a>
+          {% endif %}
+          {% if it.status == 'incomplete' and (it.shopifyError or it.shopifyPageError) %}
+            {% if it.shopifyError %}<div class="record-note warn">Shopify 상품: {{ it.shopifyError }}</div>{% endif %}
+            {% if it.shopifyPageError %}<div class="record-note warn">Shopify 페이지: {{ it.shopifyPageError }}</div>{% endif %}
           {% elif it.status == 'error' %}
             <div class="record-note err">
               <span class="record-note-text">{{ it.error }}</span>
@@ -1865,7 +1875,8 @@
           '</div>';
       }
       var warn = row.warning ? '<div class="record-note warn">' + escapeHtml(row.warning) + '</div>' : '';
-      var shopify = row.shopify_handle !== '-' ? ' · Shopify: ' + escapeHtml(row.shopify_handle) : '';
+      var shopify = row.shopify_handle !== '-' ? ' · Shopify 상품: ' + escapeHtml(row.shopify_handle) : '';
+      var shopifyPage = row.shopify_page_tag ? ' · Shopify 페이지: ' + escapeHtml(row.shopify_page_tag) : '';
       return '<div class="record-row preview-row">' +
         '<div class="record-top">' +
           '<span class="pill done">' + row.lineno + '행</span>' +
@@ -1874,7 +1885,7 @@
         '<div class="record-campaign"><span class="record-label">C:</span>' + escapeHtml(row.campaign) + '</div>' +
         '<div class="record-main"><span class="record-label">AS:</span><span class="adset">' + escapeHtml(row.source_adset) + '</span><span class="arrow">→</span>' +
           escapeHtml(row.new_adset) + ' · <span class="record-label">AD:</span><span class="adname">' + escapeHtml(row.new_ad_name) + '</span></div>' +
-        '<div class="record-result">' + escapeHtml(row.website_url) + shopify + '</div>' +
+        '<div class="record-result">' + escapeHtml(row.website_url) + shopify + shopifyPage + '</div>' +
         '<div class="bulk-copy-editor"><label>헤드라인</label>' +
           '<input type="text" class="bulk-copy-input" data-line="' + row.lineno + '" data-copy-field="headline" value="' + escapeHtml(row.headline) + '"></div>' +
         '<div class="bulk-copy-editor"><label>Primary Text</label>' +

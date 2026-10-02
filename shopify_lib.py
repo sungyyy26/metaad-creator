@@ -685,6 +685,98 @@ def apply_modifications(shop, token, product, mods):
     return plan
 
 
+def get_page_by_tag(shop, token, tag_value):
+    """Finds the Page (shop.pages, i.e. /pages/<handle> — not a product) whose
+    custom.tag metafield equals tag_value exactly. Confirmed live against this
+    store's metafield definitions: Pages have their own custom.tag
+    (single_line_text_field) and custom.amazon_url (url) metafields, distinct
+    from the Product metafields used by create_bridge_page below."""
+    query = """
+    query($search: String!) {
+      pages(first: 5, query: $search) {
+        edges {
+          node {
+            id
+            handle
+            title
+            body
+            templateSuffix
+            isPublished
+            metafields(first: 20) {
+              edges { node { namespace key type value } }
+            }
+          }
+        }
+      }
+    }
+    """
+    search = f"metafield:custom.tag:{tag_value}"
+    data = _gql(shop, token, query, {"search": search})
+    edges = data["pages"]["edges"]
+    if not edges:
+        raise ShopifyApiError(f"태그 '{tag_value}'에 해당하는 Shopify 페이지를 찾지 못했습니다.")
+    return edges[0]["node"]
+
+
+def create_page_bridge(shop, token, *, source_tag, new_handle, new_tag,
+                        amazon_url_override=None, storefront_domain=None):
+    """Duplicates a Shopify Page found by its custom.tag metafield. Shopify's
+    Admin API has no pageDuplicate mutation (unlike productDuplicate), so this
+    copies the source page's content into a new one via pageCreate, then sets
+    the new page's handle + custom.tag metafield to new_tag (always kept in
+    sync with each other, matching how the ad's own website URL embeds this
+    same identifier) and its custom.amazon_url metafield to the attribution
+    link. Every other metafield on the source (pixel content name, landing
+    images, SEO-hide, etc.) is carried over unchanged."""
+    source = get_page_by_tag(shop, token, source_tag)
+
+    metafields = []
+    for edge in source["metafields"]["edges"]:
+        mf = edge["node"]
+        if mf["namespace"] == "custom" and mf["key"] == "tag":
+            value = new_tag
+        elif mf["namespace"] == "custom" and mf["key"] == "amazon_url" and amazon_url_override:
+            value = amazon_url_override
+        else:
+            value = mf["value"]
+        metafields.append({"namespace": mf["namespace"], "key": mf["key"], "value": value, "type": mf["type"]})
+
+    present = {(m["namespace"], m["key"]) for m in metafields}
+    if ("custom", "tag") not in present:
+        metafields.append({"namespace": "custom", "key": "tag", "value": new_tag, "type": "single_line_text_field"})
+    if amazon_url_override and ("custom", "amazon_url") not in present:
+        metafields.append({"namespace": "custom", "key": "amazon_url", "value": amazon_url_override, "type": "url"})
+
+    query = """
+    mutation($page: PageCreateInput!) {
+      pageCreate(page: $page) {
+        page { id handle title }
+        userErrors { field message }
+      }
+    }
+    """
+    variables = {"page": {
+        "title": source["title"],
+        "handle": new_handle,
+        "body": source["body"],
+        "isPublished": source["isPublished"],
+        "templateSuffix": source["templateSuffix"],
+        "metafields": metafields,
+    }}
+    data = _gql(shop, token, query, variables)
+    result = data["pageCreate"]
+    if result["userErrors"]:
+        raise ShopifyApiError("; ".join(e["message"] for e in result["userErrors"]))
+    new_page = result["page"]
+
+    domain = storefront_domain or shop
+    return {
+        "page_id": new_page["id"],
+        "handle": new_page["handle"],
+        "url": f"https://{domain}/pages/{new_page['handle']}",
+    }
+
+
 def create_bridge_page(shop, token, *, source_handle, new_handle, title_override=None,
                         tags_override=None, template_override=None,
                         amazon_link_override=None, storefront_domain=None):

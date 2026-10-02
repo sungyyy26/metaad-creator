@@ -92,6 +92,7 @@ BULK_COLUMNS = [
     "Shopify 태그 재지정 (선택, 쉼표로 구분)",
     "Shopify 테마 템플릿 재지정 (선택)",
     "Shopify 아마존 어트리뷰션 링크 재지정 (선택)",
+    "복제할 Shopify 페이지 태그 (선택 — 입력하면 웹사이트 URL의 /pages/ 뒤 식별자로 그 페이지를 복제; 비워두면 페이지 복제 없음)",
 ]
 # 0-indexed column -> human label, for the required-field check. Column 1
 # (복제할 광고) is deliberately NOT required — leaving it blank is the
@@ -155,6 +156,16 @@ def _resolve_generated_copy(headline, primary_text, creative_name, used_headline
     if is_generate_placeholder(primary_text):
         primary_text = _select_copy_variant(generated["primary_texts"], creative_name, "primary", used_primary_texts)
     return headline, primary_text, None
+
+
+def extract_shopify_page_identifier(url):
+    """Pulls the campaign/ad identifier out of a Shopify page URL, e.g.
+    'https://x.com/pages/261006_..._2?utm_source_IG' -> '261006_..._2'. Used
+    as both the new Shopify page's URL handle and its 태그 metafield, since a
+    page bridge always keeps those two in sync with the ad's own website URL
+    rather than asking for them as separate inputs."""
+    match = re.search(r"/pages/([^/?#]+)", url or "")
+    return match.group(1) if match else None
 
 
 def parse_schedule_datetime(value):
@@ -342,6 +353,7 @@ def parse_bulk_row(cols):
         shopify_tags="" if is_blank(get(14)) else get(14),
         shopify_template="" if is_blank(get(15)) else get(15),
         shopify_amazon="" if is_blank(get(16)) else get(16),
+        shopify_page_tag="" if is_blank(get(17)) else get(17),
         warning=warning,
     )
 
@@ -474,6 +486,43 @@ def run_shopify_bridge(entry, *, new_ad_name, source_handle, title_override=None
         entry["shopifyError"] = f"예상치 못한 오류: {e}"
 
 
+def run_shopify_page_bridge(entry, *, website_url, source_tag, amazon_link_override=None):
+    """Same role as run_shopify_bridge, but duplicates a Shopify Page (not a
+    product) — only called after a successful Meta duplicate_ad, and
+    downgrades a 'done' entry to 'incomplete' on failure. The new page's
+    handle and 태그 metafield both come from the identifier embedded in
+    website_url's /pages/ segment, so no separate 'new page name' input is
+    needed; a row/form can set shopify_source_handle (product) and
+    shopify_page_tag (page) independently, or both, or neither."""
+    new_identifier = extract_shopify_page_identifier(website_url)
+    if not new_identifier:
+        entry["status"] = "incomplete"
+        entry["shopifyPageError"] = f"웹사이트 URL에서 페이지 식별자를 찾지 못했습니다 (/pages/ 형식이 아님): {website_url}"
+        return
+    shop = os.environ.get("SHOPIFY_SHOP")
+    shopify_token = os.environ.get("SHOPIFY_ACCESS_TOKEN")
+    if not shop or not shopify_token:
+        entry["status"] = "incomplete"
+        entry["shopifyPageError"] = "SHOPIFY_SHOP / SHOPIFY_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."
+        return
+    try:
+        bridge = shopify_lib.create_page_bridge(
+            shop, shopify_token,
+            source_tag=source_tag,
+            new_handle=new_identifier,
+            new_tag=new_identifier,
+            amazon_url_override=amazon_link_override or None,
+            storefront_domain=os.environ.get("SHOPIFY_STOREFRONT_DOMAIN"),
+        )
+        entry["resultShopifyPageUrl"] = bridge["url"]
+    except shopify_lib.ShopifyApiError as e:
+        entry["status"] = "incomplete"
+        entry["shopifyPageError"] = str(e)
+    except Exception as e:  # noqa: BLE001
+        entry["status"] = "incomplete"
+        entry["shopifyPageError"] = f"예상치 못한 오류: {e}"
+
+
 @app.route("/")
 def index():
     all_items = list(reversed(load_requests()))
@@ -511,6 +560,7 @@ def _manual_input_snapshot(form, headline, primary_text):
         "shopify_tags": form.get("shopify_tags_override", "").strip(),
         "shopify_template": form.get("shopify_template_override", "").strip(),
         "shopify_amazon": form.get("shopify_amazon_override", "").strip(),
+        "shopify_page_tag": form.get("shopify_page_tag", "").strip(),
     }
 
 
@@ -627,20 +677,28 @@ def submit():
             after_status="ACTIVE",  # ad is always created active; new ad sets are always created paused
         )
         shopify_source_handle = form.get("shopify_source_handle", "").strip()
+        shopify_amazon_override = form.get("shopify_amazon_override", "").strip()
         if ok and shopify_source_handle:
             run_shopify_bridge(
                 entry, new_ad_name=form["new_ad_name"], source_handle=shopify_source_handle,
                 title_override=form.get("shopify_title_override", "").strip(),
                 tags_override=form.get("shopify_tags_override", "").strip(),
                 template_override=form.get("shopify_template_override", "").strip(),
-                amazon_link_override=form.get("shopify_amazon_override", "").strip(),
+                amazon_link_override=shopify_amazon_override,
+            )
+        shopify_page_tag = form.get("shopify_page_tag", "").strip()
+        if ok and shopify_page_tag:
+            run_shopify_page_bridge(
+                entry, website_url=form["website_url"], source_tag=shopify_page_tag,
+                amazon_link_override=shopify_amazon_override,
             )
         upsert(entry)
 
         if not ok:
             message = {"kind": "err", "text": err}
         elif entry["status"] == "incomplete":
-            message = {"kind": "err", "text": f"Meta 광고는 생성됐지만 Shopify 브릿지 페이지 실패: {entry['shopifyError']}"}
+            shopify_err = entry.get("shopifyError") or entry.get("shopifyPageError")
+            message = {"kind": "err", "text": f"Meta 광고는 생성됐지만 Shopify 브릿지 페이지 실패: {shopify_err}"}
         else:
             message = {"kind": "ok", "text": f"생성 완료: 광고 세트 {entry['result']['ad_set_id']} / 광고 {entry['result']['ad_id']}"}
 
@@ -738,6 +796,7 @@ def submit_bulk():
                     "shopify_tags": row["shopify_tags"],
                     "shopify_template": row["shopify_template"],
                     "shopify_amazon": row["shopify_amazon"],
+                    "shopify_page_tag": row["shopify_page_tag"],
                 },
             )
             upsert(entry)
@@ -758,6 +817,11 @@ def submit_bulk():
                     title_override=row["shopify_title"], tags_override=row["shopify_tags"],
                     template_override=row["shopify_template"], amazon_link_override=row["shopify_amazon"],
                 )
+            if ok and row["shopify_page_tag"]:
+                run_shopify_page_bridge(
+                    entry, website_url=row["website_url"], source_tag=row["shopify_page_tag"],
+                    amazon_link_override=row["shopify_amazon"],
+                )
             upsert(entry)
 
             if row["warning"]:
@@ -767,7 +831,8 @@ def submit_bulk():
                 details.append(f"{lineno}행 ({row['new_ad_name']}): {err}")
             elif entry["status"] == "incomplete":
                 incomplete += 1
-                details.append(f"{lineno}행 ({row['new_ad_name']}): Meta 광고는 생성됨, Shopify 실패 — {entry['shopifyError']}")
+                shopify_err = entry.get("shopifyError") or entry.get("shopifyPageError")
+                details.append(f"{lineno}행 ({row['new_ad_name']}): Meta 광고는 생성됨, Shopify 실패 — {shopify_err}")
             else:
                 success += 1
 
@@ -826,6 +891,7 @@ def preview_bulk():
             "status": "즉시 활성화 (광고 세트는 항상 일시중지로 생성)",
             "shopify_handle": row["shopify_source_handle"] or "-",
             "shopify_title": row["shopify_title"] or None,
+            "shopify_page_tag": row["shopify_page_tag"] or None,
             "warning": row["warning"],
         })
 
@@ -875,12 +941,18 @@ def retry(req_id):
             title_override=inp.get("shopify_title"), tags_override=inp.get("shopify_tags"),
             template_override=inp.get("shopify_template"), amazon_link_override=inp.get("shopify_amazon"),
         )
+    if ok and inp.get("shopify_page_tag"):
+        run_shopify_page_bridge(
+            entry, website_url=inp["website_url"], source_tag=inp["shopify_page_tag"],
+            amazon_link_override=inp.get("shopify_amazon"),
+        )
     upsert(entry)
 
     if not ok:
         message = {"kind": "err", "text": err}
     elif entry["status"] == "incomplete":
-        message = {"kind": "err", "text": f"Meta 광고는 생성됐지만 Shopify 브릿지 페이지 실패: {entry['shopifyError']}"}
+        shopify_err = entry.get("shopifyError") or entry.get("shopifyPageError")
+        message = {"kind": "err", "text": f"Meta 광고는 생성됐지만 Shopify 브릿지 페이지 실패: {shopify_err}"}
     else:
         message = {"kind": "ok", "text": f"재시도 성공: 광고 세트 {entry['result']['ad_set_id']} / 광고 {entry['result']['ad_id']}"}
 
