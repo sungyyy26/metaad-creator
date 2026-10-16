@@ -720,7 +720,7 @@
       <form method="post" action="/submit_bulk" id="bulk-form">
         <input type="hidden" name="copy_overrides" id="bulk-copy-overrides" value="{}">
         <div class="field">
-          <textarea class="bulk-textarea" name="bulk_text" id="bulk_text" placeholder="[캠페인]	[복제할 광고 세트 — 광고만 추가하려면 비움]	[새 광고 세트 이름]	[새 광고 이름]	[예산]	[URL]	[소재]	[헤드라인]	[기본 텍스트]	[복제할 Shopify 페이지 태그 — 선택]	[아마존 링크 재지정 — 선택]"></textarea>
+          <textarea class="bulk-textarea" name="bulk_text" id="bulk_text" placeholder="[캠페인]	[복제할 광고 세트 — 광고만 추가하려면 비움]	[새 광고 세트 이름]	[새 광고 이름]	[예산 — 광고만 추가 시 비우거나 '-'면 기존 예산 유지]	[URL]	[소재]	[헤드라인]	[기본 텍스트]	[복제할 Shopify 페이지 태그 — 선택]	[아마존 링크 재지정 — 선택]"></textarea>
         </div>
         <div class="bulk-actions">
           <button type="button" class="secondary" id="bulk-preview-btn">행 미리보기</button>
@@ -1019,7 +1019,7 @@
         <div class="record-top">
           <span class="pill {{ it.status }}">{{ {'done':'완료','error':'오류','processing':'처리중','incomplete':'미완료'}.get(it.status, it.status) }}</span>
           <span class="record-time">{{ it.submittedAt }}</span>
-          <span class="record-budget mono">${{ it.budget }}/일</span>
+          <span class="record-budget mono">{{ '$' ~ it.budget ~ '/일' if it.budget else '예산 유지' }}</span>
         </div>
         {% if it.campaign %}<div class="record-campaign"><span class="record-label">C:</span>{{ it.campaign }}</div>{% endif %}
         <div class="record-main"><span class="record-label">AS:</span><span class="adset">{{ it.adSetName }}</span><span class="arrow">→</span><span class="record-label">AD:</span><span class="adname">{{ it.adName }}</span></div>
@@ -1892,10 +1892,11 @@
       }
       var warn = row.warning ? '<div class="record-note warn">' + escapeHtml(row.warning) + '</div>' : '';
       var shopify = row.shopify_identifier ? ' · Shopify 복제: ' + escapeHtml(row.shopify_identifier) : '';
+      var budgetLabel = row.daily_budget ? ('$' + escapeHtml(row.daily_budget) + '/일') : '예산 유지';
       return '<div class="record-row preview-row">' +
         '<div class="record-top">' +
           '<span class="pill done">' + row.lineno + '행</span>' +
-          '<span class="record-meta mono">$' + escapeHtml(row.daily_budget) + '/일 · ' + escapeHtml(row.status) + '</span>' +
+          '<span class="record-meta mono">' + budgetLabel + ' · ' + escapeHtml(row.status) + '</span>' +
         '</div>' +
         '<div class="record-campaign"><span class="record-label">C:</span>' + escapeHtml(row.campaign) + '</div>' +
         '<div class="record-main"><span class="record-label">AS:</span><span class="adset">' + escapeHtml(row.source_adset) + '</span><span class="arrow">→</span>' +

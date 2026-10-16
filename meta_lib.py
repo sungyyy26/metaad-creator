@@ -483,8 +483,10 @@ def duplicate_ad(token, *, campaign_id, candidate_account_ids, source_adset_name
       either one that already exists in Meta, or one an earlier row in the same
       bulk batch just created (tracked via `batch_adsets`, since the ad-set-list
       cache snapshot taken at the start of the batch won't see it). The target
-      ad set's daily_budget is force-overwritten to daily_budget afterwards,
-      matching the original artifact's rule for this path.
+      ad set's daily_budget is overwritten to daily_budget afterwards — unless
+      daily_budget is None, which leaves that shared ad set's current budget
+      untouched (for a row that's just adding another ad into a set whose
+      budget is already set the way it should be).
 
     Pass a shared `cache` dict across a batch to fetch each campaign/ad-set/
     creative-library lookup once instead of once per row.
@@ -567,10 +569,10 @@ def duplicate_ad(token, *, campaign_id, candidate_account_ids, source_adset_name
              creative=json.dumps({"creative_id": creative["id"]}),
              status=status)
 
-    if ads_only:
-        # Always overwrite the shared ad set's budget to what this request asked
-        # for, even if unchanged — matches the original artifact's rule for the
-        # ads-only path.
+    if ads_only and daily_budget is not None:
+        # Overwrite the shared ad set's budget to what this request asked for.
+        # Skipped entirely when daily_budget is None (the row left it
+        # blank/'-'), leaving the already-shared ad set's current budget as-is.
         api("POST", target_adset_id, token, daily_budget=daily_budget * 100)
 
     return {

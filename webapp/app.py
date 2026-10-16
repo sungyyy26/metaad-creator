@@ -79,7 +79,8 @@ BULK_COLUMNS = [
     "복제할 광고 (필수 — 이미 있거나 같은 배치의 다른 행이 만드는 광고 세트에 광고만 추가하려면 비워두세요)",
     "새 광고 세트 이름 (필수)",
     "새 광고 이름 (필수)",
-    "일일 예산 (필수)",
+    "일일 예산 (새 광고 세트를 만들 때는 필수; '복제할 광고' 열을 비워 기존 광고 세트에 광고만 추가할 때는 "
+    "비우거나 '-'를 넣으면 그 광고 세트의 현재 예산을 그대로 둡니다)",
     "웹사이트 URL (필수 — /products/ 포함 시 상품을, /pages/ 포함 시 페이지를 복제합니다)",
     "소재 (필수)",
     "헤드라인 (실제 문구를 입력하거나, '소재'가 EQQUALBERRY 소재명 규칙을 따르면 '생성'이라고 입력해 자동 작성)",
@@ -91,9 +92,12 @@ BULK_COLUMNS = [
 # 0-indexed column -> human label, for the required-field check. Column 1
 # (복제할 광고) is deliberately NOT required — leaving it blank is the
 # "ads-only" mode (add just an ad into an existing/batch-created ad set).
+# 일일 예산 (col 4) is handled separately in parse_bulk_row, not here — it's
+# only required when creating a brand-new ad set; an "ads-only" row (col 1
+# blank) may leave it blank/'-' to leave the shared ad set's budget alone.
 REQUIRED_BULK_COLS = {
     0: "캠페인", 2: "새 광고 세트 이름", 3: "새 광고 이름",
-    4: "일일 예산", 5: "웹사이트 URL", 6: "소재",
+    5: "웹사이트 URL", 6: "소재",
 }
 MIN_BULK_COLS = 7  # through "소재" — everything required is in the first 7
 
@@ -327,9 +331,18 @@ def parse_bulk_row(cols):
     def get(i):
         return cols[i] if i < len(cols) else ""
 
-    daily_budget = cols[4]
-    if not daily_budget.isdigit():
-        raise RowError(f"예산은 숫자여야 합니다: '{daily_budget}'")
+    source_adset_name = "" if is_blank(get(1)) else get(1)
+    budget_raw = get(4)
+    if is_blank(budget_raw):
+        if source_adset_name:
+            raise RowError("일일 예산이 비어있습니다 — 새 광고 세트를 만들 때는 예산이 필수입니다.")
+        # "광고만 추가" (1번 열이 비어있음): 예산을 비워두면(또는 '-') 이미
+        # 공유되고 있는 광고 세트의 현재 예산을 그대로 두고 건드리지 않는다.
+        daily_budget = None
+    elif not budget_raw.isdigit():
+        raise RowError(f"예산은 숫자여야 합니다: '{budget_raw}'")
+    else:
+        daily_budget = budget_raw
 
     headline, primary_text = get(7), get(8)
     for label, value in (("헤드라인", headline), ("기본 텍스트", primary_text)):
@@ -344,7 +357,7 @@ def parse_bulk_row(cols):
 
     return dict(
         campaign_id=cols[0],
-        source_adset_name="" if is_blank(get(1)) else get(1),
+        source_adset_name=source_adset_name,
         new_adset_name=cols[2],
         new_ad_name=cols[3],
         daily_budget=daily_budget,
@@ -432,7 +445,7 @@ def run_duplicate(token, entry, *, campaign_id, source_adset_name, new_adset_nam
             source_adset_name=source_adset_name,
             new_adset_name=new_adset_name,
             new_ad_name=new_ad_name,
-            daily_budget=int(daily_budget),
+            daily_budget=int(daily_budget) if daily_budget is not None else None,
             website_url=website_url,
             creative_name=creative_name,
             headline=headline,
