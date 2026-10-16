@@ -387,6 +387,14 @@
   .rollback-btn:disabled{opacity:.6;cursor:default;}
   .rollback-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
 
+  .bulk-rollback-bar{display:flex;align-items:center;gap:var(--sp-4);flex-wrap:wrap;margin-bottom:var(--sp-3);padding:var(--sp-3) var(--sp-4);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md);}
+  .bulk-select-all{display:flex;align-items:center;gap:7px;font-size:var(--fs-sm);font-weight:600;cursor:pointer;flex:none;}
+  .bulk-selected-count{font-size:var(--fs-xs);color:var(--text-faint);margin-right:auto;}
+  .bulk-rollback-bar .rollback-btn{display:inline-block;margin-top:0;}
+  .record-row-selectable{padding-left:40px;}
+  .record-select{position:absolute;top:14px;left:14px;cursor:pointer;}
+  .record-select input[type=checkbox]{width:16px;height:16px;margin:0;cursor:pointer;accent-color:var(--accent);}
+
   .copy-result-summary{font-size:var(--fs-sm);font-weight:600;color:var(--accent);margin-bottom:var(--sp-4);}
   .copy-candidate-group{margin-bottom:var(--sp-4);}
   .copy-candidate-group:last-child{margin-bottom:0;}
@@ -839,7 +847,7 @@
       <header class="sf-top">
         <div>
           <p class="sf-eyebrow">EQB · Product Ops</p>
-          <h1 class="sf-h1">쇼피파이 일괄 편집기</h1>
+          <h1 class="sf-h1">쇼피파이 편집기</h1>
           <p class="sf-sub">Step 1에서 조건을 검색하고, Step 2에서 제목·설명·미디어·태그 수정사항과 적용 상품을 선택한 뒤, Step 3에서 썸네일과 AS-IS/TO-BE를 최종 확인하고 적용합니다.</p>
         </div>
         <svg class="sf-logo" viewBox="0 0 220 100" width="56" height="25" aria-label="EQB">
@@ -859,8 +867,15 @@
       <div class="sf-step-content" data-sf-step-content="1">
         <div class="sf-panel" id="sf-step1">
           <div class="sf-panel-head"><span class="sf-panel-num">01</span><span class="sf-panel-title">조건</span></div>
-          <p class="sf-panel-hint">아래 중 하나 이상 입력하세요.</p>
           <div class="sf-field">
+            <span class="sf-lbl">대상</span>
+            <div class="sf-mode-row" id="sf-resource-toggle">
+              <button type="button" class="sf-mode-btn active" data-resource-mode="product">Product</button>
+              <button type="button" class="sf-mode-btn" data-resource-mode="page">Page</button>
+            </div>
+          </div>
+          <p class="sf-panel-hint">아래 중 하나 이상 입력하세요.</p>
+          <div class="sf-field" id="sf-f-status">
             <span class="sf-lbl">상태 (복수 선택 가능)</span>
             <div class="sf-chiprow">
               <label class="sf-chip"><input type="checkbox" class="sf-status" value="ACTIVE">활성</label>
@@ -870,9 +885,10 @@
           </div>
           <label class="sf-field"><span class="sf-lbl">제목</span><input type="text" id="sf-title" placeholder="쉼표로 여러 값, *로 제외 (예: Amazon, *UK)"></label>
           <label class="sf-field"><span class="sf-lbl">태그</span><input type="text" id="sf-tags" placeholder="쉼표로 구분 (하나라도 포함, *로 제외)"></label>
+          <label class="sf-field" id="sf-f-pixel" hidden><span class="sf-lbl">픽셀 이벤트용 상품명</span><input type="text" id="sf-pixel" placeholder="쉼표로 여러 값, *로 제외"></label>
           <label class="sf-field"><span class="sf-lbl">URL 핸들 (여러 개 가능)</span><textarea id="sf-handles" rows="3" placeholder="한 줄에 하나씩, 핸들 또는 전체 URL 붙여넣기"></textarea></label>
-          <label class="sf-field"><span class="sf-lbl">템플릿</span><input type="text" id="sf-template" placeholder="예: landing-amazon (*로 제외 가능)"></label>
-          <p class="sf-panel-hint" style="margin:-8px 0 0;">제목/태그/템플릿은 쉼표로 여러 값을 입력할 수 있고, 값 앞에 <code>*</code>를 붙이면 그 값이 포함된 상품은 제외합니다 (예: "Amazon, *UK" → 제목에 Amazon은 포함하고 UK는 포함하지 않는 상품).</p>
+          <label class="sf-field" id="sf-f-template"><span class="sf-lbl">템플릿</span><input type="text" id="sf-template" placeholder="예: landing-amazon (*로 제외 가능)"></label>
+          <p class="sf-panel-hint" style="margin:-8px 0 0;" id="sf-cond-hint">제목/태그/템플릿은 쉼표로 여러 값을 입력할 수 있고, 값 앞에 <code>*</code>를 붙이면 그 값이 포함된 상품은 제외합니다 (예: "Amazon, *UK" → 제목에 Amazon은 포함하고 UK는 포함하지 않는 상품).</p>
           <div class="sf-actions">
             <span class="sf-hint-req"></span>
             <button type="button" class="sf-submit" id="sf-search-btn">조건 검색</button>
@@ -892,14 +908,14 @@
           <div class="sf-panel-head"><span class="sf-panel-num">02</span><span class="sf-panel-title">수정사항 · 선택</span></div>
           <p class="sf-panel-hint">채운 항목만 적용됩니다.</p>
           <label class="sf-field"><span class="sf-lbl">제목</span><input type="text" id="sf-m-title" placeholder="비워두면 건드리지 않음 (이미 같은 값이면 자동 건너뜀)"></label>
-          <label class="sf-field"><span class="sf-lbl">설명 (HTML)</span><textarea id="sf-m-description" placeholder="비워두면 건드리지 않음"></textarea></label>
+          <label class="sf-field" id="sf-f-m-description"><span class="sf-lbl">설명 (HTML)</span><textarea id="sf-m-description" placeholder="비워두면 건드리지 않음"></textarea></label>
           <div class="sf-field">
             <span class="sf-lbl">미디어</span>
             <p class="sf-panel-hint" style="margin:0;">여러 작업을 추가하면 위에서부터 순서대로 적용됩니다. 이미지 이름은 Shopify 파일 라이브러리의 파일명 또는 대체 텍스트와 일치해야 합니다.</p>
             <div id="sf-media-ops" class="sf-media-ops"></div>
             <button type="button" class="sf-btn-secondary" id="sf-add-media-op" style="align-self:flex-start;">+ 미디어 작업 추가</button>
           </div>
-          <div class="sf-field">
+          <div class="sf-field" id="sf-f-m-tagmode-product">
             <span class="sf-lbl">태그</span>
             <select id="sf-m-tagmode">
               <option value="">변경 안 함</option>
@@ -926,9 +942,13 @@
               </label>
             </div>
           </div>
+          <label class="sf-field" id="sf-f-m-tag-page" hidden>
+            <span class="sf-lbl">태그 (교체 — 단일 값)</span>
+            <input type="text" id="sf-m-page-tag" placeholder="비워두면 건드리지 않음 (이미 같은 값이면 자동 건너뜀)">
+          </label>
           <hr class="sf-divider">
           <div class="sf-results-head">
-            <h3>실제로 적용할 상품 선택</h3>
+            <h3 id="sf-select-heading">실제로 적용할 상품 선택</h3>
             <div style="display:flex;align-items:center;gap:12px;">
               <span class="sf-count-badge"><span id="sf-selected-count">0</span>개 선택됨</span>
               <button type="button" class="sf-select-all" id="sf-select-all-btn">전체 선택/해제</button>
@@ -1012,9 +1032,19 @@
     </div>
     <p class="hint">이 컴퓨터에서 제출한 광고 셋팅 요청들 (webapp/requests.json에 저장됨).</p>
     {% if setting_items %}
+    {% if setting_items|selectattr('result')|list %}
+    <div class="bulk-rollback-bar" id="bulk-rollback-bar">
+      <label class="bulk-select-all"><input type="checkbox" id="bulk-select-all-checkbox"> 전체 선택</label>
+      <span class="bulk-selected-count"><span id="bulk-selected-count">0</span>개 선택됨</span>
+      <button type="button" class="rollback-btn" id="bulk-rollback-btn" disabled>선택 일괄 생성 취소</button>
+    </div>
+    {% endif %}
     <div class="record-list" id="request-record-list">
       {% for it in setting_items %}
-      <div class="record-row">
+      <div class="record-row{{ ' record-row-selectable' if it.result else '' }}">
+        {% if it.result %}
+        <label class="record-select"><input type="checkbox" class="record-select-checkbox" data-rollback-url="/delete_created/{{ it.id }}"></label>
+        {% endif %}
         <button type="button" class="delete-btn" data-delete-url="/delete/{{ it.id }}" title="기록 삭제 (실제 광고는 삭제되지 않음)">×</button>
         <div class="record-top">
           <span class="pill {{ it.status }}">{{ {'done':'완료','error':'오류','processing':'처리중','incomplete':'미완료'}.get(it.status, it.status) }}</span>
@@ -1256,6 +1286,81 @@
       });
     });
   });
+
+  (function () {
+    var selectAllCb = document.getElementById("bulk-select-all-checkbox");
+    var bulkBtn = document.getElementById("bulk-rollback-btn");
+    var countEl = document.getElementById("bulk-selected-count");
+    if (!bulkBtn) return;
+
+    function rowCheckboxes() {
+      return Array.prototype.slice.call(document.querySelectorAll(".record-select-checkbox"));
+    }
+
+    function updateCount() {
+      var checked = rowCheckboxes().filter(function (cb) { return cb.checked; });
+      countEl.textContent = checked.length;
+      bulkBtn.disabled = checked.length === 0;
+      if (selectAllCb) {
+        var all = rowCheckboxes();
+        selectAllCb.checked = all.length > 0 && checked.length === all.length;
+        selectAllCb.indeterminate = checked.length > 0 && checked.length < all.length;
+      }
+    }
+
+    document.addEventListener("change", function (e) {
+      if (e.target.classList && e.target.classList.contains("record-select-checkbox")) updateCount();
+    });
+
+    if (selectAllCb) {
+      selectAllCb.addEventListener("change", function () {
+        rowCheckboxes().forEach(function (cb) { cb.checked = selectAllCb.checked; });
+        updateCount();
+      });
+    }
+
+    new MutationObserver(updateCount).observe(document.getElementById("request-record-list"), { childList: true });
+
+    bulkBtn.addEventListener("click", function () {
+      var checked = rowCheckboxes().filter(function (cb) { return cb.checked; });
+      if (checked.length === 0) return;
+      if (!window.confirm(checked.length + "개 요청으로 생성된 Meta 광고와 Shopify 상품/페이지를 실제로 삭제합니다. 되돌릴 수 없습니다. 계속할까요?")) return;
+
+      bulkBtn.disabled = true;
+      var originalText = bulkBtn.textContent;
+      var failed = [];
+      var remaining = checked.slice();
+
+      function next() {
+        if (remaining.length === 0) {
+          bulkBtn.textContent = originalText;
+          updateCount();
+          if (failed.length) {
+            alert(failed.length + "개 항목 삭제 중 오류가 발생했습니다:\n" + failed.join("\n") + "\n페이지를 새로고침하면 남은 항목을 확인할 수 있습니다.");
+          }
+          return;
+        }
+        var cb = remaining.shift();
+        var url = cb.getAttribute("data-rollback-url");
+        var row = cb.closest(".record-row");
+        bulkBtn.textContent = "삭제 중… (" + (checked.length - remaining.length) + "/" + checked.length + ")";
+        fetch(url, { method: "POST" }).then(function (r) {
+          return r.json().catch(function () { return {}; }).then(function (data) { return { ok: r.ok, data: data }; });
+        }).then(function (res) {
+          if (res.ok) {
+            if (row) row.remove();
+          } else {
+            failed.push(res.data.error || "알 수 없는 오류");
+          }
+          next();
+        }).catch(function () {
+          failed.push("네트워크 오류");
+          next();
+        });
+      }
+      next();
+    });
+  })();
 
   function setupPagination(listId, paginationId) {
     var PAGE_SIZE = 3;
@@ -2164,6 +2269,7 @@
     var selectPage = 1;
     var SF_PAGE_SIZE = 10;
     var mediaOps = [];
+    var resourceMode = "product"; // "product" | "page"
 
     function showStep(n) {
       tabBtns.forEach(function (b) { b.classList.toggle("active", Number(b.getAttribute("data-sf-step")) === n); });
@@ -2173,6 +2279,58 @@
       b.addEventListener("click", function () { if (!b.disabled) showStep(Number(b.getAttribute("data-sf-step"))); });
     });
     function setTabsEnabled(enabled) { tabBtns[1].disabled = !enabled; tabBtns[2].disabled = !enabled; }
+
+    // --- Product / Page 토글 ---
+    var resourceToggle = document.getElementById("sf-resource-toggle");
+    var condHintEl = document.getElementById("sf-cond-hint");
+    var selectHeadingEl = document.getElementById("sf-select-heading");
+    var PROD_COND_HINT = '제목/태그/템플릿은 쉼표로 여러 값을 입력할 수 있고, 값 앞에 <code>*</code>를 붙이면 그 값이 포함된 상품은 제외합니다 (예: "Amazon, *UK" → 제목에 Amazon은 포함하고 UK는 포함하지 않는 상품).';
+    var PAGE_COND_HINT = '제목/태그/픽셀 이벤트용 상품명은 쉼표로 여러 값을 입력할 수 있고, 값 앞에 <code>*</code>를 붙이면 그 값이 포함된 페이지는 제외합니다 (예: "Amazon, *UK" → 제목에 Amazon은 포함하고 UK는 포함하지 않는 페이지).';
+
+    function applyResourceModeUi() {
+      var isPage = resourceMode === "page";
+      resourceToggle.querySelectorAll(".sf-mode-btn").forEach(function (b) {
+        b.classList.toggle("active", b.getAttribute("data-resource-mode") === resourceMode);
+      });
+      document.getElementById("sf-f-status").hidden = isPage;
+      document.getElementById("sf-f-template").hidden = isPage;
+      document.getElementById("sf-f-pixel").hidden = !isPage;
+      condHintEl.innerHTML = isPage ? PAGE_COND_HINT : PROD_COND_HINT;
+      document.getElementById("sf-f-m-description").hidden = isPage;
+      document.getElementById("sf-f-m-tagmode-product").hidden = isPage;
+      document.getElementById("sf-f-m-tag-page").hidden = !isPage;
+      selectHeadingEl.textContent = "실제로 적용할 " + (isPage ? "페이지" : "상품") + " 선택";
+    }
+
+    function resetSearchState() {
+      candidates = [];
+      selected = new Set();
+      searchPage = 1;
+      selectPage = 1;
+      summaryEl.innerHTML = "";
+      searchListEl.innerHTML = "";
+      document.getElementById("sf-search-pager").hidden = true;
+      toStep2Actions.hidden = true;
+      setTabsEnabled(false);
+      showStep(1);
+      document.getElementById("sf-template").value = "";
+      document.getElementById("sf-pixel").value = "";
+      document.querySelectorAll(".sf-status").forEach(function (c) { c.checked = false; });
+      document.getElementById("sf-m-description").value = "";
+      document.getElementById("sf-m-page-tag").value = "";
+      tagModeSelect.value = "";
+      tagModeSelect.dispatchEvent(new Event("change"));
+    }
+
+    resourceToggle.querySelectorAll(".sf-mode-btn").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var mode = b.getAttribute("data-resource-mode");
+        if (mode === resourceMode) return;
+        resourceMode = mode;
+        applyResourceModeUi();
+        resetSearchState();
+      });
+    });
 
     var STATUS_BADGE_CLASS = { ACTIVE: "sf-r-active", DRAFT: "sf-r-draft", UNLISTED: "sf-r-unlisted" };
     var SF_THUMB_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2h6M10 2v4.2c0 .5-.15.98-.44 1.38L6.9 11.4A3 3 0 0 0 6 13.5V20a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-6.5a3 3 0 0 0-.9-2.1l-2.66-2.82A2.3 2.3 0 0 1 14 6.2V2"/></svg>';
@@ -2184,20 +2342,33 @@
     }
 
     function candidateCard(p, selectable) {
-      var tagsText = (p.tags || []).map(function (tag) {
-        return String(tag).charAt(0) === "#" ? String(tag) : "#" + String(tag);
-      }).join(" ") || "(태그 없음)";
       var checkbox = selectable
         ? '<input type="checkbox" class="sf-result-check" data-id="' + escapeHtml(p.id) + '"' + (selected.has(p.id) ? " checked" : "") + '>'
         : "";
       var tag = selectable ? "label" : "div";
+      var metaLines;
+      var badge;
+      if (resourceMode === "page") {
+        badge = '<span class="sf-r-badge ' + (p.isPublished ? STATUS_BADGE_CLASS.ACTIVE : STATUS_BADGE_CLASS.DRAFT) + '">' + (p.isPublished ? "게시됨" : "미게시") + '</span>';
+        metaLines =
+          (p.pixelContentName ? '<span class="sf-result-handle">픽셀 이벤트용 상품명: ' + escapeHtml(p.pixelContentName) + '</span>' : '') +
+          '<span class="sf-result-tags">태그: ' + escapeHtml(p.tag || "(태그 없음)") + '</span>';
+      } else {
+        var tagsText = (p.tags || []).map(function (t) {
+          return String(t).charAt(0) === "#" ? String(t) : "#" + String(t);
+        }).join(" ") || "(태그 없음)";
+        badge = '<span class="sf-r-badge ' + (STATUS_BADGE_CLASS[p.status] || "") + '">' + escapeHtml(p.statusLabel) + '</span>';
+        metaLines =
+          (p.template ? '<span class="sf-result-handle">템플릿: ' + escapeHtml(p.template) + '</span>' : '') +
+          '<span class="sf-result-tags">태그: ' + escapeHtml(tagsText) + '</span>';
+      }
+      var fallbackUrl = resourceMode === "page" ? "/pages/" + p.handle : "/products/" + p.handle;
       return '<' + tag + ' class="sf-result-card">' + checkbox + sfThumbFor(p) +
         '<div class="sf-result-info">' +
-          '<span class="sf-r-badge ' + (STATUS_BADGE_CLASS[p.status] || "") + '">' + escapeHtml(p.statusLabel) + '</span>' +
+          badge +
           '<span class="sf-result-title">' + escapeHtml(p.title) + '</span>' +
-          '<a class="sf-result-handle sf-result-url" href="' + escapeHtml(p.url || ("/products/" + p.handle)) + '" target="_blank" rel="noopener">' + escapeHtml(p.url || ("/products/" + p.handle)) + '</a>' +
-          (p.template ? '<span class="sf-result-handle">템플릿: ' + escapeHtml(p.template) + '</span>' : '') +
-          '<span class="sf-result-tags">태그: ' + escapeHtml(tagsText) + '</span>' +
+          '<a class="sf-result-handle sf-result-url" href="' + escapeHtml(p.url || fallbackUrl) + '" target="_blank" rel="noopener">' + escapeHtml(p.url || fallbackUrl) + '</a>' +
+          metaLines +
         '</div>' +
       '</' + tag + '>';
     }
@@ -2237,7 +2408,7 @@
       var paged = pageSlice(candidates, searchPage);
       searchPage = paged.page;
       searchListEl.innerHTML = paged.items.map(function (p) { return candidateCard(p, false); }).join("") ||
-        '<p class="sf-empty">조건에 맞는 상품이 없습니다.</p>';
+        '<p class="sf-empty">조건에 맞는 ' + (resourceMode === "page" ? "페이지" : "상품") + '가 없습니다.</p>';
       renderSfPager(document.getElementById("sf-search-pager"), paged.page, paged.totalPages);
     }
 
@@ -2305,19 +2476,32 @@
     var toStep2Actions = document.getElementById("sf-to-step2-actions");
 
     searchBtn.addEventListener("click", function () {
-      var statuses = Array.prototype.filter.call(document.querySelectorAll(".sf-status"), function (c) { return c.checked; })
-        .map(function (c) { return c.value; });
-      var body = {
-        title: document.getElementById("sf-title").value,
-        tags: document.getElementById("sf-tags").value,
-        template: document.getElementById("sf-template").value,
-        handles: document.getElementById("sf-handles").value,
-        statuses: statuses,
-      };
+      var isPage = resourceMode === "page";
+      var url, body;
+      if (isPage) {
+        url = "/shopify_page_search";
+        body = {
+          title: document.getElementById("sf-title").value,
+          tag: document.getElementById("sf-tags").value,
+          pixel_content_name: document.getElementById("sf-pixel").value,
+          handles: document.getElementById("sf-handles").value,
+        };
+      } else {
+        var statuses = Array.prototype.filter.call(document.querySelectorAll(".sf-status"), function (c) { return c.checked; })
+          .map(function (c) { return c.value; });
+        url = "/shopify_search";
+        body = {
+          title: document.getElementById("sf-title").value,
+          tags: document.getElementById("sf-tags").value,
+          template: document.getElementById("sf-template").value,
+          handles: document.getElementById("sf-handles").value,
+          statuses: statuses,
+        };
+      }
       searchBtn.disabled = true;
       var originalLabel = searchBtn.textContent;
       searchBtn.textContent = "검색 중…";
-      fetch("/shopify_search", {
+      fetch(url, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
       })
         .then(function (r) { return r.json(); })
@@ -2329,7 +2513,7 @@
             candidates = [];
             return;
           }
-          candidates = data.products;
+          candidates = isPage ? data.pages : data.products;
           selected = new Set(candidates.map(function (p) { return p.id; })); // 기본 전체 선택
           searchPage = 1;
           selectPage = 1;
@@ -2492,15 +2676,30 @@
     renderMediaOps();
 
     function collectModifications() {
+      var mediaOpsOut = mediaOps.filter(function (op) {
+        return op.info.trim() || op.order.trim() || op.moveTo.trim() || op.newInfo.trim();
+      }).map(function (op) {
+        return { mode: op.mode, info: op.info.trim(), order: op.order, moveTo: op.moveTo, newInfo: op.newInfo.trim() };
+      });
+
+      if (resourceMode === "page") {
+        var pageTag = document.getElementById("sf-m-page-tag").value;
+        var mods = {
+          title: document.getElementById("sf-m-title").value,
+          mediaOps: mediaOpsOut,
+        };
+        if (pageTag.trim()) {
+          mods.tagMode = "replace";
+          mods.tagsNew = pageTag;
+        }
+        return mods;
+      }
+
       var mods = {
         title: document.getElementById("sf-m-title").value,
         description: document.getElementById("sf-m-description").value,
         tagMode: tagModeSelect.value,
-        mediaOps: mediaOps.filter(function (op) {
-          return op.info.trim() || op.order.trim() || op.moveTo.trim() || op.newInfo.trim();
-        }).map(function (op) {
-          return { mode: op.mode, info: op.info.trim(), order: op.order, moveTo: op.moveTo, newInfo: op.newInfo.trim() };
-        }),
+        mediaOps: mediaOpsOut,
       };
       if (mods.tagMode === "add") mods.tagsValue = document.getElementById("sf-m-tags-value-add").value;
       if (mods.tagMode === "remove") mods.tagsValue = document.getElementById("sf-m-tags-value-remove").value;
@@ -2515,10 +2714,15 @@
       var parts = [];
       var title = document.getElementById("sf-title").value.trim();
       var tags = document.getElementById("sf-tags").value.trim();
-      var template = document.getElementById("sf-template").value.trim();
       if (title) parts.push("제목: " + title);
       if (tags) parts.push("태그: " + tags);
-      if (template) parts.push("템플릿: " + template);
+      if (resourceMode === "page") {
+        var pixel = document.getElementById("sf-pixel").value.trim();
+        if (pixel) parts.push("픽셀 이벤트용 상품명: " + pixel);
+      } else {
+        var template = document.getElementById("sf-template").value.trim();
+        if (template) parts.push("템플릿: " + template);
+      }
       return parts.join(" · ") || "조건 없음";
     }
 
@@ -2542,7 +2746,7 @@
       var detailLines = "";
       if (r.detail) {
         Object.keys(r.detail).forEach(function (field) {
-          if (field === "media") return;
+          if (field === "media" || field === "landing_image_ids") return;
           var d = r.detail[field];
           var before = Array.isArray(d.before) ? d.before.join(", ") : d.before;
           var after = Array.isArray(d.after) ? d.after.join(", ") : d.after;
@@ -2576,7 +2780,7 @@
     document.getElementById("sf-preview-btn").addEventListener("click", function () {
       var ids = Array.from(selected);
       if (!ids.length) {
-        alert("적용할 상품을 1개 이상 선택해주세요.");
+        alert("적용할 " + (resourceMode === "page" ? "페이지" : "상품") + "를 1개 이상 선택해주세요.");
         return;
       }
       lastMods = collectModifications();
@@ -2585,9 +2789,11 @@
       btn.disabled = true;
       var originalLabel = btn.textContent;
       btn.textContent = "계산 중…";
-      fetch("/shopify_preview", {
+      var previewUrl = resourceMode === "page" ? "/shopify_page_preview" : "/shopify_preview";
+      var previewBody = resourceMode === "page" ? { ids: ids, modifications: lastMods } : { product_ids: ids, modifications: lastMods };
+      fetch(previewUrl, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ product_ids: ids, modifications: lastMods }),
+        body: JSON.stringify(previewBody),
       })
         .then(function (r) { return r.json(); })
         .then(function (data) {
@@ -2625,9 +2831,13 @@
       btn.disabled = true;
       var originalLabel = btn.textContent;
       btn.textContent = "적용 중…";
-      fetch("/shopify_apply", {
+      var applyUrl = resourceMode === "page" ? "/shopify_page_apply" : "/shopify_apply";
+      var applyBody = resourceMode === "page"
+        ? { ids: ids, modifications: lastMods, conditions_summary: lastConditionsSummary }
+        : { product_ids: ids, modifications: lastMods, conditions_summary: lastConditionsSummary };
+      fetch(applyUrl, {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ product_ids: ids, modifications: lastMods, conditions_summary: lastConditionsSummary }),
+        body: JSON.stringify(applyBody),
       })
         .then(function (r) { return r.json(); })
         .then(function (data) {

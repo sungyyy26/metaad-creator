@@ -1635,5 +1635,125 @@ def shopify_apply():
     return {"ok": True, "results": results, "applied": applied, "skipped": skipped, "errored": errored}
 
 
+@app.route("/shopify_page_search", methods=["POST"])
+def shopify_page_search():
+    """Page 편집기의 1단계 조건 검색 — 조회만 하고 아무것도 바꾸지 않는다.
+    상품과 달리 상태/템플릿 조건은 없고, 대신 픽셀 이벤트용 상품명으로 찾는다."""
+    shop, token = _shopify_env()
+    if not shop or not token:
+        return {"ok": False, "error": "SHOPIFY_SHOP / SHOPIFY_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."}, 400
+
+    payload = request.get_json(silent=True) or {}
+    conditions = {
+        "title": payload.get("title", ""),
+        "tag": payload.get("tag", ""),
+        "pixel_content_name": payload.get("pixel_content_name", ""),
+        "handles": [h.strip() for h in re.split(r"[,\n]", payload.get("handles", "")) if h.strip()],
+    }
+    if not any(conditions.values()):
+        return {"ok": False, "error": "조건을 하나 이상 입력해주세요."}, 400
+
+    try:
+        pages = shopify_lib.search_pages(shop, token, conditions)
+    except shopify_lib.ShopifyApiError as e:
+        return {"ok": False, "error": str(e)}, 400
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"예상치 못한 오류: {e}"}, 400
+
+    return {
+        "ok": True,
+        "count": len(pages),
+        "pages": [
+            {
+                "id": p["id"], "title": p["title"], "handle": p["handle"],
+                "isPublished": p["isPublished"], "tag": p.get("tag") or "",
+                "pixelContentName": p.get("pixel_content_name") or "",
+                "url": f"https://{shop}/pages/{p['handle']}",
+            }
+            for p in pages
+        ],
+    }
+
+
+@app.route("/shopify_page_preview", methods=["POST"])
+def shopify_page_preview():
+    """Page 편집기의 3단계 최종 확인 — 실제 API 상태를 다시 읽어 무엇이
+    적용/건너뜀/오류가 될지 계산만 하고, 아무것도 쓰지 않는다."""
+    shop, token = _shopify_env()
+    if not shop or not token:
+        return {"ok": False, "error": "SHOPIFY_SHOP / SHOPIFY_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."}, 400
+
+    payload = request.get_json(silent=True) or {}
+    ids = payload.get("ids") or []
+    mods = payload.get("modifications") or {}
+    if not ids:
+        return {"ok": False, "error": "선택된 페이지가 없습니다."}, 400
+
+    try:
+        pages = shopify_lib.fetch_pages_by_ids(shop, token, ids)
+    except shopify_lib.ShopifyApiError as e:
+        return {"ok": False, "error": str(e)}, 400
+
+    results = []
+    for p in pages:
+        plan = shopify_lib.evaluate_page_modifications(p, mods, shop, token)
+        results.append({
+            "id": p["id"], "title": p["title"], "handle": p["handle"],
+            "url": f"https://{shop}/pages/{p['handle']}",
+            **plan,
+        })
+    return {"ok": True, "results": results}
+
+
+@app.route("/shopify_page_apply", methods=["POST"])
+def shopify_page_apply():
+    """실제로 스토어에 반영한다 — 반드시 /shopify_page_preview로 미리 확인한
+    뒤, 사용자가 "최종 확인 · 적용 실행"을 눌렀을 때만 호출된다."""
+    shop, token = _shopify_env()
+    if not shop or not token:
+        return {"ok": False, "error": "SHOPIFY_SHOP / SHOPIFY_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."}, 400
+
+    payload = request.get_json(silent=True) or {}
+    ids = payload.get("ids") or []
+    mods = payload.get("modifications") or {}
+    conditions_summary = payload.get("conditions_summary") or ""
+    if not ids:
+        return {"ok": False, "error": "선택된 페이지가 없습니다."}, 400
+
+    try:
+        pages = shopify_lib.fetch_pages_by_ids(shop, token, ids)
+    except shopify_lib.ShopifyApiError as e:
+        return {"ok": False, "error": str(e)}, 400
+
+    results = []
+    for p in pages:
+        try:
+            plan = shopify_lib.apply_page_modifications(shop, token, p, mods)
+        except shopify_lib.ShopifyApiError as e:
+            plan = {"overall": "error", "error": str(e), "parts": [], "detail": {}}
+        except Exception as e:  # noqa: BLE001
+            plan = {"overall": "error", "error": f"예상치 못한 오류: {e}", "parts": [], "detail": {}}
+        results.append({
+            "id": p["id"], "title": p["title"], "handle": p["handle"],
+            "url": f"https://{shop}/pages/{p['handle']}",
+            **plan,
+        })
+
+    applied = sum(1 for r in results if r["overall"] == "apply")
+    skipped = sum(1 for r in results if r["overall"] == "skip")
+    errored = sum(1 for r in results if r["overall"] == "error")
+    overall_status = "error" if errored and applied == 0 else ("incomplete" if errored else "done")
+
+    entry = new_entry(
+        type="shopify", status=overall_status,
+        conditionsSummary=conditions_summary,
+        summary=f"적용 {applied}건 · 건너뜀 {skipped}건 · 오류 {errored}건 (총 {len(results)}건)",
+        results=results,
+    )
+    upsert(entry)
+
+    return {"ok": True, "results": results, "applied": applied, "skipped": skipped, "errored": errored}
+
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

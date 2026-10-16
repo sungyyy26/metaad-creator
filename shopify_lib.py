@@ -1,6 +1,7 @@
 """Shopify Admin GraphQL helpers for creating the 'bridge page' (an UNLISTED
 duplicate of a source product, retitled/rehandled for one ad) — mirrors the
 Shopify step of the meta-ad-duplicator artifact's processing instructions."""
+import json
 import os
 import re
 from concurrent.futures import ThreadPoolExecutor
@@ -690,6 +691,214 @@ def apply_modifications(shop, token, product, mods):
         plan["error"] = "; ".join(
             part["reason"] for part in plan["parts"] if part["action"] == "error"
         )
+    return plan
+
+
+PAGE_SEARCH_QUERY = """
+query($query: String, $first: Int!) {
+  pages(first: $first, query: $query, sortKey: UPDATED_AT, reverse: true) {
+    edges { node {
+      id title handle isPublished templateSuffix
+      metafields(first: 20) { edges { node { namespace key type value } } }
+    } }
+  }
+}
+"""
+
+PAGES_BY_IDS_QUERY = """
+query($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    ... on Page {
+      id title handle isPublished templateSuffix
+      metafields(first: 20) { edges { node { namespace key type value } } }
+    }
+  }
+}
+"""
+
+PAGE_UPDATE_MUTATION = """
+mutation($id: ID!, $page: PageUpdateInput!) {
+  pageUpdate(id: $id, page: $page) {
+    page { id }
+    userErrors { field message }
+  }
+}
+"""
+
+MEDIA_IMAGES_BY_IDS_QUERY = """
+query($ids: [ID!]!) {
+  nodes(ids: $ids) {
+    ... on MediaImage { id alt image { url } }
+  }
+}
+"""
+
+
+def _normalize_page(page):
+    """Confirmed live against this store's metafield definitions (ownerType
+    PAGE): custom.tag (single_line_text_field — one value, unlike a
+    product's multi-value tags list), custom.pixel_content_name
+    (single_line_text_field), custom.landing_images (list.file_reference —
+    a JSON array of MediaImage gids), custom.amazon_url (url)."""
+    page = dict(page)
+    metafields = {
+        edge["node"]["key"]: edge["node"]["value"]
+        for edge in (page.get("metafields") or {}).get("edges", [])
+        if edge["node"]["namespace"] == "custom"
+    }
+    page["tag"] = metafields.get("tag", "")
+    page["pixel_content_name"] = metafields.get("pixel_content_name", "")
+    try:
+        page["landing_image_ids"] = json.loads(metafields["landing_images"]) if metafields.get("landing_images") else []
+    except (TypeError, ValueError):
+        page["landing_image_ids"] = []
+    return page
+
+
+def search_pages(shop, token, conditions):
+    """conditions: {title, tag, pixel_content_name, handles}. handle is an
+    exact value so it's safe to filter with Shopify's own search syntax
+    server-side; title/tag/pixel_content_name use substring "포함" matching
+    (plus '*'-exclusion) so they're always filtered here in Python after a
+    broad fetch, same approach as search_products — capped at the first 250
+    pages (most-recently-updated first)."""
+    handles = [extract_handle(h) for h in (conditions.get("handles") or [])]
+    handles = [h for h in handles if h]
+    query_str = ("(" + " OR ".join(f"handle:'{h}'" for h in handles) + ")") if handles else None
+
+    data = _gql(shop, token, PAGE_SEARCH_QUERY, {"query": query_str, "first": 250})
+    pages = [_normalize_page(edge["node"]) for edge in data["pages"]["edges"]]
+
+    title_include, title_exclude = parse_include_exclude(conditions.get("title"))
+    if title_include or title_exclude:
+        def title_ok(p):
+            t = p["title"].lower()
+            return all(n in t for n in title_include) and all(n not in t for n in title_exclude)
+        pages = [p for p in pages if title_ok(p)]
+
+    tag_include, tag_exclude = parse_include_exclude(conditions.get("tag"))
+    if tag_include or tag_exclude:
+        def tag_ok(p):
+            t = (p.get("tag") or "").lower()
+            return all(n in t for n in tag_include) and all(n not in t for n in tag_exclude)
+        pages = [p for p in pages if tag_ok(p)]
+
+    pcn_include, pcn_exclude = parse_include_exclude(conditions.get("pixel_content_name"))
+    if pcn_include or pcn_exclude:
+        def pcn_ok(p):
+            t = (p.get("pixel_content_name") or "").lower()
+            return all(n in t for n in pcn_include) and all(n not in t for n in pcn_exclude)
+        pages = [p for p in pages if pcn_ok(p)]
+
+    return pages
+
+
+def fetch_pages_by_ids(shop, token, ids):
+    """Re-fetches live page state right before preview/apply — never trusts
+    the search-time snapshot, mirroring fetch_products_by_ids."""
+    data = _gql(shop, token, PAGES_BY_IDS_QUERY, {"ids": ids})
+    return [_normalize_page(n) for n in data["nodes"] if n]
+
+
+def _page_media_list(shop, token, page):
+    """Resolves a page's custom.landing_images gid list into the same shape
+    _derive_media_plan already expects ({id, alt, url} dicts) — media_display_name
+    then falls back to the url's filename when a MediaImage has no alt text,
+    same as the product media editor."""
+    ids = page.get("landing_image_ids") or []
+    if not ids:
+        return []
+    data = _gql(shop, token, MEDIA_IMAGES_BY_IDS_QUERY, {"ids": ids})
+    nodes_by_id = {n["id"]: n for n in data["nodes"] if n}
+    result = []
+    for gid in ids:
+        node = nodes_by_id.get(gid)
+        if not node:
+            continue  # the file was deleted from Shopify's library since being linked here
+        result.append({"id": gid, "alt": node.get("alt"), "url": (node.get("image") or {}).get("url")})
+    return result
+
+
+def evaluate_page_modifications(page, mods, shop=None, token=None):
+    """Page counterpart of evaluate_modifications. Narrower than the product
+    version by design: no description/상태 editing, and 태그 is a single
+    custom.tag value replaced outright (mods['tagMode'] == 'replace' with
+    mods['tagsNew']) rather than the product's add/replace/remove-against-a-
+    list semantics. Media still edits via the same insert/replace/delete/move
+    vocabulary as products, just applied to the custom.landing_images gid
+    list instead of native product media."""
+    parts = []
+    detail = {}
+
+    title_val = (mods.get("title") or "").strip()
+    if title_val:
+        if title_val == page.get("title"):
+            parts.append({"field": "title", "action": "skip", "reason": "제목 변경 (변경 없음)"})
+        else:
+            parts.append({"field": "title", "action": "apply", "reason": "제목 변경"})
+            detail["title"] = {"before": page.get("title"), "after": title_val}
+
+    if mods.get("tagMode") == "replace":
+        new_tag = (mods.get("tagsNew") or "").strip()
+        current_tag = page.get("tag") or ""
+        if new_tag and new_tag != current_tag:
+            parts.append({"field": "tag", "action": "apply", "reason": "태그 변경"})
+            detail["tag"] = {"before": current_tag, "after": new_tag}
+        else:
+            parts.append({"field": "tag", "action": "skip", "reason": "태그 변경 (변경 없음 또는 입력 없음)"})
+
+    if mods.get("mediaOps"):
+        if not shop or not token:
+            parts.append({"field": "media", "action": "error", "reason": "Shopify 연결 정보가 없습니다."})
+        else:
+            media = _page_media_list(shop, token, page)
+            before = _media_snapshot(media)
+            cache = {}
+            media_parts = []
+            for op in _expand_media_ops(mods["mediaOps"]):
+                plan = _derive_media_plan(shop, token, media, op, cache)
+                media_parts.append({"field": "media", "action": plan["action"], "reason": plan["reason"]})
+                if plan["action"] == "apply":
+                    media = plan["next_media"]
+            parts.extend(media_parts)
+            if any(part["action"] == "apply" for part in media_parts):
+                detail["media"] = {"before": before, "after": _media_snapshot(media)}
+                detail["landing_image_ids"] = [item["id"] for item in media]
+
+    if not parts:
+        return {"overall": "skip", "reason": "적용할 수정사항 없음", "parts": [], "detail": {}}
+    overall = _overall(parts)
+    return {"overall": overall, "parts": parts, "detail": detail}
+
+
+def apply_page_modifications(shop, token, page, mods):
+    """Runs evaluate_page_modifications, and if it decided anything should
+    actually change, sends one pageUpdate mutation (title + both metafields
+    together — no incremental per-op media mutations needed, since the whole
+    landing_images list is just written out once at the end)."""
+    plan = evaluate_page_modifications(page, mods, shop, token)
+    if plan["overall"] == "error":
+        return plan
+
+    page_fields = {}
+    if "title" in plan["detail"]:
+        page_fields["title"] = plan["detail"]["title"]["after"]
+    metafields = []
+    if "tag" in plan["detail"]:
+        metafields.append({"namespace": "custom", "key": "tag", "type": "single_line_text_field",
+                           "value": plan["detail"]["tag"]["after"]})
+    if "landing_image_ids" in plan["detail"]:
+        metafields.append({"namespace": "custom", "key": "landing_images", "type": "list.file_reference",
+                           "value": json.dumps(plan["detail"]["landing_image_ids"])})
+    if metafields:
+        page_fields["metafields"] = metafields
+
+    if page_fields:
+        data = _gql(shop, token, PAGE_UPDATE_MUTATION, {"id": page["id"], "page": page_fields})
+        result = data["pageUpdate"]
+        if result["userErrors"]:
+            plan["overall"] = "error"
+            plan["error"] = "; ".join(e["message"] for e in result["userErrors"])
     return plan
 
 
