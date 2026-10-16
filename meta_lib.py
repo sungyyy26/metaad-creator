@@ -385,6 +385,20 @@ def update_adset_budget(token, adset_id, daily_budget):
     api("POST", adset_id, token, daily_budget=int(daily_budget) * 100)
 
 
+def delete_ad(token, ad_id):
+    """Deletes an ad — Marketing API's documented way to remove an ad/ad set/
+    campaign is to flip its status to DELETED, the same mechanism
+    ensure_adset_active uses the other way. Used to roll back a row whose
+    Meta ad was created but something else in the same row then failed."""
+    api("POST", ad_id, token, status="DELETED")
+
+
+def delete_adset(token, adset_id):
+    """Deletes an ad set — only safe to call for one created fresh for a
+    single row (never a shared/ads-only ad set other ads also live in)."""
+    api("POST", adset_id, token, status="DELETED")
+
+
 def find_adset_by_name(token, campaign_id, name, cache=None):
     adsets = _cached(cache, f"adsets:{campaign_id}", lambda: api(
         "GET", f"{campaign_id}/adsets", token,

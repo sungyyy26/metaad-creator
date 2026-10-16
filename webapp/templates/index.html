@@ -378,6 +378,15 @@
   .retry-btn:hover{background:var(--status-error-fg);color:#fff;}
   .retry-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
 
+  .rollback-btn{
+    display:block;margin-top:var(--sp-4);font-size:var(--fs-2xs);font-weight:700;background:transparent;
+    color:var(--status-error-fg);border:1px solid var(--status-error-fg);border-radius:980px;padding:3px 12px;
+    cursor:pointer;white-space:nowrap;transition:background .12s,color .12s;
+  }
+  .rollback-btn:hover{background:var(--status-error-fg);color:#fff;}
+  .rollback-btn:disabled{opacity:.6;cursor:default;}
+  .rollback-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
   .copy-result-summary{font-size:var(--fs-sm);font-weight:600;color:var(--accent);margin-bottom:var(--sp-4);}
   .copy-candidate-group{margin-bottom:var(--sp-4);}
   .copy-candidate-group:last-child{margin-bottom:0;}
@@ -681,37 +690,13 @@
               {% endfor %}
             </select>
           </div>
-          <div class="field">
-            <label>생성 후 상태</label>
-            <span class="field-hint">광고는 생성 즉시 <strong>활성화</strong>됩니다. 다만 새로 만들어지는 광고 세트는 항상 <strong>일시중지</strong> 상태로 생성되어, 광고 세트를 직접 켜기 전까지는 실제로 노출되지 않습니다 (안전장치).</span>
-          </div>
         </fieldset>
         <fieldset>
-          <legend>Shopify 브릿지 페이지 (선택)</legend>
-          <p class="hint field-hint tight">상품을 복제하려면 아래 "복제할 상품의 핸들"을, 페이지를 복제하려면 "복제할 페이지 태그"를 입력하세요 (필요하면 둘 다 입력 가능). 둘 다 비워두면 Shopify 작업을 하지 않습니다.</p>
+          <legend>Shopify 복제 (선택)</legend>
           <div class="field">
-            <label>복제할 상품의 핸들</label>
-            <input type="text" name="shopify_source_handle" placeholder="예: vitamin-illuminating-serum — 상품 URL의 /products/ 뒤 부분 (제목 아님)">
-            <span class="field-hint">새 페이지의 URL 핸들은 위의 "새 광고 이름"과 자동으로 동일하게 설정됩니다.</span>
-          </div>
-          <div class="field">
-            <label>복제할 페이지 태그</label>
-            <input type="text" name="shopify_page_tag" placeholder="예: 261006_n-srm_pm_da_vd_sglsh-benefit-save-srm_ksh_20260929-1">
-            <span class="field-hint">복제할 Shopify 페이지의 "태그" 메타필드 값을 입력하세요. 새 페이지의 URL 핸들과 태그는 위 "웹사이트 URL"의 /pages/ 뒤 식별자로 자동 설정됩니다.</span>
-          </div>
-          <div class="field-row">
-            <div class="field">
-              <label>제목 재지정</label>
-              <input type="text" name="shopify_title_override" placeholder="비워두면 원본 제목 그대로">
-            </div>
-            <div class="field">
-              <label>태그 재지정</label>
-              <input type="text" name="shopify_tags_override" placeholder="쉼표로 구분, 비워두면 원본 태그 그대로">
-            </div>
-          </div>
-          <div class="field">
-            <label>테마 템플릿 재지정</label>
-            <input type="text" name="shopify_template_override" placeholder="비워두면 원본 템플릿 그대로">
+            <label>복제할 Shopify 페이지 태그</label>
+            <input type="text" name="shopify_identifier" placeholder="예: 261006_n-srm_pm_da_vd_sglsh-benefit-save-srm_ksh_20260929-1">
+            <span class="field-hint">위 "웹사이트 URL"에 <code>/products/</code>가 있으면 이 값을 상품 핸들로, <code>/pages/</code>가 있으면 페이지의 "태그" 메타필드 값으로 사용해 복제합니다. 페이지를 복제할 경우 새 페이지의 URL 핸들·태그는 "웹사이트 URL"의 <code>/pages/</code> 뒤 식별자로 자동 설정됩니다. 비워두면 Shopify 복제를 하지 않습니다.</span>
           </div>
           <div class="field">
             <label>아마존 어트리뷰션 링크 재지정</label>
@@ -725,7 +710,7 @@
     <div class="tab-panel" id="tab-bulk">
       <h2>새 광고 생성 요청 [대량]</h2>
       <p class="hint">스프레드시트에서 복사한 행을 붙여넣으세요 — 광고 1건당 한 줄, 열은 Tab으로 구분, 아래 순서 그대로.</p>
-      <p class="field-hint tight">칸 안에 공백이나 줄바꿈이 있어도 괜찮습니다 — 엑셀·구글시트에서 셀을 그대로 복사해 붙여넣으면 헤드라인·기본 텍스트·Shopify 제목의 여러 줄 문구까지 정확히 인식됩니다. "행 미리보기"로 실제로 어떻게 읽혔는지 확인해보세요.</p>
+      <p class="field-hint tight">칸 안에 공백이나 줄바꿈이 있어도 괜찮습니다 — 엑셀·구글시트에서 셀을 그대로 복사해 붙여넣으면 헤드라인·기본 텍스트의 여러 줄 문구까지 정확히 인식됩니다. "행 미리보기"로 실제로 어떻게 읽혔는지 확인해보세요.</p>
       <details class="columns">
         <summary>열 순서 보기</summary>
         <ol>
@@ -735,7 +720,7 @@
       <form method="post" action="/submit_bulk" id="bulk-form">
         <input type="hidden" name="copy_overrides" id="bulk-copy-overrides" value="{}">
         <div class="field">
-          <textarea class="bulk-textarea" name="bulk_text" id="bulk_text" placeholder="[캠페인]	[복제할 광고 세트 — 광고만 추가하려면 비움]	[새 광고 세트 이름]	[새 광고 이름]	[예산]	[URL]	[소재]	[헤드라인]	[기본 텍스트]	[시작 — 비우면 즉시]	[종료 — 비우면 없음]	[생성 후 상태 — 더 이상 사용 안 함, 비워두세요]	[Shopify 핸들 — 선택]	[제목 재지정]	[태그 재지정]	[템플릿 재지정]	[아마존 링크 재지정]	[복제할 페이지 태그 — 선택]"></textarea>
+          <textarea class="bulk-textarea" name="bulk_text" id="bulk_text" placeholder="[캠페인]	[복제할 광고 세트 — 광고만 추가하려면 비움]	[새 광고 세트 이름]	[새 광고 이름]	[예산]	[URL]	[소재]	[헤드라인]	[기본 텍스트]	[복제할 Shopify 페이지 태그 — 선택]	[아마존 링크 재지정 — 선택]"></textarea>
         </div>
         <div class="bulk-actions">
           <button type="button" class="secondary" id="bulk-preview-btn">행 미리보기</button>
@@ -1049,9 +1034,8 @@
           {% if it.resultShopifyPageUrl %}
             <a href="{{ it.resultShopifyPageUrl }}" target="_blank" rel="noopener">Shopify 페이지 →</a>
           {% endif %}
-          {% if it.status == 'incomplete' and (it.shopifyError or it.shopifyPageError) %}
-            {% if it.shopifyError %}<div class="record-note warn">Shopify 상품: {{ it.shopifyError }}</div>{% endif %}
-            {% if it.shopifyPageError %}<div class="record-note warn">Shopify 페이지: {{ it.shopifyPageError }}</div>{% endif %}
+          {% if it.status == 'incomplete' and it.shopifyError %}
+            <div class="record-note warn">Shopify: {{ it.shopifyError }}</div>
           {% elif it.status == 'error' %}
             <div class="record-note err">
               <span class="record-note-text">{{ it.error }}</span>
@@ -1061,6 +1045,14 @@
                 </form>
               {% endif %}
             </div>
+          {% endif %}
+          {% if it.rollbackError %}
+            <div class="record-note err">삭제 중 오류: {{ it.rollbackError }} — 아래 버튼으로 다시 시도할 수 있습니다.</div>
+          {% endif %}
+          {% if it.result %}
+            <button type="button" class="rollback-btn" data-rollback-url="/delete_created/{{ it.id }}">
+              {{ '삭제 재시도 (생성된 광고·Shopify 포함)' if it.rollbackError else '생성 취소 (광고·Shopify 포함 삭제)' }}
+            </button>
           {% endif %}
         </div>
         {% endif %}
@@ -1238,6 +1230,30 @@
           btn.disabled = false;
         }
       }).catch(function () { btn.disabled = false; });
+    });
+  });
+
+  document.querySelectorAll(".rollback-btn[data-rollback-url]").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      if (!window.confirm("이 요청으로 생성된 Meta 광고와 Shopify 상품/페이지를 실제로 삭제합니다. 되돌릴 수 없습니다. 계속할까요?")) return;
+      var url = btn.getAttribute("data-rollback-url");
+      btn.disabled = true;
+      btn.textContent = "삭제 중…";
+      fetch(url, { method: "POST" }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (data) { return { ok: r.ok, data: data }; });
+      }).then(function (res) {
+        if (res.ok) {
+          var row = btn.closest(".record-row");
+          if (row) row.remove();
+        } else {
+          alert("삭제 중 오류가 발생했습니다: " + (res.data.error || "알 수 없는 오류") + "\n페이지를 새로고침하면 남은 항목을 확인할 수 있습니다.");
+          btn.disabled = false;
+          btn.textContent = "삭제 재시도 (생성된 광고·Shopify 포함)";
+        }
+      }).catch(function () {
+        btn.disabled = false;
+        btn.textContent = "생성 취소 (광고·Shopify 포함 삭제)";
+      });
     });
   });
 
@@ -1875,8 +1891,7 @@
           '</div>';
       }
       var warn = row.warning ? '<div class="record-note warn">' + escapeHtml(row.warning) + '</div>' : '';
-      var shopify = row.shopify_handle !== '-' ? ' · Shopify 상품: ' + escapeHtml(row.shopify_handle) : '';
-      var shopifyPage = row.shopify_page_tag ? ' · Shopify 페이지: ' + escapeHtml(row.shopify_page_tag) : '';
+      var shopify = row.shopify_identifier ? ' · Shopify 복제: ' + escapeHtml(row.shopify_identifier) : '';
       return '<div class="record-row preview-row">' +
         '<div class="record-top">' +
           '<span class="pill done">' + row.lineno + '행</span>' +
@@ -1885,12 +1900,11 @@
         '<div class="record-campaign"><span class="record-label">C:</span>' + escapeHtml(row.campaign) + '</div>' +
         '<div class="record-main"><span class="record-label">AS:</span><span class="adset">' + escapeHtml(row.source_adset) + '</span><span class="arrow">→</span>' +
           escapeHtml(row.new_adset) + ' · <span class="record-label">AD:</span><span class="adname">' + escapeHtml(row.new_ad_name) + '</span></div>' +
-        '<div class="record-result">' + escapeHtml(row.website_url) + shopify + shopifyPage + '</div>' +
+        '<div class="record-result">' + escapeHtml(row.website_url) + shopify + '</div>' +
         '<div class="bulk-copy-editor"><label>헤드라인</label>' +
           '<input type="text" class="bulk-copy-input" data-line="' + row.lineno + '" data-copy-field="headline" value="' + escapeHtml(row.headline) + '"></div>' +
         '<div class="bulk-copy-editor"><label>Primary Text</label>' +
           '<textarea class="bulk-copy-input" data-line="' + row.lineno + '" data-copy-field="primary_text">' + escapeHtml(row.primary_text) + '</textarea></div>' +
-        (row.shopify_title ? '<div class="preview-copy"><span class="record-label">Shopify 제목:</span> ' + escapeHtml(row.shopify_title) + '</div>' : '') +
         warn +
         '</div>';
     }

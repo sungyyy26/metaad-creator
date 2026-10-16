@@ -831,3 +831,40 @@ def create_bridge_page(shop, token, *, source_handle, new_handle, title_override
         "url": f"https://{domain}/products/{updated['handle']}",
         "image_count": new_image_count,
     }
+
+
+def delete_product(shop, token, product_id):
+    """Permanently deletes a bridge product — used to roll back a row whose
+    Meta ad was created but something else in the same row failed, so the
+    whole thing can be undone instead of leaving an orphaned duplicate."""
+    query = """
+    mutation($input: ProductDeleteInput!) {
+      productDelete(input: $input) {
+        deletedProductId
+        userErrors { field message }
+      }
+    }
+    """
+    data = _gql(shop, token, query, {"input": {"id": product_id}})
+    result = data["productDelete"]
+    if result["userErrors"]:
+        raise ShopifyApiError("; ".join(e["message"] for e in result["userErrors"]))
+    return result["deletedProductId"]
+
+
+def delete_page(shop, token, page_id):
+    """Permanently deletes a bridge page — same rollback role as
+    delete_product, for the page-duplication path."""
+    query = """
+    mutation($id: ID!) {
+      pageDelete(id: $id) {
+        deletedPageId
+        userErrors { field message }
+      }
+    }
+    """
+    data = _gql(shop, token, query, {"id": page_id})
+    result = data["pageDelete"]
+    if result["userErrors"]:
+        raise ShopifyApiError("; ".join(e["message"] for e in result["userErrors"]))
+    return result["deletedPageId"]

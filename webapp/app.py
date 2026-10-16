@@ -80,20 +80,13 @@ BULK_COLUMNS = [
     "새 광고 세트 이름 (필수)",
     "새 광고 이름 (필수)",
     "일일 예산 (필수)",
-    "웹사이트 URL (필수)",
+    "웹사이트 URL (필수 — /products/ 포함 시 상품을, /pages/ 포함 시 페이지를 복제합니다)",
     "소재 (필수)",
     "헤드라인 (실제 문구를 입력하거나, '소재'가 EQQUALBERRY 소재명 규칙을 따르면 '생성'이라고 입력해 자동 작성)",
     "기본 텍스트 (실제 문구를 입력하거나, '소재'가 EQQUALBERRY 소재명 규칙을 따르면 '생성'이라고 입력해 자동 작성)",
-    "시작 (비워두면 즉시; 형식 YYYY/MM/DD H(:MM)AM/PM, 예: 2026/09/08 12AM — 해당 광고 계정의 Meta 시간대 기준)",
-    "종료 (비워두면 종료일 없음; 형식은 시작과 동일, 예: 2026/09/08 11:59PM)",
-    "생성 후 상태 (더 이상 사용되지 않음 — 값을 적어도 무시됩니다: 광고는 항상 즉시 활성화, 새로 만들어지는 광고 세트는 항상 일시중지 상태로 생성됩니다)",
-    "복제할 Shopify 상품 핸들 (선택 — 비워두면 복제 없음; 이 핸들에 해당하는 상품이 없으면 같은 값을 "
-    "Shopify 페이지의 '태그'로 자동 재시도합니다)",
-    "Shopify 제목 재지정 (선택)",
-    "Shopify 태그 재지정 (선택, 쉼표로 구분)",
-    "Shopify 테마 템플릿 재지정 (선택)",
+    "복제할 Shopify 페이지 태그 (선택 — 웹사이트 URL이 /products/면 상품 핸들로, /pages/면 페이지 태그로 "
+    "사용됩니다; 비워두면 Shopify 복제 없음)",
     "Shopify 아마존 어트리뷰션 링크 재지정 (선택)",
-    "복제할 Shopify 페이지 태그 (선택 — 입력하면 웹사이트 URL의 /pages/ 뒤 식별자로 그 페이지를 복제; 비워두면 페이지 복제 없음)",
 ]
 # 0-indexed column -> human label, for the required-field check. Column 1
 # (복제할 광고) is deliberately NOT required — leaving it blank is the
@@ -202,19 +195,6 @@ def extract_shopify_page_identifier(url):
     rather than asking for them as separate inputs."""
     match = re.search(r"/pages/([^/?#]+)", url or "")
     return match.group(1) if match else None
-
-
-def parse_schedule_datetime(value):
-    """'YYYY/MM/DD H(:MM)AM/PM' (e.g. '2026/09/08 12AM') -> ISO 8601 with no
-    timezone offset, which Meta then interprets in the ad account's own
-    configured timezone."""
-    normalized = value.strip().upper()
-    for fmt in ("%Y/%m/%d %I:%M%p", "%Y/%m/%d %I%p"):
-        try:
-            return datetime.strptime(normalized, fmt).strftime("%Y-%m-%dT%H:%M:%S")
-        except ValueError:
-            continue
-    raise ValueError(f"'{value}' 형식을 인식하지 못했습니다 (예: 2026/09/08 12AM 또는 2026/09/08 11:59PM)")
 
 
 def split_bulk_rows(text):
@@ -356,15 +336,6 @@ def parse_bulk_row(cols):
         if is_blank(value):
             raise RowError(f"{label}가 비어있습니다 — 실제 문구를 입력하거나 '생성'이라고 입력해주세요.")
 
-    try:
-        start_iso = parse_schedule_datetime(get(9)) if not is_blank(get(9)) else None
-        end_iso = parse_schedule_datetime(get(10)) if not is_blank(get(10)) else None
-    except ValueError as e:
-        raise RowError(str(e))
-
-    after_raw = get(11)
-    after_status = "ACTIVE" if (not is_blank(after_raw) and after_raw.strip().lower() in ("active", "활성화")) else "PAUSED"
-
     warning = None
     extra = [v for v in cols[len(BULK_COLUMNS):] if v.strip()]
     if extra:
@@ -381,15 +352,8 @@ def parse_bulk_row(cols):
         creative_name=cols[6],
         headline=headline,
         primary_text=primary_text,
-        start_iso=start_iso,
-        end_iso=end_iso,
-        after_status=after_status,
-        shopify_source_handle="" if is_blank(get(12)) else get(12),
-        shopify_title="" if is_blank(get(13)) else get(13),
-        shopify_tags="" if is_blank(get(14)) else get(14),
-        shopify_template="" if is_blank(get(15)) else get(15),
-        shopify_amazon="" if is_blank(get(16)) else get(16),
-        shopify_page_tag="" if is_blank(get(17)) else get(17),
+        shopify_identifier="" if is_blank(get(9)) else get(9),
+        shopify_amazon="" if is_blank(get(10)) else get(10),
         warning=warning,
     )
 
@@ -455,8 +419,10 @@ def new_entry(**fields):
 
 def run_duplicate(token, entry, *, campaign_id, source_adset_name, new_adset_name,
                    new_ad_name, daily_budget, website_url, creative_name, headline,
-                   primary_text, after_status, account_override=None, start_iso=None,
-                   end_iso=None, cache=None, batch_adsets=None):
+                   primary_text, account_override=None, cache=None, batch_adsets=None):
+    """Ads are always created immediately active with no end date; new ad
+    sets are always created paused (a safety net until turned on by hand) —
+    these are no longer configurable from the bulk/manual inputs."""
     try:
         result = meta_lib.duplicate_ad(
             token,
@@ -471,9 +437,7 @@ def run_duplicate(token, entry, *, campaign_id, source_adset_name, new_adset_nam
             creative_name=creative_name,
             headline=headline,
             primary_text=primary_text,
-            start_iso=start_iso,
-            end_iso=end_iso,
-            status=after_status,
+            status="ACTIVE",
             cache=cache,
             batch_adsets=batch_adsets,
         )
@@ -490,110 +454,62 @@ def run_duplicate(token, entry, *, campaign_id, source_adset_name, new_adset_nam
         return False, entry["error"]
 
 
-def run_shopify_bridge(entry, *, new_ad_name, website_url, source_handle, title_override=None,
-                        tags_override=None, template_override=None, amazon_link_override=None):
+def run_shopify_bridge(entry, *, new_ad_name, website_url, source_identifier, amazon_link_override=None):
     """Only called after a successful Meta duplicate_ad. Downgrades a 'done'
     entry to 'incomplete' (never touches the already-created Meta ad) if the
     Shopify side fails, matching the original artifact's rule that Meta
     success + Shopify failure is never reported as fully 'done'.
 
-    source_handle is tried as a Shopify PRODUCT handle first (unchanged
-    behavior when it matches one). If no product exists with that exact
-    handle, the same value is retried as a Shopify PAGE's 태그 metafield
-    instead — this lets a single input column duplicate whichever Shopify
-    resource the value actually matches, without also requiring the
-    separate page-tag column to be filled in."""
+    Dispatches purely on website_url's own path: a /products/... URL
+    duplicates source_identifier as a product handle (unchanged
+    create_bridge_page behavior); a /pages/... URL duplicates it as a page's
+    태그 metafield, with the new page's handle+태그 both derived from that
+    same URL's /pages/ segment. The created product/page id is stashed on
+    the entry (resultShopifyProductId/resultShopifyPageId) so a later
+    rollback can delete it if something else in the same row fails."""
     shop = os.environ.get("SHOPIFY_SHOP")
     shopify_token = os.environ.get("SHOPIFY_ACCESS_TOKEN")
     if not shop or not shopify_token:
         entry["status"] = "incomplete"
         entry["shopifyError"] = "SHOPIFY_SHOP / SHOPIFY_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."
         return
+    is_product = "/products/" in website_url
+    is_page = "/pages/" in website_url
     try:
-        bridge = shopify_lib.create_bridge_page(
-            shop, shopify_token,
-            source_handle=source_handle,
-            new_handle=new_ad_name,
-            title_override=title_override or None,
-            tags_override=tags_override or None,
-            template_override=template_override or None,
-            amazon_link_override=amazon_link_override or None,
-            storefront_domain=os.environ.get("SHOPIFY_STOREFRONT_DOMAIN"),
-        )
-        entry["resultShopifyUrl"] = bridge["url"]
-        return
-    except shopify_lib.ShopifyNotFoundError:
-        pass  # not a product handle -- fall through and try it as a page tag
-    except shopify_lib.ShopifyApiError as e:
-        entry["status"] = "incomplete"
-        entry["shopifyError"] = str(e)
-        return
-    except Exception as e:  # noqa: BLE001
-        entry["status"] = "incomplete"
-        entry["shopifyError"] = f"예상치 못한 오류: {e}"
-        return
-
-    new_identifier = extract_shopify_page_identifier(website_url)
-    if not new_identifier:
-        entry["status"] = "incomplete"
-        entry["shopifyError"] = (
-            f"핸들 '{source_handle}'에 해당하는 상품이 없고, 웹사이트 URL도 /pages/ 형식이 아니라 "
-            f"페이지로도 시도하지 못했습니다."
-        )
-        return
-    try:
-        bridge = shopify_lib.create_page_bridge(
-            shop, shopify_token,
-            source_tag=source_handle,
-            new_handle=new_identifier,
-            new_tag=new_identifier,
-            amazon_url_override=amazon_link_override or None,
-            storefront_domain=os.environ.get("SHOPIFY_STOREFRONT_DOMAIN"),
-        )
-        entry["resultShopifyPageUrl"] = bridge["url"]
+        if is_product:
+            bridge = shopify_lib.create_bridge_page(
+                shop, shopify_token,
+                source_handle=source_identifier,
+                new_handle=new_ad_name,
+                amazon_link_override=amazon_link_override or None,
+                storefront_domain=os.environ.get("SHOPIFY_STOREFRONT_DOMAIN"),
+            )
+            entry["resultShopifyUrl"] = bridge["url"]
+            entry["resultShopifyProductId"] = bridge["product_id"]
+        elif is_page:
+            new_identifier = extract_shopify_page_identifier(website_url)
+            bridge = shopify_lib.create_page_bridge(
+                shop, shopify_token,
+                source_tag=source_identifier,
+                new_handle=new_identifier,
+                new_tag=new_identifier,
+                amazon_url_override=amazon_link_override or None,
+                storefront_domain=os.environ.get("SHOPIFY_STOREFRONT_DOMAIN"),
+            )
+            entry["resultShopifyPageUrl"] = bridge["url"]
+            entry["resultShopifyPageId"] = bridge["page_id"]
+        else:
+            entry["status"] = "incomplete"
+            entry["shopifyError"] = (
+                "웹사이트 URL에 /products/ 또는 /pages/ 가 없어 상품/페이지 중 "
+                "무엇을 복제할지 판단하지 못했습니다."
+            )
     except shopify_lib.ShopifyApiError as e:
         entry["status"] = "incomplete"
         entry["shopifyError"] = str(e)
     except Exception as e:  # noqa: BLE001
         entry["status"] = "incomplete"
         entry["shopifyError"] = f"예상치 못한 오류: {e}"
-
-
-def run_shopify_page_bridge(entry, *, website_url, source_tag, amazon_link_override=None):
-    """Same role as run_shopify_bridge, but duplicates a Shopify Page (not a
-    product) — only called after a successful Meta duplicate_ad, and
-    downgrades a 'done' entry to 'incomplete' on failure. The new page's
-    handle and 태그 metafield both come from the identifier embedded in
-    website_url's /pages/ segment, so no separate 'new page name' input is
-    needed; a row/form can set shopify_source_handle (product) and
-    shopify_page_tag (page) independently, or both, or neither."""
-    new_identifier = extract_shopify_page_identifier(website_url)
-    if not new_identifier:
-        entry["status"] = "incomplete"
-        entry["shopifyPageError"] = f"웹사이트 URL에서 페이지 식별자를 찾지 못했습니다 (/pages/ 형식이 아님): {website_url}"
-        return
-    shop = os.environ.get("SHOPIFY_SHOP")
-    shopify_token = os.environ.get("SHOPIFY_ACCESS_TOKEN")
-    if not shop or not shopify_token:
-        entry["status"] = "incomplete"
-        entry["shopifyPageError"] = "SHOPIFY_SHOP / SHOPIFY_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."
-        return
-    try:
-        bridge = shopify_lib.create_page_bridge(
-            shop, shopify_token,
-            source_tag=source_tag,
-            new_handle=new_identifier,
-            new_tag=new_identifier,
-            amazon_url_override=amazon_link_override or None,
-            storefront_domain=os.environ.get("SHOPIFY_STOREFRONT_DOMAIN"),
-        )
-        entry["resultShopifyPageUrl"] = bridge["url"]
-    except shopify_lib.ShopifyApiError as e:
-        entry["status"] = "incomplete"
-        entry["shopifyPageError"] = str(e)
-    except Exception as e:  # noqa: BLE001
-        entry["status"] = "incomplete"
-        entry["shopifyPageError"] = f"예상치 못한 오류: {e}"
 
 
 @app.route("/")
@@ -627,13 +543,8 @@ def _manual_input_snapshot(form, headline, primary_text):
         "creative_name": form.get("creative_name", ""),
         "headline": headline,
         "primary_text": primary_text,
-        "after_status": form.get("after_status", "PAUSED"),
-        "shopify_source_handle": form.get("shopify_source_handle", "").strip(),
-        "shopify_title": form.get("shopify_title_override", "").strip(),
-        "shopify_tags": form.get("shopify_tags_override", "").strip(),
-        "shopify_template": form.get("shopify_template_override", "").strip(),
+        "shopify_identifier": form.get("shopify_identifier", "").strip(),
         "shopify_amazon": form.get("shopify_amazon_override", "").strip(),
-        "shopify_page_tag": form.get("shopify_page_tag", "").strip(),
     }
 
 
@@ -750,23 +661,13 @@ def submit():
             new_ad_name=form["new_ad_name"], daily_budget=form["daily_budget"],
             website_url=form["website_url"], creative_name=form["creative_name"],
             headline=headline, primary_text=primary_text,
-            after_status="ACTIVE",  # ad is always created active; new ad sets are always created paused
         )
-        shopify_source_handle = form.get("shopify_source_handle", "").strip()
+        shopify_identifier = form.get("shopify_identifier", "").strip()
         shopify_amazon_override = form.get("shopify_amazon_override", "").strip()
-        if ok and shopify_source_handle:
+        if ok and shopify_identifier:
             run_shopify_bridge(
                 entry, new_ad_name=form["new_ad_name"], website_url=form["website_url"],
-                source_handle=shopify_source_handle,
-                title_override=form.get("shopify_title_override", "").strip(),
-                tags_override=form.get("shopify_tags_override", "").strip(),
-                template_override=form.get("shopify_template_override", "").strip(),
-                amazon_link_override=shopify_amazon_override,
-            )
-        shopify_page_tag = form.get("shopify_page_tag", "").strip()
-        if ok and shopify_page_tag:
-            run_shopify_page_bridge(
-                entry, website_url=form["website_url"], source_tag=shopify_page_tag,
+                source_identifier=shopify_identifier,
                 amazon_link_override=shopify_amazon_override,
             )
         upsert(entry)
@@ -774,8 +675,7 @@ def submit():
         if not ok:
             message = {"kind": "err", "text": err}
         elif entry["status"] == "incomplete":
-            shopify_err = entry.get("shopifyError") or entry.get("shopifyPageError")
-            message = {"kind": "err", "text": f"Meta 광고는 생성됐지만 Shopify 브릿지 페이지 실패: {shopify_err}"}
+            message = {"kind": "err", "text": f"Meta 광고는 생성됐지만 Shopify 복제 실패: {entry.get('shopifyError')}"}
         else:
             message = {"kind": "ok", "text": f"생성 완료: 광고 세트 {entry['result']['ad_set_id']} / 광고 {entry['result']['ad_id']}"}
 
@@ -870,15 +770,8 @@ def submit_bulk():
                     "creative_name": row["creative_name"],
                     "headline": row["headline"],
                     "primary_text": row["primary_text"],
-                    "start_iso": row["start_iso"],
-                    "end_iso": row["end_iso"],
-                    "after_status": row["after_status"],
-                    "shopify_source_handle": row["shopify_source_handle"],
-                    "shopify_title": row["shopify_title"],
-                    "shopify_tags": row["shopify_tags"],
-                    "shopify_template": row["shopify_template"],
+                    "shopify_identifier": row["shopify_identifier"],
                     "shopify_amazon": row["shopify_amazon"],
-                    "shopify_page_tag": row["shopify_page_tag"],
                 },
             )
             upsert(entry)
@@ -889,21 +782,12 @@ def submit_bulk():
                 new_ad_name=row["new_ad_name"], daily_budget=row["daily_budget"],
                 website_url=row["website_url"], creative_name=row["creative_name"],
                 headline=row["headline"], primary_text=row["primary_text"],
-                start_iso=row["start_iso"], end_iso=row["end_iso"],
-                after_status="ACTIVE",  # ad is always created active; new ad sets are always created paused
                 cache=meta_cache, batch_adsets=batch_adsets,
             )
-            if ok and row["shopify_source_handle"]:
+            if ok and row["shopify_identifier"]:
                 run_shopify_bridge(
                     entry, new_ad_name=row["new_ad_name"], website_url=row["website_url"],
-                    source_handle=row["shopify_source_handle"],
-                    title_override=row["shopify_title"], tags_override=row["shopify_tags"],
-                    template_override=row["shopify_template"], amazon_link_override=row["shopify_amazon"],
-                )
-            if ok and row["shopify_page_tag"]:
-                run_shopify_page_bridge(
-                    entry, website_url=row["website_url"], source_tag=row["shopify_page_tag"],
-                    amazon_link_override=row["shopify_amazon"],
+                    source_identifier=row["shopify_identifier"], amazon_link_override=row["shopify_amazon"],
                 )
             upsert(entry)
 
@@ -914,8 +798,7 @@ def submit_bulk():
                 details.append(f"{lineno}행 ({row['new_ad_name']}): {err}")
             elif entry["status"] == "incomplete":
                 incomplete += 1
-                shopify_err = entry.get("shopifyError") or entry.get("shopifyPageError")
-                details.append(f"{lineno}행 ({row['new_ad_name']}): Meta 광고는 생성됨, Shopify 실패 — {shopify_err}")
+                details.append(f"{lineno}행 ({row['new_ad_name']}): Meta 광고는 생성됨, Shopify 실패 — {entry.get('shopifyError')}")
             else:
                 success += 1
 
@@ -979,12 +862,8 @@ def preview_bulk():
             "creative_name": row["creative_name"],
             "headline": row["headline"],
             "primary_text": row["primary_text"],
-            "start": row["start_iso"] or "즉시",
-            "end": row["end_iso"] or "없음",
             "status": "즉시 활성화 (광고 세트는 항상 일시중지로 생성)",
-            "shopify_handle": row["shopify_source_handle"] or "-",
-            "shopify_title": row["shopify_title"] or None,
-            "shopify_page_tag": row["shopify_page_tag"] or None,
+            "shopify_identifier": row["shopify_identifier"] or None,
             "warning": row["warning"],
         })
 
@@ -1025,28 +904,18 @@ def retry(req_id):
         new_ad_name=inp["new_ad_name"], daily_budget=inp["daily_budget"],
         website_url=inp["website_url"], creative_name=inp["creative_name"],
         headline=inp["headline"], primary_text=inp["primary_text"],
-        start_iso=inp.get("start_iso"), end_iso=inp.get("end_iso"),
-        after_status="ACTIVE",  # ad is always created active; new ad sets are always created paused
     )
-    if ok and inp.get("shopify_source_handle"):
+    if ok and inp.get("shopify_identifier"):
         run_shopify_bridge(
             entry, new_ad_name=inp["new_ad_name"], website_url=inp["website_url"],
-            source_handle=inp["shopify_source_handle"],
-            title_override=inp.get("shopify_title"), tags_override=inp.get("shopify_tags"),
-            template_override=inp.get("shopify_template"), amazon_link_override=inp.get("shopify_amazon"),
-        )
-    if ok and inp.get("shopify_page_tag"):
-        run_shopify_page_bridge(
-            entry, website_url=inp["website_url"], source_tag=inp["shopify_page_tag"],
-            amazon_link_override=inp.get("shopify_amazon"),
+            source_identifier=inp["shopify_identifier"], amazon_link_override=inp.get("shopify_amazon"),
         )
     upsert(entry)
 
     if not ok:
         message = {"kind": "err", "text": err}
     elif entry["status"] == "incomplete":
-        shopify_err = entry.get("shopifyError") or entry.get("shopifyPageError")
-        message = {"kind": "err", "text": f"Meta 광고는 생성됐지만 Shopify 브릿지 페이지 실패: {shopify_err}"}
+        message = {"kind": "err", "text": f"Meta 광고는 생성됐지만 Shopify 복제 실패: {entry.get('shopifyError')}"}
     else:
         message = {"kind": "ok", "text": f"재시도 성공: 광고 세트 {entry['result']['ad_set_id']} / 광고 {entry['result']['ad_id']}"}
 
@@ -1059,6 +928,71 @@ def delete(req_id):
     """Called via fetch() from the page's JS, not a form post — the row is
     removed from requests.json and the caller deletes the <tr> itself, so the
     page never navigates away (keeping whichever tab/scroll position it was on)."""
+    remove_request(req_id)
+    return {"ok": True}
+
+
+@app.route("/delete_created/<req_id>", methods=["POST"])
+def delete_created(req_id):
+    """Rolls back whatever this request actually created — the Meta ad (and
+    its ad set, but only if one was created fresh for this request, never a
+    shared/ads-only ad set other ads also live in) and any Shopify
+    product/page — then removes the local history entry. For when something
+    partially failed (e.g. the Meta ad went through but Shopify didn't) and
+    the whole thing needs undoing rather than left half-done. Every
+    applicable live delete is attempted regardless of an earlier one
+    failing, and all failures are reported together; the local entry is
+    only removed once every one that applies has succeeded, so a partial
+    failure stays visible (with what's left to clean up) and can be
+    retried."""
+    items = load_requests()
+    entry = next((it for it in items if it["id"] == req_id), None)
+    if not entry:
+        return {"ok": False, "error": "이미 삭제된 요청입니다."}, 404
+
+    errors = []
+    result = entry.get("result")
+    if result:
+        token = os.environ.get("META_ACCESS_TOKEN")
+        if not token:
+            errors.append("META_ACCESS_TOKEN 환경변수가 설정되어 있지 않아 Meta 광고를 삭제하지 못했습니다.")
+        else:
+            try:
+                meta_lib.delete_ad(token, result["ad_id"])
+            except meta_lib.MetaApiError as e:
+                errors.append(f"Meta 광고 삭제 실패: {e}")
+            else:
+                created_own_adset = bool((entry.get("input") or {}).get("source_adset_name"))
+                if created_own_adset:
+                    try:
+                        meta_lib.delete_adset(token, result["ad_set_id"])
+                    except meta_lib.MetaApiError as e:
+                        errors.append(f"Meta 광고 세트 삭제 실패: {e}")
+
+    shopify_product_id = entry.get("resultShopifyProductId")
+    shopify_page_id = entry.get("resultShopifyPageId")
+    if shopify_product_id or shopify_page_id:
+        shop = os.environ.get("SHOPIFY_SHOP")
+        shopify_token = os.environ.get("SHOPIFY_ACCESS_TOKEN")
+        if not shop or not shopify_token:
+            errors.append("SHOPIFY_SHOP / SHOPIFY_ACCESS_TOKEN 환경변수가 설정되어 있지 않아 Shopify 쪽을 삭제하지 못했습니다.")
+        else:
+            if shopify_product_id:
+                try:
+                    shopify_lib.delete_product(shop, shopify_token, shopify_product_id)
+                except shopify_lib.ShopifyApiError as e:
+                    errors.append(f"Shopify 상품 삭제 실패: {e}")
+            if shopify_page_id:
+                try:
+                    shopify_lib.delete_page(shop, shopify_token, shopify_page_id)
+                except shopify_lib.ShopifyApiError as e:
+                    errors.append(f"Shopify 페이지 삭제 실패: {e}")
+
+    if errors:
+        entry["rollbackError"] = " / ".join(errors)
+        upsert(entry)
+        return {"ok": False, "error": entry["rollbackError"]}, 500
+
     remove_request(req_id)
     return {"ok": True}
 
