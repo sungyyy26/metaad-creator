@@ -744,15 +744,14 @@ def remove_allowed_user(entry_id):
 
 def current_user_label():
     """Google 계정에 저장된 이름(예: "예성")을 그대로 쓰고, 이름이 비어있으면
-    이메일의 @ 앞부분과 전체 이메일을 함께 보여준다 (예: "ys.lee (ys.lee@boosters.kr)").
-    로그인이 꺼져 있는 로컬 개발 환경에서는 호출되지 않는다 — 이땐 호출하는
-    쪽에서 LOGIN_ENABLED를 먼저 확인한다."""
+    이메일의 @ 앞부분만 보여준다 (예: "ys.lee"). 로그인이 꺼져 있는 로컬 개발
+    환경에서는 호출되지 않는다 — 이땐 호출하는 쪽에서 LOGIN_ENABLED를 먼저
+    확인한다."""
     name = (session.get("user_name") or "").strip()
     if name:
         return name
     email = (session.get("user_email") or "").strip()
-    local_part = email.split("@")[0] if email else ""
-    return f"{local_part} ({email})" if local_part else email
+    return email.split("@")[0] if email else email
 
 
 def new_entry(**fields):
@@ -1223,23 +1222,35 @@ def preview_bulk():
     return {"rows": preview, "total": len(rows), "ok_count": ok_count, "error_count": len(rows) - ok_count}
 
 
+_RETRY_INPUT_FIELDS = (
+    "campaign_id", "account_override", "source_adset_name", "new_adset_name",
+    "new_ad_name", "daily_budget", "website_url", "creative_name", "headline",
+    "primary_text", "shopify_identifier", "shopify_amazon",
+)
+
+
 @app.route("/retry/<req_id>", methods=["POST"])
 def retry(req_id):
-    """Re-runs a request that previously failed outright, using the inputs
-    captured when it was first submitted — no retyping. Only offered for
-    status == 'error' (nothing was created yet); an 'incomplete' entry already
-    has a real Meta ad, so re-running it would create a duplicate ad rather
-    than fix anything."""
+    """Re-runs a request that previously failed, using the inputs captured
+    when it was first submitted — unless the edit-and-retry form supplied
+    changed values (any _RETRY_INPUT_FIELDS key present in the POST body
+    overrides the saved one; the plain '재시도' button posts none, so it
+    replays exactly as before). Offered for both outright failures ('error'
+    — nothing was created yet, so a full re-run is safe) and partial ones
+    ('incomplete' — the Meta ad already exists, so only the Shopify half is
+    re-attempted, never a duplicate ad)."""
     items = load_requests()
     entry = next((it for it in items if it["id"] == req_id), None)
-    if not entry or not entry.get("input") or entry.get("status") != "error":
+    if not entry or not entry.get("input") or entry.get("status") not in ("error", "incomplete"):
         session["flash_message"] = {"kind": "err", "text": "이 항목은 재시도할 수 없습니다."}
         return redirect("/")
 
-    inp = entry["input"]
+    inp = dict(entry["input"])
+    for key in _RETRY_INPUT_FIELDS:
+        if key in request.form:
+            inp[key] = request.form.get(key, "")
+    entry["input"] = inp
     entry["submittedAt"] = datetime.now().strftime("%m/%d %H:%M")
-    entry.pop("error", None)
-    upsert(entry)
 
     token = os.environ.get("META_ACCESS_TOKEN")
     if not token:
@@ -1248,6 +1259,32 @@ def retry(req_id):
         upsert(entry)
         session["flash_message"] = {"kind": "err", "text": entry["error"]}
         return redirect("/")
+
+    if entry["status"] == "incomplete":
+        entry.pop("shopifyError", None)
+        entry["status"] = "done"
+        upsert(entry)
+        shopify_identifier = (inp.get("shopify_identifier") or "").strip()
+        if not shopify_identifier:
+            entry["status"] = "incomplete"
+            entry["shopifyError"] = "Shopify 식별자가 비어 있어 재시도할 수 없습니다."
+            upsert(entry)
+            message = {"kind": "err", "text": entry["shopifyError"]}
+        else:
+            run_shopify_bridge(
+                entry, new_ad_name=inp["new_ad_name"], website_url=inp["website_url"],
+                source_identifier=shopify_identifier, amazon_link_override=inp.get("shopify_amazon"),
+            )
+            upsert(entry)
+            if entry["status"] == "incomplete":
+                message = {"kind": "err", "text": f"Shopify 재시도 실패: {entry.get('shopifyError')}"}
+            else:
+                message = {"kind": "ok", "text": "Shopify 복제 재시도 성공"}
+        session["flash_message"] = message
+        return redirect("/")
+
+    entry.pop("error", None)
+    upsert(entry)
 
     ok, err = run_duplicate(
         token, entry,
