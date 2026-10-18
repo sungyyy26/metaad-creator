@@ -3,3 +3,6 @@ requests
 python-dotenv
 openpyxl
 tzdata
+gunicorn
+psycopg2-binary
+Authlib

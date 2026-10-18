@@ -24,7 +24,7 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
-from flask import Flask, Response, redirect, render_template, request, send_file, session
+from flask import Flask, Response, redirect, render_template, request, send_file, session, url_for
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import copy_generator  # noqa: E402
@@ -37,13 +37,78 @@ load_dotenv()  # reads .env in the repo root (or nearest parent) if present;
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", os.urandom(24))
-DB_PATH = os.path.join(os.path.dirname(__file__), "requests.json")
-UPLOADS_DB_PATH = os.path.join(os.path.dirname(__file__), "uploads.json")
+DATABASE_URL = os.environ.get("DATABASE_URL")
+# 로컬에서는 DATABASE_URL이 없으면 기존처럼 그냥 JSON 파일에 저장한다 — Postgres를
+# 따로 띄우지 않아도 로컬 개발은 그대로 동작한다. Render처럼 DATABASE_URL이 설정된
+# 환경에서만 Postgres를 쓴다 (requests.json/uploads.json은 그 환경에서 재시작마다
+# 사라지는 디스크에 있기 때문).
+DB_PATH = "requests" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "requests.json")
+UPLOADS_DB_PATH = "uploads" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "uploads.json")
+_VALID_TABLES = {"requests", "uploads"}
 LOCK = threading.Lock()
 BUDGET_CACHE_LOCK = threading.Lock()
 BUDGET_META_CACHE = {}
 BUDGET_META_CACHE_EXPIRES = 0.0
 BUDGET_META_CACHE_TTL = 60
+
+# --- Google 로그인 ---
+# GOOGLE_OAUTH_CLIENT_ID/SECRET이 설정되어 있을 때만 로그인을 강제한다 — 로컬
+# 개발 중에는 이 값들을 안 만들어도 그대로 바로 쓸 수 있다. 실제로 로그인이
+# 걸리는 건 Render처럼 이 값들이 설정된 배포 환경뿐이다.
+GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID")
+GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET")
+ALLOWED_EMAIL_DOMAIN = os.environ.get("ALLOWED_EMAIL_DOMAIN", "boosters.kr")
+LOGIN_ENABLED = bool(GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET)
+
+oauth = None
+if LOGIN_ENABLED:
+    from authlib.integrations.flask_client import OAuth
+    oauth = OAuth(app)
+    oauth.register(
+        name="google",
+        client_id=GOOGLE_OAUTH_CLIENT_ID,
+        client_secret=GOOGLE_OAUTH_CLIENT_SECRET,
+        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+        client_kwargs={"scope": "openid email profile"},
+    )
+
+
+@app.route("/login")
+def login():
+    if not LOGIN_ENABLED:
+        return redirect("/")
+    redirect_uri = url_for("auth_callback", _external=True)
+    return oauth.google.authorize_redirect(redirect_uri)
+
+
+@app.route("/login/callback")
+def auth_callback():
+    if not LOGIN_ENABLED:
+        return redirect("/")
+    token = oauth.google.authorize_access_token()
+    userinfo = token.get("userinfo") or {}
+    email = (userinfo.get("email") or "").strip()
+    if not email.lower().endswith("@" + ALLOWED_EMAIL_DOMAIN.lower()):
+        return f"접근 권한이 없습니다 ({ALLOWED_EMAIL_DOMAIN} 계정으로만 로그인할 수 있습니다).", 403
+    session["user_email"] = email
+    return redirect("/")
+
+
+@app.route("/logout")
+def logout():
+    session.pop("user_email", None)
+    return redirect(url_for("login") if LOGIN_ENABLED else "/")
+
+
+@app.before_request
+def require_login():
+    if not LOGIN_ENABLED:
+        return
+    if request.endpoint in ("login", "auth_callback", "static") or request.endpoint is None:
+        return
+    if not session.get("user_email"):
+        return redirect(url_for("login"))
+
 
 ACCOUNTS = {
     "1298298124998350": "EQQUALBERRY_AMAZON_US (USD)",
@@ -371,29 +436,98 @@ def parse_bulk_row(cols):
     )
 
 
-def _load_json_list(path):
-    if not os.path.exists(path):
-        return []
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+def _db_connect():
+    import psycopg2
+    return psycopg2.connect(DATABASE_URL)
 
 
-def _save_json_list(path, items):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(items, f, ensure_ascii=False, indent=2)
+def _init_db():
+    """Idempotent — safe to call on every startup. Each table is just an
+    id + a JSONB blob, mirroring the old file-of-a-JSON-list shape exactly,
+    so every call site that already deals in plain dicts needs no changes."""
+    if not DATABASE_URL:
+        return
+    with _db_connect() as conn, conn.cursor() as cur:
+        for table in _VALID_TABLES:
+            cur.execute(f"""
+                CREATE TABLE IF NOT EXISTS {table} (
+                    id TEXT PRIMARY KEY,
+                    seq BIGSERIAL,
+                    data JSONB NOT NULL
+                )
+            """)
+        conn.commit()
 
 
-def _upsert(path, entry):
+def _load_json_list(table_or_path):
+    if not DATABASE_URL:
+        path = table_or_path
+        if not os.path.exists(path):
+            return []
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+
+    table = table_or_path
+    assert table in _VALID_TABLES
+    with _db_connect() as conn, conn.cursor() as cur:
+        cur.execute(f"SELECT data FROM {table} ORDER BY seq ASC")
+        return [row[0] for row in cur.fetchall()]
+
+
+def _save_json_list(table_or_path, items):
+    """Replaces the entire list's contents, same as the old file-overwrite
+    behavior (used by the '전체 삭제' bulk-delete routes)."""
+    if not DATABASE_URL:
+        path = table_or_path
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(items, f, ensure_ascii=False, indent=2)
+        return
+
+    table = table_or_path
+    assert table in _VALID_TABLES
+    with _db_connect() as conn, conn.cursor() as cur:
+        cur.execute(f"DELETE FROM {table}")
+        for it in items:
+            cur.execute(f"INSERT INTO {table} (id, data) VALUES (%s, %s)", (it["id"], json.dumps(it)))
+        conn.commit()
+
+
+def _upsert(table_or_path, entry):
+    """Matches the old file-based behavior exactly: an entry with an id
+    that already exists is replaced and moves to the end of the list (its
+    seq is refreshed), not updated in place."""
     with LOCK:
-        items = [it for it in _load_json_list(path) if it["id"] != entry["id"]]
-        items.append(entry)
-        _save_json_list(path, items)
+        if not DATABASE_URL:
+            path = table_or_path
+            items = [it for it in _load_json_list(path) if it["id"] != entry["id"]]
+            items.append(entry)
+            _save_json_list(path, items)
+            return
+
+        table = table_or_path
+        assert table in _VALID_TABLES
+        with _db_connect() as conn, conn.cursor() as cur:
+            cur.execute(f"DELETE FROM {table} WHERE id = %s", (entry["id"],))
+            cur.execute(f"INSERT INTO {table} (id, data) VALUES (%s, %s)", (entry["id"], json.dumps(entry)))
+            conn.commit()
 
 
-def _remove(path, entry_id):
+def _remove(table_or_path, entry_id):
     with LOCK:
-        items = [it for it in _load_json_list(path) if it["id"] != entry_id]
-        _save_json_list(path, items)
+        if not DATABASE_URL:
+            path = table_or_path
+            items = [it for it in _load_json_list(path) if it["id"] != entry_id]
+            _save_json_list(path, items)
+            return
+
+        table = table_or_path
+        assert table in _VALID_TABLES
+        with _db_connect() as conn, conn.cursor() as cur:
+            cur.execute(f"DELETE FROM {table} WHERE id = %s", (entry_id,))
+            conn.commit()
+
+
+_init_db()
 
 
 def load_requests():
@@ -539,7 +673,8 @@ def index():
     return render_template("index.html", accounts=ACCOUNTS, setting_items=setting_items,
                             budget_items=budget_items, shopify_items=shopify_items, uploads=uploads,
                             message=message, bulk_columns=BULK_COLUMNS,
-                            shopify_status_labels=shopify_lib.STATUS_LABELS)
+                            shopify_status_labels=shopify_lib.STATUS_LABELS,
+                            user_email=session.get("user_email"))
 
 
 def _manual_input_snapshot(form, headline, primary_text):
