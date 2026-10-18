@@ -244,6 +244,7 @@
   .record-time{font-size:var(--fs-xs);color:var(--text-faint);white-space:nowrap;}
   .record-meta{margin-left:auto;font-size:var(--fs-xs);color:var(--text-muted);white-space:nowrap;}
   .record-budget{font-size:var(--fs-xs);color:var(--text-muted);white-space:nowrap;}
+  .record-creator{font-size:var(--fs-xs);color:var(--text-faint);white-space:nowrap;}
   .record-label{font-size:0.82em;font-weight:700;color:var(--text-faint);margin-right:3px;}
   .record-campaign{font-size:var(--fs-2xs);color:var(--text-faint);margin-bottom:3px;overflow-wrap:break-word;word-break:break-word;}
   .record-main{font-family:var(--font-mono);font-size:var(--fs-sm);line-height:1.55;overflow-wrap:break-word;word-break:break-word;color:var(--text);}
@@ -1094,6 +1095,7 @@
           <span class="pill {{ it.status }}">{{ {'done':'완료','error':'오류','processing':'처리중','incomplete':'미완료'}.get(it.status, it.status) }}</span>
           <span class="record-time">{{ it.submittedAt }}</span>
           <span class="record-budget mono">{{ '$' ~ it.budget ~ '/일' if it.budget else '예산 유지' }}</span>
+          {% if it.createdBy %}<span class="record-creator">생성자: {{ it.createdBy }}</span>{% endif %}
         </div>
         {% if it.campaign %}<div class="record-campaign"><span class="record-label">C:</span>{{ it.campaign }}</div>{% endif %}
         <div class="record-main"><span class="record-label">AS:</span><span class="adset">{{ it.adSetName }}</span><span class="arrow">→</span><span class="record-label">AD:</span><span class="adname">{{ it.adName }}</span></div>
@@ -1168,6 +1170,7 @@
           <span class="pill {{ it.status }}">{{ {'done':'완료','error':'오류','incomplete':'일부 실패'}.get(it.status, it.status) }}</span>
           <span class="record-time">{{ it.submittedAt }}</span>
           <span class="record-budget mono">{{ it.changes|length }}건</span>
+          {% if it.createdBy %}<span class="record-creator">생성자: {{ it.createdBy }}</span>{% endif %}
         </div>
         <div class="budget-batch-list">
           {% for sub in it.changes %}
@@ -1210,6 +1213,7 @@
           <div class="record-left">
             <span class="pill {{ u.status }}">{{ {'done':'완료','error':'오류','incomplete':'미완료'}.get(u.status, u.status) }}</span>
             <span class="record-time">{{ u.submittedAt }}</span>
+            {% if u.createdBy %}<span class="record-creator">생성자: {{ u.createdBy }}</span>{% endif %}
           </div>
           <span class="record-meta">{{ accounts.get(u.accountId, u.accountId) }}</span>
         </div>
@@ -1433,8 +1437,8 @@
     });
   })();
 
-  function setupPagination(listId, paginationId) {
-    var PAGE_SIZE = 3;
+  function setupPagination(listId, paginationId, pageSize) {
+    var PAGE_SIZE = pageSize || 3;
     var list = document.getElementById(listId);
     var pagination = document.getElementById(paginationId);
     if (!list || !pagination) return;
@@ -1494,7 +1498,7 @@
     new MutationObserver(render).observe(list, { childList: true });
   }
 
-  setupPagination("request-record-list", "request-pagination");
+  setupPagination("request-record-list", "request-pagination", 5);
   setupPagination("budget-record-list", "budget-history-pagination");
   setupPagination("upload-record-list", "upload-history-pagination");
 

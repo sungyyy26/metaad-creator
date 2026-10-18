@@ -52,7 +52,8 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 DB_PATH = "requests" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "requests.json")
 UPLOADS_DB_PATH = "uploads" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "uploads.json")
 ALLOWED_USERS_PATH = "allowed_users" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "allowed_users.json")
-_VALID_TABLES = {"requests", "uploads", "allowed_users"}
+ACCESS_REQUESTS_PATH = "access_requests" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "access_requests.json")
+_VALID_TABLES = {"requests", "uploads", "allowed_users", "access_requests"}
 LOCK = threading.Lock()
 BUDGET_CACHE_LOCK = threading.Lock()
 BUDGET_META_CACHE = {}
@@ -150,6 +151,28 @@ def _send_via_smtp(requester_email):
         server.send_message(msg)
 
 
+# 같은 이메일로 짧은 시간 안에 반복 요청해도 관리자에게 메일이 계속 가지
+# 않도록 하는 최소 쿨다운. 환경변수로 조절 가능 (기본 1시간).
+ACCESS_REQUEST_COOLDOWN_SECONDS = int(os.environ.get("ACCESS_REQUEST_COOLDOWN_SECONDS", str(60 * 60)))
+
+
+def load_access_requests():
+    return _load_json_list(ACCESS_REQUESTS_PATH)
+
+
+def _access_request_on_cooldown(email):
+    email = (email or "").strip().lower()
+    for r in load_access_requests():
+        if r.get("id") == email:
+            return (time.time() - (r.get("lastRequestedAt") or 0)) < ACCESS_REQUEST_COOLDOWN_SECONDS
+    return False
+
+
+def _record_access_request(email):
+    email = (email or "").strip().lower()
+    _upsert(ACCESS_REQUESTS_PATH, {"id": email, "lastRequestedAt": time.time()})
+
+
 def send_access_request_email(requester_email):
     if not ADMIN_EMAIL:
         print(f"[access request] {requester_email} requested access, but ADMIN_EMAIL isn't set — email not sent.")
@@ -198,10 +221,13 @@ def auth_callback():
 
     if is_email_allowed(email):
         session["user_email"] = email.lower()
+        session["user_name"] = (userinfo.get("name") or "").strip()
         return redirect("/")
 
     if intent == "request":
-        send_access_request_email(email)
+        if not _access_request_on_cooldown(email):
+            _record_access_request(email)
+            send_access_request_email(email)
         return render_template("access_requested.html", email=email)
 
     return render_template("access_denied.html", email=email)
@@ -716,12 +742,27 @@ def remove_allowed_user(entry_id):
     _remove(ALLOWED_USERS_PATH, entry_id)
 
 
+def current_user_label():
+    """Google 계정에 저장된 이름(예: "예성")을 그대로 쓰고, 이름이 비어있으면
+    이메일의 @ 앞부분과 전체 이메일을 함께 보여준다 (예: "ys.lee (ys.lee@boosters.kr)").
+    로그인이 꺼져 있는 로컬 개발 환경에서는 호출되지 않는다 — 이땐 호출하는
+    쪽에서 LOGIN_ENABLED를 먼저 확인한다."""
+    name = (session.get("user_name") or "").strip()
+    if name:
+        return name
+    email = (session.get("user_email") or "").strip()
+    local_part = email.split("@")[0] if email else ""
+    return f"{local_part} ({email})" if local_part else email
+
+
 def new_entry(**fields):
     entry = {
         "id": str(uuid.uuid4()),
         "submittedAt": datetime.now().strftime("%m/%d %H:%M"),
         "status": "processing",
     }
+    if LOGIN_ENABLED:
+        entry["createdBy"] = current_user_label()
     entry.update(fields)
     return entry
 
