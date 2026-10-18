@@ -99,6 +99,41 @@ def is_email_allowed(email):
     return any((u.get("email") or "").lower() == email for u in load_allowed_users())
 
 
+# SMTP_USER/SMTP_PASSWORD이 없으면 이메일을 실제로 보내지 않고 서버 로그에만
+# 남긴다 — 로컬 개발이나 아직 메일 설정을 안 한 배포에서도 요청 흐름 자체는
+# 깨지지 않도록 하기 위함.
+SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER = os.environ.get("SMTP_USER")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
+
+
+def send_access_request_email(requester_email):
+    if not (SMTP_USER and SMTP_PASSWORD and ADMIN_EMAIL):
+        print(f"[access request] {requester_email} requested access, but SMTP_USER/SMTP_PASSWORD/ADMIN_EMAIL "
+              f"isn't fully configured — email not sent.")
+        return False
+    import smtplib
+    from email.message import EmailMessage
+    msg = EmailMessage()
+    msg["Subject"] = "Meta Ad Desk 접근 권한 요청"
+    msg["From"] = SMTP_USER
+    msg["To"] = ADMIN_EMAIL
+    msg.set_content(
+        f"{requester_email} 님이 Meta Ad Desk 접근 권한을 요청했습니다.\n\n"
+        f"허용하려면 관리자 페이지에서 추가해주세요: {request.url_root.rstrip('/')}/admin/users"
+    )
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+            server.starttls()
+            server.login(SMTP_USER, SMTP_PASSWORD)
+            server.send_message(msg)
+        return True
+    except Exception as e:  # noqa: BLE001
+        print(f"[access request] failed to send email for {requester_email}: {e}")
+        return False
+
+
 @app.route("/login")
 def login():
     if not LOGIN_ENABLED:
@@ -110,6 +145,9 @@ def login():
 def login_google():
     if not LOGIN_ENABLED:
         return redirect("/")
+    # intent=request는 "계정이 없으니 권한을 요청한다"는 의도를 콜백까지 들고
+    # 가기 위한 표시일 뿐 — Google 로그인 자체는 평소와 동일하게 진행된다.
+    session["oauth_intent"] = request.args.get("intent", "")
     redirect_uri = url_for("auth_callback", _external=True)
     return oauth.google.authorize_redirect(redirect_uri)
 
@@ -121,10 +159,17 @@ def auth_callback():
     token = oauth.google.authorize_access_token()
     userinfo = token.get("userinfo") or {}
     email = (userinfo.get("email") or "").strip()
-    if not is_email_allowed(email):
-        return "접근 권한이 없습니다 — 관리자에게 계정 추가를 요청해주세요.", 403
-    session["user_email"] = email.lower()
-    return redirect("/")
+    intent = session.pop("oauth_intent", "")
+
+    if is_email_allowed(email):
+        session["user_email"] = email.lower()
+        return redirect("/")
+
+    if intent == "request":
+        send_access_request_email(email)
+        return render_template("access_requested.html", email=email)
+
+    return render_template("access_denied.html", email=email)
 
 
 @app.route("/logout")

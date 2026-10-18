@@ -13,42 +13,55 @@
     color-scheme: light;
     --primary:#a5ed6e; --on-primary:#111111; --bg:#ddf4ff; --surface:#ffffff;
     --text:#3c3c3c; --text-muted:#777777; --accent:#1cb0f6;
+    --blob-purple:#ce82ff; --blob-yellow:#ffc800;
     --radius:12px;
     --font-display:"Baloo 2","Noto Sans KR",sans-serif;
     --font-body:"Noto Sans KR","Baloo 2",sans-serif;
-    --shadow: 0 0 0 2px rgba(255,255,255,.6) inset, 0 10px 0 -4px rgba(60,60,60,.08), 0 2px 18px rgba(60,60,60,.1);
+    --shadow: 0 0 0 2px rgba(255,255,255,.6) inset, 0 10px 0 -4px rgba(60,60,60,.08), 0 2px 18px rgba(60,60,60,.12);
   }
   *{box-sizing:border-box;}
+  html,body{height:100%;}
   body{
     margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
-    background:var(--bg); color:var(--text); padding:20px;
-    font-family:var(--font-body);
+    background:var(--bg); color:var(--text); padding:20px; position:relative; overflow:hidden;
+    font-family:var(--font-body); word-break:keep-all; overflow-wrap:normal;
   }
+  .blob{ position:absolute; border-radius:50%; filter:blur(60px); opacity:.5; z-index:0; }
+  .blob-1{ width:260px; height:260px; background:var(--blob-yellow); top:-60px; left:-60px; }
+  .blob-2{ width:220px; height:220px; background:var(--blob-purple); bottom:-60px; right:-40px; }
+  .blob-3{ width:180px; height:180px; background:var(--primary); bottom:10%; left:-60px; opacity:.4; }
   :focus-visible{ outline:2px solid var(--accent); outline-offset:2px; border-radius:4px; }
   .card{
-    width:100%; max-width:380px; background:var(--surface); border-radius:20px;
-    box-shadow:var(--shadow); padding:40px 30px; text-align:center;
+    position:relative; z-index:1; width:100%; max-width:380px; background:var(--surface); border-radius:24px;
+    box-shadow:var(--shadow); padding:44px 30px 34px; text-align:center;
   }
-  .mascot{ font-size:40px; line-height:1; margin-bottom:10px; }
+  .mascot{ font-size:56px; line-height:1; margin-bottom:12px; }
   h1{
-    font-family:var(--font-display); font-weight:800; font-size:24px; letter-spacing:.3px;
+    font-family:var(--font-display); font-weight:800; font-size:26px; letter-spacing:.3px;
     margin:0 0 10px; color:var(--text);
   }
   p{ color:var(--text); font-size:14px; line-height:1.5; margin:0 0 30px; font-weight:400; }
   .google-btn{
     display:flex; align-items:center; justify-content:center; gap:10px; width:100%; min-height:48px;
     background:var(--primary); color:var(--on-primary); border:none; border-radius:var(--radius);
-    padding:14px 20px; font-family:var(--font-display); font-weight:700; font-size:14px;
-    letter-spacing:.3px; text-decoration:none; cursor:pointer; transition:transform 300ms ease, filter 300ms ease;
+    padding:14px 20px; font-family:var(--font-display); font-weight:800; font-size:14px;
+    letter-spacing:.5px; text-decoration:none; cursor:pointer; transition:transform 300ms ease, filter 300ms ease;
     box-shadow:0 4px 0 0 #7fc94f;
   }
   .google-btn:hover{ filter:brightness(1.04); }
   .google-btn:active{ transform:translateY(3px); box-shadow:0 1px 0 0 #7fc94f; }
   .google-btn svg{ width:20px; height:20px; flex:none; }
-  .footnote{ margin-top:20px; font-size:12px; color:var(--text-muted); }
+  .divider{ margin:22px 0; font-size:12px; color:var(--text-muted); }
+  .request-link{
+    display:inline-block; color:var(--accent); font-weight:700; font-size:13px; text-decoration:underline;
+  }
+  .footnote{ margin-top:18px; font-size:11px; color:var(--text-muted); }
 </style>
 </head>
 <body>
+  <div class="blob blob-1" aria-hidden="true"></div>
+  <div class="blob blob-2" aria-hidden="true"></div>
+  <div class="blob blob-3" aria-hidden="true"></div>
   <div class="card">
     <div class="mascot" aria-hidden="true">🦉</div>
     <h1>Meta Ad Desk</h1>
@@ -57,6 +70,9 @@
       <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#111111" d="M21.35 11.1h-9.17v2.73h6.51c-.33 3.81-3.5 5.44-6.5 5.44C8.36 19.27 5 16.25 5 12s3.36-7.27 7.19-7.27c3.09 0 4.9 1.97 4.9 1.97L19 4.72S16.56 2 12.19 2C6.42 2 2.03 6.8 2.03 12s4.39 10 10.16 10c5.52 0 9.58-3.87 9.58-9.6 0-1.22-.18-1.9-.42-2.3z"/></svg>
       Google로 로그인
     </a>
+    <div class="divider">계정이 없으신가요?
+      <a class="request-link" href="/login/google?intent=request">접근 권한 요청하기</a>
+    </div>
     <div class="footnote">허용된 계정만 접속할 수 있습니다</div>
   </div>
 </body>
