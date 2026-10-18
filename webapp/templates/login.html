@@ -6,54 +6,56 @@
 <title>광고 에딧 데스크 · 로그인</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@600;700;800&family=Noto+Sans+KR:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Noto+Sans+KR:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#f2f0fa; --surface:#ffffff; --border:rgba(120,110,160,.22);
-    --text:#18161d; --text-muted:#5b5768;
-    --accent:#0080ff; --accent-hover:#2f97ff; --accent-contrast:#ffffff;
-    --shadow: 0 1px 2px rgba(0,0,0,.08), 0 20px 40px -20px rgba(30,20,60,.25);
-  }
-  @media (prefers-color-scheme: dark){
-    :root{
-      --bg:#131019; --surface:#1c1826; --border:rgba(255,255,255,.14);
-      --text:#f3f1fa; --text-muted:#a9a6c0;
-      --accent:#2997ff; --accent-hover:#5aabff; --accent-contrast:#ffffff;
-      --shadow: 0 2px 10px rgba(0,0,0,.3), 0 20px 40px -20px rgba(0,0,0,.6);
-    }
+    --primary:#a5ed6e; --on-primary:#111111; --bg:#ddf4ff; --surface:#ffffff;
+    --text:#3c3c3c; --text-muted:#777777; --accent:#1cb0f6;
+    --radius:12px;
+    --font-display:"Baloo 2","Noto Sans KR",sans-serif;
+    --font-body:"Noto Sans KR","Baloo 2",sans-serif;
+    --shadow: 0 0 0 2px rgba(255,255,255,.6) inset, 0 10px 0 -4px rgba(60,60,60,.08), 0 2px 18px rgba(60,60,60,.1);
   }
   *{box-sizing:border-box;}
   body{
     margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center;
-    background:var(--bg); color:var(--text); padding:24px;
-    font-family:"Noto Sans KR",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;
+    background:var(--bg); color:var(--text); padding:20px;
+    font-family:var(--font-body);
   }
+  :focus-visible{ outline:2px solid var(--accent); outline-offset:2px; border-radius:4px; }
   .card{
-    width:100%; max-width:360px; background:var(--surface); border:1px solid var(--border);
-    border-radius:20px; box-shadow:var(--shadow); padding:40px 32px; text-align:center;
+    width:100%; max-width:380px; background:var(--surface); border-radius:20px;
+    box-shadow:var(--shadow); padding:40px 30px; text-align:center;
   }
+  .mascot{ font-size:40px; line-height:1; margin-bottom:10px; }
   h1{
-    font-family:"Gothic A1",sans-serif; font-weight:800; font-size:22px; margin:0 0 6px;
+    font-family:var(--font-display); font-weight:800; font-size:24px; letter-spacing:.3px;
+    margin:0 0 10px; color:var(--text);
   }
-  p{ color:var(--text-muted); font-size:13px; margin:0 0 28px; line-height:1.5; }
+  p{ color:var(--text); font-size:14px; line-height:1.5; margin:0 0 30px; font-weight:400; }
   .google-btn{
-    display:flex; align-items:center; justify-content:center; gap:10px; width:100%;
-    background:var(--accent); color:var(--accent-contrast); border:none; border-radius:980px;
-    padding:13px 20px; font-family:"Gothic A1",sans-serif; font-weight:700; font-size:14px;
-    text-decoration:none; cursor:pointer; transition:background .12s;
+    display:flex; align-items:center; justify-content:center; gap:10px; width:100%; min-height:48px;
+    background:var(--primary); color:var(--on-primary); border:none; border-radius:var(--radius);
+    padding:14px 20px; font-family:var(--font-display); font-weight:700; font-size:14px;
+    letter-spacing:.3px; text-decoration:none; cursor:pointer; transition:transform 300ms ease, filter 300ms ease;
+    box-shadow:0 4px 0 0 #7fc94f;
   }
-  .google-btn:hover{ background:var(--accent-hover); }
-  .google-btn svg{ width:18px; height:18px; flex:none; }
+  .google-btn:hover{ filter:brightness(1.04); }
+  .google-btn:active{ transform:translateY(3px); box-shadow:0 1px 0 0 #7fc94f; }
+  .google-btn svg{ width:20px; height:20px; flex:none; }
+  .footnote{ margin-top:20px; font-size:12px; color:var(--text-muted); }
 </style>
 </head>
 <body>
   <div class="card">
+    <div class="mascot" aria-hidden="true">🦉</div>
     <h1>광고 에딧 데스크</h1>
     <p>Boosters 팀 계정으로 로그인하면 계속 사용할 수 있습니다.</p>
     <a class="google-btn" href="/login/google">
-      <svg viewBox="0 0 24 24"><path fill="#fff" d="M21.35 11.1h-9.17v2.73h6.51c-.33 3.81-3.5 5.44-6.5 5.44C8.36 19.27 5 16.25 5 12s3.36-7.27 7.19-7.27c3.09 0 4.9 1.97 4.9 1.97L19 4.72S16.56 2 12.19 2C6.42 2 2.03 6.8 2.03 12s4.39 10 10.16 10c5.52 0 9.58-3.87 9.58-9.6 0-1.22-.18-1.9-.42-2.3z"/></svg>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#111111" d="M21.35 11.1h-9.17v2.73h6.51c-.33 3.81-3.5 5.44-6.5 5.44C8.36 19.27 5 16.25 5 12s3.36-7.27 7.19-7.27c3.09 0 4.9 1.97 4.9 1.97L19 4.72S16.56 2 12.19 2C6.42 2 2.03 6.8 2.03 12s4.39 10 10.16 10c5.52 0 9.58-3.87 9.58-9.6 0-1.22-.18-1.9-.42-2.3z"/></svg>
       Google로 로그인
     </a>
+    <div class="footnote">허용된 계정만 접속할 수 있습니다</div>
   </div>
 </body>
 </html>

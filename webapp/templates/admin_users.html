@@ -6,57 +6,58 @@
 <title>광고 에딧 데스크 · 계정 관리</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@600;700;800&family=Noto+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Noto+Sans+KR:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg:#f2f0fa; --surface:#ffffff; --surface-2:#f4f2fa; --border:rgba(120,110,160,.22);
-    --text:#18161d; --text-muted:#5b5768; --text-faint:#87839a;
-    --accent:#0080ff; --accent-hover:#2f97ff; --accent-contrast:#ffffff;
-    --error:#d70015;
-    --shadow: 0 1px 2px rgba(0,0,0,.06), 0 16px 32px -20px rgba(30,20,60,.2);
-  }
-  @media (prefers-color-scheme: dark){
-    :root{
-      --bg:#131019; --surface:#1c1826; --surface-2:#242032; --border:rgba(255,255,255,.14);
-      --text:#f3f1fa; --text-muted:#a9a6c0; --text-faint:#726f8a;
-      --accent:#2997ff; --accent-hover:#5aabff; --accent-contrast:#ffffff;
-      --error:#f87171;
-      --shadow: 0 2px 10px rgba(0,0,0,.3), 0 16px 32px -20px rgba(0,0,0,.6);
-    }
+    --primary:#a5ed6e; --on-primary:#111111; --bg:#ddf4ff; --surface:#ffffff;
+    --text:#3c3c3c; --text-muted:#777777; --accent:#1cb0f6; --danger:#ff4b4b;
+    --radius:12px;
+    --font-display:"Baloo 2","Noto Sans KR",sans-serif;
+    --font-body:"Noto Sans KR","Baloo 2",sans-serif;
+    --shadow: 0 2px 18px rgba(60,60,60,.08);
   }
   *{box-sizing:border-box;}
   body{
     margin:0; min-height:100vh; background:var(--bg); color:var(--text); padding:40px 20px;
-    font-family:"Noto Sans KR",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;
+    font-family:var(--font-body);
   }
-  .wrap{ max-width:560px; margin:0 auto; }
-  h1{ font-family:"Gothic A1",sans-serif; font-weight:800; font-size:22px; margin:0 0 4px; }
-  .sub{ color:var(--text-muted); font-size:13px; margin:0 0 28px; }
-  .sub a{ color:var(--accent); font-weight:600; text-decoration:none; }
-  .card{ background:var(--surface); border:1px solid var(--border); border-radius:16px; box-shadow:var(--shadow); padding:24px; margin-bottom:20px; }
-  .card h2{ font-family:"Gothic A1",sans-serif; font-size:15px; margin:0 0 14px; }
-  .admin-row{ display:flex; align-items:center; gap:8px; font-family:"IBM Plex Mono",monospace; font-size:13px; color:var(--text-muted); margin-bottom:16px; }
-  .admin-row span{ background:var(--surface-2); border-radius:980px; padding:4px 12px; }
-  form.add-form{ display:flex; gap:8px; }
+  :focus-visible{ outline:2px solid var(--accent); outline-offset:2px; border-radius:4px; }
+  .wrap{ max-width:580px; margin:0 auto; }
+  h1{ font-family:var(--font-display); font-weight:800; font-size:26px; margin:0 0 6px; color:var(--text); }
+  .sub{ font-size:14px; margin:0 0 30px; color:var(--text); }
+  .sub a{ color:var(--accent); font-weight:700; text-decoration:underline; }
+  .card{ background:var(--surface); border-radius:20px; box-shadow:var(--shadow); padding:24px; margin-bottom:20px; }
+  .card h2{ font-family:var(--font-display); font-weight:700; font-size:16px; margin:0 0 14px; color:var(--text); }
+  .admin-row{ display:flex; align-items:center; gap:10px; font-size:14px; color:var(--text); margin-bottom:20px; font-weight:600; }
+  .admin-row span{ background:var(--bg); border-radius:980px; padding:6px 14px; }
+  form.add-form{ display:flex; gap:10px; }
   input[type=email]{
-    flex:1; min-width:0; background:var(--surface-2); border:1px solid var(--border); border-radius:10px;
-    padding:10px 12px; font-size:14px; color:var(--text); font-family:inherit;
+    flex:1; min-width:0; background:var(--bg); border:2px solid transparent; border-radius:var(--radius);
+    padding:12px 14px; font-size:14px; color:var(--text); font-family:var(--font-body); min-height:44px;
+    transition:border-color 300ms ease;
   }
+  input[type=email]:focus{ outline:none; border-color:var(--accent); }
   button{
-    font-family:"Gothic A1",sans-serif; font-weight:700; font-size:13px; border:none; border-radius:980px;
-    padding:10px 18px; cursor:pointer; background:var(--accent); color:var(--accent-contrast); white-space:nowrap;
+    font-family:var(--font-display); font-weight:700; font-size:14px; border:none; border-radius:var(--radius);
+    padding:12px 22px; min-height:44px; cursor:pointer; background:var(--primary); color:var(--on-primary);
+    white-space:nowrap; box-shadow:0 4px 0 0 #7fc94f; transition:filter 300ms ease, transform 300ms ease;
   }
-  button:hover{ background:var(--accent-hover); }
-  .list{ display:flex; flex-direction:column; gap:8px; }
+  button:hover{ filter:brightness(1.04); }
+  button:active{ transform:translateY(3px); box-shadow:0 1px 0 0 #7fc94f; }
+  .list{ display:flex; flex-direction:column; gap:10px; }
   .list-row{
     display:flex; align-items:center; justify-content:space-between; gap:12px;
-    background:var(--surface-2); border-radius:10px; padding:10px 14px;
+    background:var(--bg); border-radius:var(--radius); padding:12px 16px;
   }
-  .list-row .email{ font-family:"IBM Plex Mono",monospace; font-size:13px; }
-  .list-row .meta{ font-size:11px; color:var(--text-faint); }
-  .del-btn{ background:transparent; color:var(--error); border:1px solid var(--error); padding:4px 12px; font-size:12px; }
-  .del-btn:hover{ background:var(--error); color:#fff; }
-  .empty{ color:var(--text-faint); font-size:13px; text-align:center; padding:16px; }
+  .list-row .email{ font-weight:700; font-size:14px; color:var(--text); }
+  .list-row .meta{ font-size:12px; color:var(--text-muted); }
+  .del-btn{
+    background:transparent; color:var(--danger); border:2px solid var(--danger); padding:8px 16px;
+    font-size:13px; min-height:36px; box-shadow:none;
+  }
+  .del-btn:hover{ background:var(--danger); color:#fff; filter:none; }
+  .del-btn:active{ transform:none; }
+  .empty{ color:var(--text-muted); font-size:14px; text-align:center; padding:20px; }
 </style>
 </head>
 <body>

@@ -37,6 +37,12 @@ load_dotenv()  # reads .env in the repo root (or nearest parent) if present;
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", os.urandom(24))
+# SameSite=Lax는 대부분의 cross-site POST 위조 요청에서 세션 쿠키가 전송되는 걸
+# 막아준다 — Flask가 이미 기본값으로 적용하지만, 버전에 기대지 않고 명시적으로
+# 고정해둔다. Secure는 HTTPS에서만 켠다 — 로컬 개발(http://127.0.0.1)에서까지
+# 켜면 브라우저가 쿠키를 아예 안 보내서 로그인이 깨진다.
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_HTTPONLY"] = True
 DATABASE_URL = os.environ.get("DATABASE_URL")
 # 로컬에서는 DATABASE_URL이 없으면 기존처럼 그냥 JSON 파일에 저장한다 — Postgres를
 # 따로 띄우지 않아도 로컬 개발은 그대로 동작한다. Render처럼 DATABASE_URL이 설정된
@@ -63,6 +69,9 @@ GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET")
 # 로그인할 수 있도록 allowed_users 테이블로 접근을 제어한다.
 ADMIN_EMAIL = (os.environ.get("ADMIN_EMAIL") or "").strip().lower()
 LOGIN_ENABLED = bool(GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET)
+# Render처럼 실제 배포된 환경(HTTPS)에서만 Secure 쿠키를 켠다 — 로컬 개발 서버는
+# http://127.0.0.1이라 Secure 쿠키가 켜지면 브라우저가 쿠키를 보내지 않는다.
+app.config["SESSION_COOKIE_SECURE"] = bool(DATABASE_URL) or LOGIN_ENABLED
 
 oauth = None
 if LOGIN_ENABLED:
