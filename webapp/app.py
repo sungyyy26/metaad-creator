@@ -44,7 +44,8 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 # 사라지는 디스크에 있기 때문).
 DB_PATH = "requests" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "requests.json")
 UPLOADS_DB_PATH = "uploads" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "uploads.json")
-_VALID_TABLES = {"requests", "uploads"}
+ALLOWED_USERS_PATH = "allowed_users" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "allowed_users.json")
+_VALID_TABLES = {"requests", "uploads", "allowed_users"}
 LOCK = threading.Lock()
 BUDGET_CACHE_LOCK = threading.Lock()
 BUDGET_META_CACHE = {}
@@ -57,7 +58,10 @@ BUDGET_META_CACHE_TTL = 60
 # 걸리는 건 Render처럼 이 값들이 설정된 배포 환경뿐이다.
 GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID")
 GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET")
-ALLOWED_EMAIL_DOMAIN = os.environ.get("ALLOWED_EMAIL_DOMAIN", "boosters.kr")
+# ADMIN_EMAIL은 항상 로그인 가능하고 /admin/users에서 다른 사람을 추가/삭제할 수
+# 있는 유일한 계정이다 — 도메인 전체가 아니라 이 관리자가 직접 승인한 이메일만
+# 로그인할 수 있도록 allowed_users 테이블로 접근을 제어한다.
+ADMIN_EMAIL = (os.environ.get("ADMIN_EMAIL") or "").strip().lower()
 LOGIN_ENABLED = bool(GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET)
 
 oauth = None
@@ -73,8 +77,28 @@ if LOGIN_ENABLED:
     )
 
 
+def load_allowed_users():
+    return _load_json_list(ALLOWED_USERS_PATH)
+
+
+def is_email_allowed(email):
+    email = (email or "").strip().lower()
+    if not email:
+        return False
+    if email == ADMIN_EMAIL:
+        return True
+    return any((u.get("email") or "").lower() == email for u in load_allowed_users())
+
+
 @app.route("/login")
 def login():
+    if not LOGIN_ENABLED:
+        return redirect("/")
+    return render_template("login.html")
+
+
+@app.route("/login/google")
+def login_google():
     if not LOGIN_ENABLED:
         return redirect("/")
     redirect_uri = url_for("auth_callback", _external=True)
@@ -88,9 +112,9 @@ def auth_callback():
     token = oauth.google.authorize_access_token()
     userinfo = token.get("userinfo") or {}
     email = (userinfo.get("email") or "").strip()
-    if not email.lower().endswith("@" + ALLOWED_EMAIL_DOMAIN.lower()):
-        return f"접근 권한이 없습니다 ({ALLOWED_EMAIL_DOMAIN} 계정으로만 로그인할 수 있습니다).", 403
-    session["user_email"] = email
+    if not is_email_allowed(email):
+        return "접근 권한이 없습니다 — 관리자에게 계정 추가를 요청해주세요.", 403
+    session["user_email"] = email.lower()
     return redirect("/")
 
 
@@ -104,10 +128,51 @@ def logout():
 def require_login():
     if not LOGIN_ENABLED:
         return
-    if request.endpoint in ("login", "auth_callback", "static") or request.endpoint is None:
+    if request.endpoint in ("login", "login_google", "auth_callback", "static") or request.endpoint is None:
         return
     if not session.get("user_email"):
         return redirect(url_for("login"))
+
+
+def require_admin():
+    """관리자 전용 라우트 맨 앞에서 호출 — 관리자가 아니면 403."""
+    if not LOGIN_ENABLED:
+        return "관리자 페이지는 로그인이 설정된 환경에서만 사용할 수 있습니다.", 403
+    if (session.get("user_email") or "").lower() != ADMIN_EMAIL:
+        return "관리자만 접근할 수 있습니다.", 403
+    return None
+
+
+@app.route("/admin/users")
+def admin_users():
+    denied = require_admin()
+    if denied:
+        return denied
+    return render_template("admin_users.html", admin_email=ADMIN_EMAIL,
+                            allowed_users=list(reversed(load_allowed_users())))
+
+
+@app.route("/admin/users/add", methods=["POST"])
+def admin_users_add():
+    denied = require_admin()
+    if denied:
+        return denied
+    email = (request.form.get("email") or "").strip().lower()
+    if email and email != ADMIN_EMAIL and not is_email_allowed(email):
+        upsert_allowed_user(new_entry(email=email, addedBy=ADMIN_EMAIL))
+    return redirect(url_for("admin_users"))
+
+
+@app.route("/admin/users/<path:email>/delete", methods=["POST"])
+def admin_users_delete(email):
+    denied = require_admin()
+    if denied:
+        return denied
+    email = email.strip().lower()
+    matches = [u for u in load_allowed_users() if (u.get("email") or "").lower() == email]
+    for u in matches:
+        remove_allowed_user(u["id"])
+    return redirect(url_for("admin_users"))
 
 
 ACCOUNTS = {
@@ -554,6 +619,14 @@ def remove_upload(upload_id):
     _remove(UPLOADS_DB_PATH, upload_id)
 
 
+def upsert_allowed_user(entry):
+    _upsert(ALLOWED_USERS_PATH, entry)
+
+
+def remove_allowed_user(entry_id):
+    _remove(ALLOWED_USERS_PATH, entry_id)
+
+
 def new_entry(**fields):
     entry = {
         "id": str(uuid.uuid4()),
@@ -674,7 +747,8 @@ def index():
                             budget_items=budget_items, shopify_items=shopify_items, uploads=uploads,
                             message=message, bulk_columns=BULK_COLUMNS,
                             shopify_status_labels=shopify_lib.STATUS_LABELS,
-                            user_email=session.get("user_email"))
+                            user_email=session.get("user_email"),
+                            is_admin=LOGIN_ENABLED and (session.get("user_email") or "").lower() == ADMIN_EMAIL)
 
 
 def _manual_input_snapshot(form, headline, primary_text):
