@@ -1247,64 +1247,94 @@ def delete(req_id):
 def delete_created(req_id):
     """Rolls back whatever this request actually created — the Meta ad (and
     its ad set, but only if one was created fresh for this request, never a
-    shared/ads-only ad set other ads also live in) and any Shopify
-    product/page — then removes the local history entry. For when something
-    partially failed (e.g. the Meta ad went through but Shopify didn't) and
-    the whole thing needs undoing rather than left half-done. Every
-    applicable live delete is attempted regardless of an earlier one
-    failing, and all failures are reported together; the local entry is
-    only removed once every one that applies has succeeded, so a partial
-    failure stays visible (with what's left to clean up) and can be
-    retried."""
+    shared/ads-only ad set other ads also live in) and/or any Shopify
+    product/page — then removes the local history entry if nothing's left
+    to roll back. An optional 'scope' field ('ad' or 'shopify') limits this
+    to just that half, for when only one side should be undone; omitted (or
+    any other value), both are attempted, matching the original all-or-
+    nothing behavior. Every applicable live delete is attempted regardless
+    of an earlier one failing, and all failures are reported together; a
+    part that fails is left in the entry (with rollbackError set) so it
+    stays visible and can be retried, while a part that already succeeded
+    is cleared from the entry so a retry doesn't attempt it again."""
     items = load_requests()
     entry = next((it for it in items if it["id"] == req_id), None)
     if not entry:
         return {"ok": False, "error": "이미 삭제된 요청입니다."}, 404
 
-    errors = []
-    result = entry.get("result")
-    if result:
-        token = os.environ.get("META_ACCESS_TOKEN")
-        if not token:
-            errors.append("META_ACCESS_TOKEN 환경변수가 설정되어 있지 않아 Meta 광고를 삭제하지 못했습니다.")
-        else:
-            try:
-                meta_lib.delete_ad(token, result["ad_id"])
-            except meta_lib.MetaApiError as e:
-                errors.append(f"Meta 광고 삭제 실패: {e}")
-            else:
-                created_own_adset = bool((entry.get("input") or {}).get("source_adset_name"))
-                if created_own_adset:
-                    try:
-                        meta_lib.delete_adset(token, result["ad_set_id"])
-                    except meta_lib.MetaApiError as e:
-                        errors.append(f"Meta 광고 세트 삭제 실패: {e}")
+    scope = (request.form.get("scope") or request.args.get("scope") or "").strip()
+    do_ad = scope in ("", "ad")
+    do_shopify = scope in ("", "shopify")
 
-    shopify_product_id = entry.get("resultShopifyProductId")
-    shopify_page_id = entry.get("resultShopifyPageId")
-    if shopify_product_id or shopify_page_id:
-        shop = os.environ.get("SHOPIFY_SHOP")
-        shopify_token = os.environ.get("SHOPIFY_ACCESS_TOKEN")
-        if not shop or not shopify_token:
-            errors.append("SHOPIFY_SHOP / SHOPIFY_ACCESS_TOKEN 환경변수가 설정되어 있지 않아 Shopify 쪽을 삭제하지 못했습니다.")
-        else:
-            if shopify_product_id:
+    errors = []
+
+    if do_ad:
+        result = entry.get("result")
+        if result:
+            token = os.environ.get("META_ACCESS_TOKEN")
+            if not token:
+                errors.append("META_ACCESS_TOKEN 환경변수가 설정되어 있지 않아 Meta 광고를 삭제하지 못했습니다.")
+            else:
+                ad_ok = False
                 try:
-                    shopify_lib.delete_product(shop, shopify_token, shopify_product_id)
-                except shopify_lib.ShopifyApiError as e:
-                    errors.append(f"Shopify 상품 삭제 실패: {e}")
-            if shopify_page_id:
-                try:
-                    shopify_lib.delete_page(shop, shopify_token, shopify_page_id)
-                except shopify_lib.ShopifyApiError as e:
-                    errors.append(f"Shopify 페이지 삭제 실패: {e}")
+                    meta_lib.delete_ad(token, result["ad_id"])
+                    ad_ok = True
+                except meta_lib.MetaApiError as e:
+                    errors.append(f"Meta 광고 삭제 실패: {e}")
+                if ad_ok:
+                    created_own_adset = bool((entry.get("input") or {}).get("source_adset_name"))
+                    adset_ok = True
+                    if created_own_adset:
+                        try:
+                            meta_lib.delete_adset(token, result["ad_set_id"])
+                        except meta_lib.MetaApiError as e:
+                            errors.append(f"Meta 광고 세트 삭제 실패: {e}")
+                            adset_ok = False
+                    if adset_ok:
+                        entry.pop("result", None)
+        elif scope == "ad":
+            errors.append("삭제할 광고가 없습니다.")
+
+    if do_shopify:
+        shopify_product_id = entry.get("resultShopifyProductId")
+        shopify_page_id = entry.get("resultShopifyPageId")
+        if shopify_product_id or shopify_page_id:
+            shop = os.environ.get("SHOPIFY_SHOP")
+            shopify_token = os.environ.get("SHOPIFY_ACCESS_TOKEN")
+            if not shop or not shopify_token:
+                errors.append("SHOPIFY_SHOP / SHOPIFY_ACCESS_TOKEN 환경변수가 설정되어 있지 않아 Shopify 쪽을 삭제하지 못했습니다.")
+            else:
+                if shopify_product_id:
+                    try:
+                        shopify_lib.delete_product(shop, shopify_token, shopify_product_id)
+                    except shopify_lib.ShopifyApiError as e:
+                        errors.append(f"Shopify 상품 삭제 실패: {e}")
+                    else:
+                        entry.pop("resultShopifyProductId", None)
+                        entry.pop("resultShopifyUrl", None)
+                if shopify_page_id:
+                    try:
+                        shopify_lib.delete_page(shop, shopify_token, shopify_page_id)
+                    except shopify_lib.ShopifyApiError as e:
+                        errors.append(f"Shopify 페이지 삭제 실패: {e}")
+                    else:
+                        entry.pop("resultShopifyPageId", None)
+                        entry.pop("resultShopifyPageUrl", None)
+        elif scope == "shopify":
+            errors.append("삭제할 Shopify 상품/페이지가 없습니다.")
 
     if errors:
         entry["rollbackError"] = " / ".join(errors)
         upsert(entry)
         return {"ok": False, "error": entry["rollbackError"]}, 500
 
-    remove_request(req_id)
+    entry.pop("rollbackError", None)
+    still_has_ad = bool(entry.get("result"))
+    still_has_shopify = bool(entry.get("resultShopifyProductId") or entry.get("resultShopifyPageId"))
+    if not still_has_ad and not still_has_shopify:
+        remove_request(req_id)
+    else:
+        upsert(entry)
     return {"ok": True}
 
 

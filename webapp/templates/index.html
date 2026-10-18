@@ -281,7 +281,7 @@
 
   .theme-toggle{
     position:fixed;top:20px;right:20px;z-index:10;
-    width:38px;height:38px;padding:0;border-radius:50%;
+    width:38px;height:38px;padding:0;border-radius:50%;flex:none;
     display:flex;align-items:center;justify-content:center;
     background:var(--surface);border:1px solid var(--glass-border);color:var(--text-muted);
     backdrop-filter:blur(var(--glass-blur));-webkit-backdrop-filter:blur(var(--glass-blur));
@@ -293,6 +293,19 @@
   .theme-toggle .ic-moon{display:none;}
   .theme-toggle.is-dark .ic-sun{display:none;}
   .theme-toggle.is-dark .ic-moon{display:block;}
+
+  .account-bar{
+    position:fixed;top:20px;right:68px;z-index:10;
+    display:flex;align-items:center;gap:10px;height:38px;
+    background:var(--surface);border:1px solid var(--glass-border);
+    backdrop-filter:blur(var(--glass-blur));-webkit-backdrop-filter:blur(var(--glass-blur));
+    border-radius:980px;padding:0 16px;box-shadow:var(--shadow);
+    font-size:12px;line-height:1;white-space:nowrap;
+  }
+  .account-bar .account-email{color:var(--text-muted);font-weight:600;}
+  .account-bar .account-sep{color:var(--border-strong);}
+  .account-bar a{color:var(--accent);font-weight:700;text-decoration:none;}
+  .account-bar a:hover{text-decoration:underline;}
 
   button.secondary{
     font-family:var(--font-heading);font-weight:600;font-size:var(--fs-base);background:var(--surface-2);color:var(--text);
@@ -395,6 +408,16 @@
   .rollback-btn:hover{background:var(--status-error-fg);color:#fff;}
   .rollback-btn:disabled{opacity:.6;cursor:default;}
   .rollback-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+  .rollback-wrap{position:relative;display:inline-block;margin-top:var(--sp-4);}
+  .rollback-wrap .rollback-main{display:block;margin-top:0;}
+  .rollback-flyout{
+    position:absolute;top:0;left:100%;height:100%;display:flex;align-items:center;gap:6px;
+    padding-left:8px;opacity:0;pointer-events:none;transform:translateX(-6px);
+    transition:opacity .2s ease,transform .2s ease;white-space:nowrap;
+  }
+  .rollback-wrap:hover .rollback-flyout,.rollback-wrap:focus-within .rollback-flyout{opacity:1;pointer-events:auto;transform:translateX(0);}
+  .rollback-sub{display:inline-block!important;margin-top:0!important;font-size:10px!important;padding:3px 10px!important;}
 
   .bulk-rollback-bar{display:flex;align-items:center;gap:var(--sp-4);flex-wrap:wrap;margin-bottom:var(--sp-3);padding:var(--sp-3) var(--sp-4);background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-md);}
   .bulk-select-all{display:flex;align-items:center;gap:7px;font-size:var(--fs-sm);font-weight:600;cursor:pointer;flex:none;}
@@ -584,10 +607,14 @@
   <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
 </button>
 {% if user_email %}
-<div style="position:fixed;top:20px;right:68px;z-index:10;font-size:12px;color:var(--text-muted);display:flex;align-items:center;gap:8px;">
-  <span>{{ user_email }}</span>
-  {% if is_admin %}<a href="/admin/users" style="font-weight:600;">계정 관리</a>{% endif %}
-  <a href="/logout" style="font-weight:600;">로그아웃</a>
+<div class="account-bar">
+  <span class="account-email">{{ user_email }}</span>
+  {% if is_admin %}
+    <span class="account-sep">|</span>
+    <a href="/admin/users">계정 관리</a>
+  {% endif %}
+  <span class="account-sep">|</span>
+  <a href="/logout">로그아웃</a>
 </div>
 {% endif %}
 <div id="app">
@@ -601,7 +628,7 @@
     <div class="page-header-left">
       <p class="eyebrow">EQB · Meta Ads Ops</p>
       <h1>광고 에딧 데스크</h1>
-      <p class="subtitle">기존 광고 세트를 알려주시면 타겟팅을 복제하고, 소재를 매칭해 새 광고 세트와 광고를 즉시 생성합니다. 이 페이지는 내 컴퓨터에서만 열리고, 제출 즉시 Meta API를 직접 호출합니다 (승인 대기열 없음).</p>
+      <p class="subtitle">기존 광고 세트를 알려주시면 타겟팅을 복제하고, 소재를 매칭해 새 광고 세트와 광고를 즉시 생성합니다. 제출 즉시 Meta API를 직접 호출해 바로 반영되며, 별도의 승인 대기열은 없습니다.</p>
     </div>
     <svg class="page-logo" viewBox="0 0 220 100" width="56" height="25" aria-label="EQB">
       <rect x="4" y="10" width="140" height="80" rx="40" fill="none" stroke="currentColor" stroke-width="7"/>
@@ -1097,9 +1124,18 @@
             <div class="record-note err">삭제 중 오류: {{ it.rollbackError }} — 아래 버튼으로 다시 시도할 수 있습니다.</div>
           {% endif %}
           {% if it.result %}
-            <button type="button" class="rollback-btn" data-rollback-url="/delete_created/{{ it.id }}">
-              {{ '삭제 재시도 (생성된 광고·Shopify 포함)' if it.rollbackError else '생성 취소 (광고·Shopify 포함 삭제)' }}
-            </button>
+            {% set has_shopify_part = it.resultShopifyUrl or it.resultShopifyPageUrl %}
+            <div class="rollback-wrap">
+              <button type="button" class="rollback-btn rollback-main" data-rollback-url="/delete_created/{{ it.id }}" data-rollback-scope="">
+                {{ '삭제 재시도 (생성된 광고·Shopify 포함)' if it.rollbackError else '생성 취소 (광고·Shopify 포함 삭제)' }}
+              </button>
+              {% if has_shopify_part %}
+              <div class="rollback-flyout">
+                <button type="button" class="rollback-btn rollback-sub" data-rollback-url="/delete_created/{{ it.id }}" data-rollback-scope="ad">광고만 삭제</button>
+                <button type="button" class="rollback-btn rollback-sub" data-rollback-url="/delete_created/{{ it.id }}" data-rollback-scope="shopify">쇼피파이 페이지만 삭제</button>
+              </div>
+              {% endif %}
+            </div>
           {% endif %}
         </div>
         {% endif %}
@@ -1281,25 +1317,43 @@
   });
 
   document.querySelectorAll(".rollback-btn[data-rollback-url]").forEach(function (btn) {
+    var originalText = btn.textContent;
     btn.addEventListener("click", function () {
-      if (!window.confirm("이 요청으로 생성된 Meta 광고와 Shopify 상품/페이지를 실제로 삭제합니다. 되돌릴 수 없습니다. 계속할까요?")) return;
-      var url = btn.getAttribute("data-rollback-url");
-      btn.disabled = true;
+      var scope = btn.getAttribute("data-rollback-scope") || "";
+      var confirmMsg = scope === "ad"
+        ? "이 요청으로 생성된 Meta 광고만 실제로 삭제합니다. Shopify 쪽은 그대로 남습니다. 되돌릴 수 없습니다. 계속할까요?"
+        : scope === "shopify"
+        ? "이 요청으로 생성된 Shopify 상품/페이지만 실제로 삭제합니다. 광고는 그대로 남습니다. 되돌릴 수 없습니다. 계속할까요?"
+        : "이 요청으로 생성된 Meta 광고와 Shopify 상품/페이지를 실제로 삭제합니다. 되돌릴 수 없습니다. 계속할까요?";
+      if (!window.confirm(confirmMsg)) return;
+      var baseUrl = btn.getAttribute("data-rollback-url");
+      var url = scope ? baseUrl + "?scope=" + encodeURIComponent(scope) : baseUrl;
+      var wrap = btn.closest(".rollback-wrap");
+      if (wrap) wrap.querySelectorAll(".rollback-btn").forEach(function (b) { b.disabled = true; });
+      else btn.disabled = true;
       btn.textContent = "삭제 중…";
       fetch(url, { method: "POST" }).then(function (r) {
         return r.json().catch(function () { return {}; }).then(function (data) { return { ok: r.ok, data: data }; });
       }).then(function (res) {
         if (res.ok) {
-          var row = btn.closest(".record-row");
-          if (row) row.remove();
+          if (scope) {
+            // 일부만 삭제된 경우 남은 쪽의 버튼/링크 구성이 바뀌므로, 서버가
+            // 다시 렌더링한 최신 상태를 그대로 보여주는 게 가장 간단하고 안전하다.
+            window.location.reload();
+          } else {
+            var row = btn.closest(".record-row");
+            if (row) row.remove();
+          }
         } else {
           alert("삭제 중 오류가 발생했습니다: " + (res.data.error || "알 수 없는 오류") + "\n페이지를 새로고침하면 남은 항목을 확인할 수 있습니다.");
-          btn.disabled = false;
+          if (wrap) wrap.querySelectorAll(".rollback-btn").forEach(function (b) { b.disabled = false; });
+          else btn.disabled = false;
           btn.textContent = "삭제 재시도 (생성된 광고·Shopify 포함)";
         }
       }).catch(function () {
-        btn.disabled = false;
-        btn.textContent = "생성 취소 (광고·Shopify 포함 삭제)";
+        if (wrap) wrap.querySelectorAll(".rollback-btn").forEach(function (b) { b.disabled = false; });
+        else btn.disabled = false;
+        btn.textContent = originalText;
       });
     });
   });
