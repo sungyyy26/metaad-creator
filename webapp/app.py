@@ -23,6 +23,7 @@ import uuid
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
+import requests
 from dotenv import load_dotenv
 from flask import Flask, Response, redirect, render_template, request, send_file, session, url_for
 
@@ -99,35 +100,69 @@ def is_email_allowed(email):
     return any((u.get("email") or "").lower() == email for u in load_allowed_users())
 
 
-# SMTP_USER/SMTP_PASSWORD이 없으면 이메일을 실제로 보내지 않고 서버 로그에만
-# 남긴다 — 로컬 개발이나 아직 메일 설정을 안 한 배포에서도 요청 흐름 자체는
-# 깨지지 않도록 하기 위함.
+# 둘 다 안 걸려 있으면 이메일을 실제로 보내지 않고 서버 로그에만 남긴다 —
+# 로컬 개발이나 아직 메일 설정을 안 한 배포에서도 요청 흐름 자체는 깨지지
+# 않도록 하기 위함. RESEND_API_KEY가 있으면 그쪽을 우선 쓰고(2FA/앱 비밀번호가
+# 전혀 필요 없음), 없고 SMTP_USER/PASSWORD만 있으면 Gmail SMTP로 보낸다 — 둘
+# 다 설정해두면 Resend가 우선.
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+RESEND_FROM = os.environ.get("RESEND_FROM", "onboarding@resend.dev")
 SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
 SMTP_USER = os.environ.get("SMTP_USER")
 SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
 
 
-def send_access_request_email(requester_email):
-    if not (SMTP_USER and SMTP_PASSWORD and ADMIN_EMAIL):
-        print(f"[access request] {requester_email} requested access, but SMTP_USER/SMTP_PASSWORD/ADMIN_EMAIL "
-              f"isn't fully configured — email not sent.")
-        return False
+def _access_request_email_body(requester_email):
+    admin_url = f"{request.url_root.rstrip('/')}/admin/users" if request else "/admin/users"
+    return (
+        f"{requester_email} 님이 Meta Ad Desk 접근 권한을 요청했습니다.\n\n"
+        f"허용하려면 관리자 페이지에서 추가해주세요: {admin_url}"
+    )
+
+
+def _send_via_resend(requester_email):
+    resp = requests.post(
+        "https://api.resend.com/emails",
+        headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+        json={
+            "from": RESEND_FROM,
+            "to": [ADMIN_EMAIL],
+            "subject": "Meta Ad Desk 접근 권한 요청",
+            "text": _access_request_email_body(requester_email),
+        },
+        timeout=10,
+    )
+    resp.raise_for_status()
+
+
+def _send_via_smtp(requester_email):
     import smtplib
     from email.message import EmailMessage
     msg = EmailMessage()
     msg["Subject"] = "Meta Ad Desk 접근 권한 요청"
     msg["From"] = SMTP_USER
     msg["To"] = ADMIN_EMAIL
-    msg.set_content(
-        f"{requester_email} 님이 Meta Ad Desk 접근 권한을 요청했습니다.\n\n"
-        f"허용하려면 관리자 페이지에서 추가해주세요: {request.url_root.rstrip('/')}/admin/users"
-    )
+    msg.set_content(_access_request_email_body(requester_email))
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+        server.starttls()
+        server.login(SMTP_USER, SMTP_PASSWORD)
+        server.send_message(msg)
+
+
+def send_access_request_email(requester_email):
+    if not ADMIN_EMAIL:
+        print(f"[access request] {requester_email} requested access, but ADMIN_EMAIL isn't set — email not sent.")
+        return False
     try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
-            server.starttls()
-            server.login(SMTP_USER, SMTP_PASSWORD)
-            server.send_message(msg)
+        if RESEND_API_KEY:
+            _send_via_resend(requester_email)
+        elif SMTP_USER and SMTP_PASSWORD:
+            _send_via_smtp(requester_email)
+        else:
+            print(f"[access request] {requester_email} requested access, but no email method is configured "
+                  f"(RESEND_API_KEY or SMTP_USER/SMTP_PASSWORD) — email not sent.")
+            return False
         return True
     except Exception as e:  # noqa: BLE001
         print(f"[access request] failed to send email for {requester_email}: {e}")
