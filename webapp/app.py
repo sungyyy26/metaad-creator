@@ -328,8 +328,8 @@ BULK_COLUMNS = [
     "비우거나 '-'를 넣으면 그 광고 세트의 현재 예산을 그대로 둡니다)",
     "웹사이트 URL (필수 — /products/ 포함 시 상품을, /pages/ 포함 시 페이지를 복제합니다)",
     "소재 (필수)",
-    "헤드라인 (실제 문구를 입력하거나, '소재'가 EQQUALBERRY 소재명 규칙을 따르면 '생성'이라고 입력해 자동 작성)",
-    "기본 텍스트 (실제 문구를 입력하거나, '소재'가 EQQUALBERRY 소재명 규칙을 따르면 '생성'이라고 입력해 자동 작성)",
+    "헤드라인 (선택 — 실제 문구를 입력하면 그대로 쓰고, 비워두면 '소재'가 EQQUALBERRY 소재명 규칙을 따를 때 자동 작성)",
+    "기본 텍스트 (선택 — 실제 문구를 입력하면 그대로 쓰고, 비워두면 '소재'가 EQQUALBERRY 소재명 규칙을 따를 때 자동 작성)",
     "복제할 Shopify 페이지 태그 (선택 — 웹사이트 URL이 /products/면 상품 핸들로, /pages/면 페이지 태그로 "
     "사용됩니다; 비워두면 Shopify 복제 없음)",
     "Shopify 아마존 어트리뷰션 링크 재지정 (선택)",
@@ -359,7 +359,11 @@ def is_blank(value):
 
 
 def is_generate_placeholder(value):
-    return (value or "").strip().lower() in GENERATE_TOKENS
+    """True when this cell is asking for auto-generated copy — either left
+    blank (대량 업로드 rows normally paste real copy directly now, so a blank
+    cell is the signal to auto-generate) or filled with an explicit '생성'
+    placeholder word (still supported for anyone who prefers typing it)."""
+    return is_blank(value) or (value or "").strip().lower() in GENERATE_TOKENS
 
 
 def _select_copy_variant(candidates, creative_name, salt, used):
@@ -589,10 +593,9 @@ def parse_bulk_row(cols):
     else:
         daily_budget = budget_raw
 
+    # 헤드라인/기본 텍스트는 일부러 필수가 아니다 — 대량 업로드는 대부분 카피를
+    # 직접 붙여넣지만, 비워두면(또는 '생성'이라고 입력하면) 자동 생성된다.
     headline, primary_text = get(7), get(8)
-    for label, value in (("헤드라인", headline), ("기본 텍스트", primary_text)):
-        if is_blank(value):
-            raise RowError(f"{label}가 비어있습니다 — 실제 문구를 입력하거나 '생성'이라고 입력해주세요.")
 
     warning = None
     extra = [v for v in cols[len(BULK_COLUMNS):] if v.strip()]
@@ -1001,7 +1004,7 @@ def submit():
         message = {"kind": "err", "text": entry["error"]}
     elif generation_error:
         entry["status"] = "error"
-        entry["error"] = f"'생성' 자동 카피 실패: {generation_error}"
+        entry["error"] = f"자동 카피 생성 실패: {generation_error}"
         upsert(entry)
         message = {"kind": "err", "text": entry["error"]}
     else:
@@ -1095,7 +1098,7 @@ def submit_bulk():
             )
             if gen_err:
                 fail += 1
-                details.append(f"{lineno}행 ({row['new_ad_name']}): '생성' 자동 카피 실패 — {gen_err}")
+                details.append(f"{lineno}행 ({row['new_ad_name']}): 자동 카피 생성 실패 — {gen_err}")
                 continue
             changed = headline != row["headline"] or primary_text != row["primary_text"]
             row["headline"], row["primary_text"] = headline, primary_text
@@ -1191,7 +1194,7 @@ def preview_bulk():
             used_headlines=used_headlines, used_primary_texts=used_primary_texts, cache=meta_cache,
         )
         if gen_err:
-            preview.append({"lineno": lineno, "ok": False, "error": f"'생성' 자동 카피 실패 — {gen_err}"})
+            preview.append({"lineno": lineno, "ok": False, "error": f"자동 카피 생성 실패 — {gen_err}"})
             continue
         changed = headline != row["headline"] or primary_text != row["primary_text"]
         row["headline"], row["primary_text"] = headline, primary_text

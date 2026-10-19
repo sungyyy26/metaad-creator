@@ -31,6 +31,42 @@
         "¡Prepárate para brillar!\nIlumina tu piel con nuestro cuidado diario de tono uniforme, con niacinamida, arbutina y antioxidantes que combaten {concern_lower}. ¡Piel de tono uniforme, sin sensación pesada!\n¡Cómpralo ahora en Amazon!"
       ]
     },
+    "v-crm": {
+      "name_ko": "비타민 브라이트닝 크림",
+      "short_ko": "비타민 크림",
+      "name_en": "Vitamin Illuminating Cream",
+      "cta": "SHOP_NOW",
+      "hero_ingredient": "encapsulated Vitamin C, Niacinamide, Arbutin, and TXA",
+      "headline_shapes": [
+        "✨ Your Glow, Sealed In",
+        "Target {concern} & Unlock Your Glow | Vitamin Cream",
+        "{part} Radiance, Locked In ✨",
+        "Say Goodbye to {concern}, Hello Glow"
+      ],
+      "body_templates": [
+        "✨ THE VITAMIN C CREAM FOR REAL RADIANCE ✨\nDull, tired-looking skin? One cream. Two weeks of consistent use.\n\nThe Vitamin Illuminating Cream combines {hero_ingredient} to visibly fade the look of {concern_lower} and even out your skin tone.\n\n💛 Rich, fast-absorbing texture\n💛 Lightweight and non-sticky\n💛 Visibly more radiant skin in as little as 2 weeks\n\nREVEAL YOUR GLOW, LOCK IT IN →",
+        "Say Goodbye to {concern}!\n\nUnlock your natural glow with our daily brightening cream, packed with vitamin C, niacinamide & arbutin.\nNon-sticky, fast-absorbing and easy to layer into your routine.\nShop now on Amazon!",
+        "Get ready to glow!\nBrighten up with our daily even-tone care, featuring niacinamide, arbutin & antioxidants that target {concern_lower}. Even-looking complexion, no heavy feel!\nShop now on Amazon!"
+      ]
+    },
+    "v-tnrp": {
+      "name_ko": "비타민 브라이트닝 토너패드",
+      "short_ko": "비타민 토너패드",
+      "name_en": "Vitamin Illuminating Toner Pad",
+      "cta": "SHOP_NOW",
+      "hero_ingredient": "encapsulated Vitamin C, Niacinamide, Arbutin, and TXA",
+      "headline_shapes": [
+        "✨ One Swipe, Instant Glow",
+        "Target {concern} & Unlock Your Glow | Vitamin Toner Pad",
+        "{part} Radiance In One Swipe ✨",
+        "Say Goodbye to {concern}, Hello Glow"
+      ],
+      "body_templates": [
+        "✨ THE VITAMIN C TONER PAD FOR REAL RADIANCE ✨\nDull, tired-looking skin? One pad. Two weeks of consistent use.\n\nThe Vitamin Illuminating Toner Pad combines {hero_ingredient} to visibly fade the look of {concern_lower} and even out your skin tone.\n\n💛 Pre-soaked, dual-textured pad for gentle exfoliation + toning\n💛 Lightweight and non-sticky\n💛 Visibly more radiant skin in as little as 2 weeks\n\nREVEAL YOUR GLOW, ONE SWIPE AT A TIME →",
+        "Say Goodbye to {concern}!\n\nUnlock your natural glow with our daily toner pads, packed with vitamin C, niacinamide & arbutin.\nNon-sticky, fast-absorbing and easy to add into your routine.\nShop now on Amazon!",
+        "Get ready to glow!\nBrighten up with our daily even-tone care, featuring niacinamide, arbutin & antioxidants that target {concern_lower}. Even-looking complexion, no heavy feel!\nShop now on Amazon!"
+      ]
+    },
     "n-srm": {
       "name_ko": "나드 펩타이드 부스팅 세럼",
       "short_ko": "나드 세럼",
@@ -126,7 +162,9 @@
     "BA00021": "b-srm",
     "BA00073": "v-srm&crm",
     "BA00074": "v-srm&crm&tnr",
-    "BA00075": "n-srm&crm"
+    "BA00075": "n-srm&crm",
+    "B0FQ9MM42M": "v-crm",
+    "B0GH1T944M": "v-tnrp"
   },
   "concern_copy": {
     "color": {
