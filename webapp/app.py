@@ -53,7 +53,8 @@ DB_PATH = "requests" if DATABASE_URL else os.path.join(os.path.dirname(__file__)
 UPLOADS_DB_PATH = "uploads" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "uploads.json")
 ALLOWED_USERS_PATH = "allowed_users" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "allowed_users.json")
 ACCESS_REQUESTS_PATH = "access_requests" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "access_requests.json")
-_VALID_TABLES = {"requests", "uploads", "allowed_users", "access_requests"}
+FEEDBACK_PATH = "feedback" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "feedback.json")
+_VALID_TABLES = {"requests", "uploads", "allowed_users", "access_requests", "feedback"}
 LOCK = threading.Lock()
 BUDGET_CACHE_LOCK = threading.Lock()
 BUDGET_META_CACHE = {}
@@ -122,33 +123,43 @@ def _access_request_email_body(requester_email):
     )
 
 
-def _send_via_resend(requester_email):
-    resp = requests.post(
-        "https://api.resend.com/emails",
-        headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
-        json={
-            "from": RESEND_FROM,
-            "to": [ADMIN_EMAIL],
-            "subject": "Meta Ad Desk 접근 권한 요청",
-            "text": _access_request_email_body(requester_email),
-        },
-        timeout=10,
-    )
-    resp.raise_for_status()
-
-
-def _send_via_smtp(requester_email):
-    import smtplib
-    from email.message import EmailMessage
-    msg = EmailMessage()
-    msg["Subject"] = "Meta Ad Desk 접근 권한 요청"
-    msg["From"] = SMTP_USER
-    msg["To"] = ADMIN_EMAIL
-    msg.set_content(_access_request_email_body(requester_email))
-    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
-        server.starttls()
-        server.login(SMTP_USER, SMTP_PASSWORD)
-        server.send_message(msg)
+def _send_email(subject, body):
+    """Shared low-level sender behind every notification email this app
+    sends (access requests, feedback) — same Resend-then-SMTP-then-log
+    fallback chain, just parameterized on subject/body instead of being
+    specific to one use case."""
+    if not ADMIN_EMAIL:
+        print(f"[email] ADMIN_EMAIL isn't set — not sent. subject={subject!r}")
+        return False
+    try:
+        if RESEND_API_KEY:
+            resp = requests.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+                json={"from": RESEND_FROM, "to": [ADMIN_EMAIL], "subject": subject, "text": body},
+                timeout=10,
+            )
+            resp.raise_for_status()
+        elif SMTP_USER and SMTP_PASSWORD:
+            import smtplib
+            from email.message import EmailMessage
+            msg = EmailMessage()
+            msg["Subject"] = subject
+            msg["From"] = SMTP_USER
+            msg["To"] = ADMIN_EMAIL
+            msg.set_content(body)
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+                server.starttls()
+                server.login(SMTP_USER, SMTP_PASSWORD)
+                server.send_message(msg)
+        else:
+            print(f"[email] no method configured (RESEND_API_KEY or SMTP_USER/SMTP_PASSWORD) — "
+                  f"not sent. subject={subject!r}")
+            return False
+        return True
+    except Exception as e:  # noqa: BLE001
+        print(f"[email] failed to send (subject={subject!r}): {e}")
+        return False
 
 
 # 같은 이메일로 짧은 시간 안에 반복 요청해도 관리자에게 메일이 계속 가지
@@ -174,22 +185,35 @@ def _record_access_request(email):
 
 
 def send_access_request_email(requester_email):
-    if not ADMIN_EMAIL:
-        print(f"[access request] {requester_email} requested access, but ADMIN_EMAIL isn't set — email not sent.")
-        return False
-    try:
-        if RESEND_API_KEY:
-            _send_via_resend(requester_email)
-        elif SMTP_USER and SMTP_PASSWORD:
-            _send_via_smtp(requester_email)
-        else:
-            print(f"[access request] {requester_email} requested access, but no email method is configured "
-                  f"(RESEND_API_KEY or SMTP_USER/SMTP_PASSWORD) — email not sent.")
-            return False
-        return True
-    except Exception as e:  # noqa: BLE001
-        print(f"[access request] failed to send email for {requester_email}: {e}")
-        return False
+    return _send_email("Meta Ad Desk 접근 권한 요청", _access_request_email_body(requester_email))
+
+
+def load_feedback():
+    return _load_json_list(FEEDBACK_PATH)
+
+
+def _feedback_email_body(sender_label, message):
+    return f"{sender_label} 님이 Meta Ad Desk에 개선 요청을 남겼습니다.\n\n{message}"
+
+
+def send_feedback_email(sender_label, message):
+    return _send_email("Meta Ad Desk 개선 요청", _feedback_email_body(sender_label, message))
+
+
+@app.route("/feedback", methods=["POST"])
+def submit_feedback():
+    """로그인 여부와 무관하게 동작 — 로컬 개발 중에도 아이디어를 남길 수 있다.
+    ADMIN_EMAIL이 설정돼 있으면 이메일로도 가고, 설정이 안 돼 있거나 발송이
+    실패해도 기록 자체는 항상 저장된다(이메일 설정 실패로 의견이 통째로
+    사라지지 않도록)."""
+    message = (request.form.get("message") or "").strip()
+    if not message:
+        return {"ok": False, "error": "내용을 입력해주세요."}, 400
+    sender_label = current_user_label() if LOGIN_ENABLED and session.get("user_email") else "로컬 사용자"
+    entry = new_entry(type="feedback", message=message, createdBy=sender_label)
+    _upsert(FEEDBACK_PATH, entry)
+    emailed = send_feedback_email(sender_label, message)
+    return {"ok": True, "emailed": emailed}
 
 
 @app.route("/login")

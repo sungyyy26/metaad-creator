@@ -280,24 +280,27 @@
   .delete-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   .delete-btn:disabled{opacity:.5;cursor:default;}
 
-  .theme-toggle{
+  .header-bar{
     position:fixed;top:20px;right:20px;z-index:10;
+    display:flex;align-items:center;gap:10px;
+  }
+
+  .header-icon-btn{
     width:38px;height:38px;padding:0;border-radius:50%;flex:none;
     display:flex;align-items:center;justify-content:center;
     background:var(--surface);border:1px solid var(--glass-border);color:var(--text-muted);
     backdrop-filter:blur(var(--glass-blur));-webkit-backdrop-filter:blur(var(--glass-blur));
     cursor:pointer;box-shadow:var(--shadow);transition:color .12s,border-color .12s;
   }
-  .theme-toggle:hover{color:var(--text);border-color:var(--border-strong);}
-  .theme-toggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
-  .theme-toggle svg{width:18px;height:18px;}
+  .header-icon-btn:hover{color:var(--text);border-color:var(--border-strong);}
+  .header-icon-btn:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .header-icon-btn svg{width:18px;height:18px;}
   .theme-toggle .ic-moon{display:none;}
   .theme-toggle.is-dark .ic-sun{display:none;}
   .theme-toggle.is-dark .ic-moon{display:block;}
 
   .account-bar{
-    position:fixed;top:20px;right:68px;z-index:10;
-    display:flex;align-items:center;gap:10px;height:38px;
+    display:flex;align-items:center;gap:10px;height:38px;flex:none;
     background:var(--surface);border:1px solid var(--glass-border);
     backdrop-filter:blur(var(--glass-blur));-webkit-backdrop-filter:blur(var(--glass-blur));
     border-radius:980px;padding:0 16px;box-shadow:var(--shadow);
@@ -307,6 +310,34 @@
   .account-bar .account-sep{color:var(--border-strong);}
   .account-bar a{color:var(--accent);font-weight:700;text-decoration:none;}
   .account-bar a:hover{text-decoration:underline;}
+
+  .modal-overlay{
+    position:fixed;inset:0;z-index:50;background:rgba(15,22,32,.45);
+    display:flex;align-items:center;justify-content:center;padding:20px;
+  }
+  .modal-overlay[hidden]{display:none;}
+  .modal-box{
+    position:relative;background:var(--surface);border:1px solid var(--glass-border);
+    border-radius:var(--radius-lg);box-shadow:var(--shadow);
+    width:100%;max-width:560px;max-height:85vh;overflow-y:auto;padding:28px 30px;
+  }
+  .modal-box h2{font-family:var(--font-heading);font-size:var(--fs-lg);font-weight:700;margin:0 0 var(--sp-2);}
+  .modal-box .hint{color:var(--text-muted);font-size:var(--fs-sm);margin:0 0 var(--sp-4);}
+  .modal-close{
+    position:absolute;top:14px;right:14px;border:0;background:transparent;color:var(--text-faint);
+    font-size:20px;line-height:1;cursor:pointer;width:28px;height:28px;border-radius:50%;
+  }
+  .modal-close:hover{background:var(--surface-3);color:var(--text);}
+  .modal-close:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .help-table{width:100%;border-collapse:collapse;font-size:var(--fs-sm);margin:0 0 var(--sp-4);}
+  .help-table th,.help-table td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--border);vertical-align:top;}
+  .help-table th{font-family:var(--font-heading);font-weight:700;color:var(--text-muted);font-size:var(--fs-xs);white-space:nowrap;}
+  .help-table td:first-child{font-family:var(--font-mono);font-size:var(--fs-xs);color:var(--text-faint);white-space:nowrap;}
+  .help-notes{margin:0;padding-left:20px;font-size:var(--fs-sm);line-height:1.6;}
+  .help-notes li{margin-bottom:5px;}
+  .feedback-status{font-size:var(--fs-sm);margin:var(--sp-2) 0 0;}
+  .feedback-status.ok{color:var(--status-done-fg);}
+  .feedback-status.err{color:var(--status-error-fg);}
 
   button.secondary{
     font-family:var(--font-heading);font-weight:600;font-size:var(--fs-base);background:var(--surface-2);color:var(--text);
@@ -614,21 +645,76 @@
 </head>
 <body>
 <div class="bg-orbs" aria-hidden="true"><span></span><span></span><span></span></div>
-<button type="button" id="theme-toggle" class="theme-toggle" aria-label="다크 모드로 전환" title="라이트/다크 모드 전환">
-  <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path></svg>
-  <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-</button>
-{% if user_email %}
-<div class="account-bar">
-  <span class="account-email">{{ user_email }}</span>
-  {% if is_admin %}
+<div class="header-bar">
+  {% if user_email %}
+  <div class="account-bar">
+    <span class="account-email">{{ user_email }}</span>
+    {% if is_admin %}
+      <span class="account-sep">|</span>
+      <a href="/admin/users">계정 관리</a>
+    {% endif %}
     <span class="account-sep">|</span>
-    <a href="/admin/users">계정 관리</a>
+    <a href="/logout">로그아웃</a>
+  </div>
   {% endif %}
-  <span class="account-sep">|</span>
-  <a href="/logout">로그아웃</a>
+  <button type="button" id="feedback-btn" class="header-icon-btn" aria-label="개선 요청 보내기" title="개선 요청 보내기">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-4 10.5c.6.6 1 1.4 1 2.5h6c0-1.1.4-1.9 1-2.5A6 6 0 0 0 12 3z"></path></svg>
+  </button>
+  <button type="button" id="help-btn" class="header-icon-btn" aria-label="대량 업로드 입력 가이드" title="대량 업로드 입력 가이드">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><path d="M9.5 9.2a2.5 2.5 0 0 1 4.8 1c0 1.7-2.3 1.9-2.3 3.6"></path><circle cx="12" cy="16.8" r="0.1" fill="currentColor" stroke-width="1.5"></circle></svg>
+  </button>
+  <button type="button" id="theme-toggle" class="header-icon-btn theme-toggle" aria-label="다크 모드로 전환" title="라이트/다크 모드 전환">
+    <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path></svg>
+    <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+  </button>
 </div>
-{% endif %}
+
+<div class="modal-overlay" id="help-modal-overlay" hidden>
+  <div class="modal-box">
+    <button type="button" class="modal-close" data-close-modal="help-modal-overlay" aria-label="닫기">×</button>
+    <h2>대량 업로드 입력 가이드</h2>
+    <p class="hint">스프레드시트(엑셀/구글시트)에서 행을 그대로 복사해서 붙여넣으면 됩니다. 탭으로 구분된 11개 열:</p>
+    <table class="help-table">
+      <thead><tr><th>#</th><th>열</th><th>필수</th><th>설명</th></tr></thead>
+      <tbody>
+        <tr><td>1</td><td>캠페인</td><td>필수</td><td>이름 또는 ID</td></tr>
+        <tr><td>2</td><td>복제할 광고</td><td>선택</td><td>비우면 "광고만 추가" 모드 — 광고 세트는 새로 안 만들고, 기존(또는 같은 배치에서 만든) 광고 세트에 광고만 추가</td></tr>
+        <tr><td>3</td><td>새 광고 세트 이름</td><td>필수</td><td></td></tr>
+        <tr><td>4</td><td>새 광고 이름</td><td>필수</td><td></td></tr>
+        <tr><td>5</td><td>일일 예산</td><td>조건부</td><td>새 광고 세트를 만들 때는 필수(숫자). "광고만 추가" 모드에서는 비우거나 <code>-</code> 입력 시 기존 예산 그대로 유지, 숫자 입력 시 덮어씀</td></tr>
+        <tr><td>6</td><td>웹사이트 URL</td><td>필수</td><td>URL에 <code>/products/</code> 포함 → Shopify 상품 복제, <code>/pages/</code> 포함 → Shopify 페이지 복제</td></tr>
+        <tr><td>7</td><td>소재</td><td>필수</td><td>카피 자동 생성 시 참조하는 소재명</td></tr>
+        <tr><td>8</td><td>헤드라인</td><td>선택</td><td>실제 문구 입력 시 그대로 사용. 비우면 자동 생성(또는 <code>생성</code>이라고 입력해도 동일)</td></tr>
+        <tr><td>9</td><td>기본 텍스트</td><td>선택</td><td>위와 동일</td></tr>
+        <tr><td>10</td><td>복제할 Shopify 페이지 태그</td><td>선택</td><td>비우면 Shopify 복제 안 함</td></tr>
+        <tr><td>11</td><td>아마존 어트리뷰션 링크 재지정</td><td>선택</td><td>비우면 원본 링크 그대로</td></tr>
+      </tbody>
+    </table>
+    <p class="hint" style="margin-bottom:6px;"><strong>참고</strong></p>
+    <ul class="help-notes">
+      <li><code>-</code>, <code>n/a</code>, <code>없음</code> 등은 전부 "비움"으로 처리됩니다.</li>
+      <li>11개 열보다 많이 입력하면 뒤쪽 값은 무시되고 경고가 뜹니다(탭이 하나 더 들어간 경우가 많음).</li>
+      <li>소재 자동 카피 생성은 EQQUALBERRY 소재명 규칙(제품코드_부위_고민_...)을 따를 때만 동작합니다.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="modal-overlay" id="feedback-modal-overlay" hidden>
+  <div class="modal-box">
+    <button type="button" class="modal-close" data-close-modal="feedback-modal-overlay" aria-label="닫기">×</button>
+    <h2>개선 요청 보내기</h2>
+    <p class="hint">버그, 불편한 점, 추가됐으면 하는 기능 등 자유롭게 적어주세요. 제출하면 관리자에게 전달됩니다.</p>
+    <form id="feedback-form">
+      <div class="field">
+        <label>내용</label>
+        <textarea name="message" required placeholder="예: 예산 조정 탭에서 ○○ 할 때 이런 점이 불편해요..."></textarea>
+      </div>
+      <button type="submit" class="primary" id="feedback-submit-btn">보내기</button>
+      <p class="feedback-status" id="feedback-status" hidden></p>
+    </form>
+  </div>
+</div>
+
 <div id="app">
   <div class="top-toggle" id="top-toggle">
     <button type="button" class="top-btn active" data-top="ads">광고 셋팅</button>
@@ -2166,6 +2252,70 @@
       try { localStorage.setItem(THEME_KEY, next); } catch (e) {}
       syncIcon();
     });
+  })();
+
+  (function () {
+    function openModal(overlay) { overlay.hidden = false; }
+    function closeModal(overlay) { overlay.hidden = true; }
+
+    document.querySelectorAll(".modal-overlay").forEach(function (overlay) {
+      overlay.addEventListener("click", function (e) {
+        if (e.target === overlay) closeModal(overlay);
+      });
+      overlay.querySelectorAll("[data-close-modal]").forEach(function (btn) {
+        btn.addEventListener("click", function () { closeModal(overlay); });
+      });
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key !== "Escape") return;
+      document.querySelectorAll(".modal-overlay").forEach(function (overlay) {
+        if (!overlay.hidden) closeModal(overlay);
+      });
+    });
+
+    var helpBtn = document.getElementById("help-btn");
+    var helpOverlay = document.getElementById("help-modal-overlay");
+    if (helpBtn && helpOverlay) {
+      helpBtn.addEventListener("click", function () { openModal(helpOverlay); });
+    }
+
+    var feedbackBtn = document.getElementById("feedback-btn");
+    var feedbackOverlay = document.getElementById("feedback-modal-overlay");
+    var feedbackForm = document.getElementById("feedback-form");
+    var feedbackStatus = document.getElementById("feedback-status");
+    var feedbackSubmitBtn = document.getElementById("feedback-submit-btn");
+    if (feedbackBtn && feedbackOverlay) {
+      feedbackBtn.addEventListener("click", function () { openModal(feedbackOverlay); });
+    }
+    if (feedbackForm) {
+      feedbackForm.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var message = feedbackForm.message.value.trim();
+        if (!message) return;
+        feedbackSubmitBtn.disabled = true;
+        feedbackStatus.hidden = true;
+        fetch("/feedback", { method: "POST", body: new URLSearchParams({ message: message }) })
+          .then(function (r) { return r.json().catch(function () { return {}; }).then(function (data) { return { ok: r.ok, data: data }; }); })
+          .then(function (res) {
+            feedbackStatus.hidden = false;
+            if (res.ok && res.data.ok) {
+              feedbackStatus.textContent = "보내주셔서 감사합니다! 전달됐습니다.";
+              feedbackStatus.className = "feedback-status ok";
+              feedbackForm.reset();
+              setTimeout(function () { closeModal(feedbackOverlay); feedbackStatus.hidden = true; }, 1200);
+            } else {
+              feedbackStatus.textContent = (res.data && res.data.error) || "전송에 실패했습니다. 잠시 후 다시 시도해주세요.";
+              feedbackStatus.className = "feedback-status err";
+            }
+          })
+          .catch(function () {
+            feedbackStatus.hidden = false;
+            feedbackStatus.textContent = "전송에 실패했습니다. 잠시 후 다시 시도해주세요.";
+            feedbackStatus.className = "feedback-status err";
+          })
+          .finally(function () { feedbackSubmitBtn.disabled = false; });
+      });
+    }
   })();
 
   (function () {
