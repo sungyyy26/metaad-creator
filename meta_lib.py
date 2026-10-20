@@ -7,6 +7,13 @@ from datetime import datetime
 
 import requests
 
+# A bare `requests.request(...)` call opens a brand-new TCP+TLS connection
+# every time. A bulk batch can make dozens of these back-to-back to the same
+# host, so reusing one Session (which pools/keeps-alive the connection)
+# shaves the handshake off every call after the first — pure latency win,
+# no behavior change.
+_SESSION = requests.Session()
+
 GRAPH = "https://graph.facebook.com/v21.0"
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".m4v", ".webm", ".mkv"}
 
@@ -39,8 +46,8 @@ def api(method, path, token, **params):
     for attempt, delay in enumerate(delays):
         if delay:
             time.sleep(delay)
-        r = requests.request(method, f"{GRAPH}/{path}", params=params if method == "GET" else None,
-                              data=None if method == "GET" else params)
+        r = _SESSION.request(method, f"{GRAPH}/{path}", params=params if method == "GET" else None,
+                             data=None if method == "GET" else params)
         data = r.json()
         if "error" not in data:
             return data
@@ -609,7 +616,7 @@ def upload_creative(token, account_id, filename, file_obj):
         # in the multipart tuple below.
         upload_data.update({"name": filename, "title": filename})
 
-    r = requests.post(
+    r = _SESSION.post(
         f"{GRAPH}/act_{account_id}/{endpoint}",
         files={field: (filename, file_obj)},
         data=upload_data,

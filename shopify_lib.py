@@ -9,6 +9,11 @@ from urllib.parse import urlparse
 
 import requests
 
+# Reused across calls so repeated requests to the same shop reuse one
+# HTTPS connection instead of renegotiating TLS every time — see meta_lib's
+# _SESSION for the same reasoning.
+_SESSION = requests.Session()
+
 # Shopify drops each API version roughly a year after release, so a hardcoded
 # version here will eventually 404 with a bare "Not Found" body. Override with
 # SHOPIFY_API_VERSION if this one has since been retired — check
@@ -30,7 +35,7 @@ class ShopifyNotFoundError(ShopifyApiError):
 
 def _gql(shop, token, query, variables=None):
     url = f"https://{shop}/admin/api/{API_VERSION}/graphql.json"
-    r = requests.post(
+    r = _SESSION.post(
         url,
         json={"query": query, "variables": variables or {}},
         headers={"X-Shopify-Access-Token": token, "Content-Type": "application/json"},
