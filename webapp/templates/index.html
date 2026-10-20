@@ -346,40 +346,52 @@
   }
   .loading-overlay[hidden]{display:none;}
   .loading-card{display:flex;flex-direction:column;align-items:center;gap:var(--sp-4);padding:40px;text-align:center;}
-  .loading-mascot{width:108px;height:96px;margin-top:12px;position:relative;animation:loading-dance 1.6s ease-in-out infinite;}
+  .loading-mascot{width:116px;height:100px;margin-top:16px;position:relative;animation:loading-dance 1.6s ease-in-out infinite;}
   .loading-mascot-body{
-    width:96px;height:96px;margin:0 auto;background:var(--primary);position:relative;
-    border-radius:46% 46% 50% 50% / 55% 55% 45% 45%;
+    width:92px;height:88px;margin:0 auto;background:var(--primary);position:relative;
+    border-radius:50% 50% 46% 46% / 58% 58% 42% 42%;
     box-shadow:0 10px 0 var(--primary-shadow), var(--shadow);
   }
-  .loading-mascot-wing{
-    position:absolute;top:38%;width:22px;height:36px;background:var(--primary-shadow);
-    border-radius:50% 50% 50% 50% / 60% 60% 40% 40%;
+  .loading-mascot-tuft{
+    position:absolute;top:-11px;width:0;height:0;
+    border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:17px solid var(--primary);
   }
-  .loading-mascot-wing.left{left:-9px;transform-origin:top right;animation:loading-wing-left 0.8s ease-in-out infinite;}
-  .loading-mascot-wing.right{right:-9px;transform-origin:top left;animation:loading-wing-right 0.8s ease-in-out infinite;}
-  .loading-mascot-brow{position:absolute;top:24%;width:16px;height:4px;background:var(--primary-shadow);border-radius:4px;}
-  .loading-mascot-brow.left{left:23%;transform:rotate(-8deg);}
-  .loading-mascot-brow.right{right:23%;transform:rotate(8deg);}
-  .loading-mascot-eye{position:absolute;top:34%;width:18px;height:22px;background:#fff;border-radius:50%;}
-  .loading-mascot-eye.left{left:24%;}
-  .loading-mascot-eye.right{right:24%;}
+  .loading-mascot-tuft.left{left:17%;transform:rotate(-20deg);}
+  .loading-mascot-tuft.right{right:17%;transform:rotate(20deg);}
+  .loading-mascot-wing{
+    position:absolute;top:40%;width:24px;height:40px;background:var(--primary-shadow);
+    border-radius:10% 70% 10% 70%;
+  }
+  .loading-mascot-wing.left{left:-12px;transform-origin:top right;animation:loading-wing-left 0.8s ease-in-out infinite;}
+  .loading-mascot-wing.right{right:-12px;transform:scaleX(-1);transform-origin:top left;animation:loading-wing-right 0.8s ease-in-out infinite;}
+  .loading-mascot-belly{
+    position:absolute;bottom:8%;left:50%;transform:translateX(-50%);
+    width:42px;height:36px;background:rgba(255,255,255,.4);border-radius:50%;
+  }
+  .loading-mascot-eye{position:absolute;top:22%;width:30px;height:34px;background:#fff;border-radius:50%;box-shadow:0 0 0 3px var(--primary-shadow);}
+  .loading-mascot-eye.left{left:13%;}
+  .loading-mascot-eye.right{right:13%;}
   .loading-mascot-eye::after{
-    content:"";position:absolute;bottom:4px;left:50%;transform:translateX(-50%);
-    width:9px;height:9px;background:#3c3c3c;border-radius:50%;
+    content:"";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    width:14px;height:14px;background:#3c3c3c;border-radius:50%;
     animation:loading-blink 2.6s ease-in-out infinite;
   }
   .loading-mascot-beak{
-    position:absolute;top:54%;left:50%;transform:translateX(-50%);width:0;height:0;
-    border-left:7px solid transparent;border-right:7px solid transparent;border-top:9px solid var(--mascot-beak);
+    position:absolute;top:56%;left:50%;transform:translateX(-50%);width:0;height:0;
+    border-left:7px solid transparent;border-right:7px solid transparent;border-top:10px solid var(--mascot-beak);
   }
-  .loading-mascot-cheek{position:absolute;bottom:22%;width:12px;height:8px;background:#ff8fa3;border-radius:50%;opacity:.8;}
-  .loading-mascot-cheek.left{left:8%;}
-  .loading-mascot-cheek.right{right:8%;}
+  .loading-mascot-foot{position:absolute;bottom:-6px;width:13px;height:8px;background:var(--mascot-beak);border-radius:0 0 7px 7px;}
+  .loading-mascot-foot.left{left:28%;}
+  .loading-mascot-foot.right{right:28%;}
+  .loading-sparkle{position:absolute;font-size:15px;opacity:0;pointer-events:none;animation:loading-sparkle-float 2.6s ease-in-out infinite;}
+  .loading-sparkle.s1{top:-10px;left:-18px;animation-delay:0s;}
+  .loading-sparkle.s2{top:2px;right:-20px;font-size:12px;animation-delay:.9s;}
+  .loading-sparkle.s3{bottom:10px;left:-16px;font-size:11px;animation-delay:1.8s;}
   .loading-title{font-family:var(--font-heading);font-weight:700;font-size:var(--fs-xl);margin:0;}
   .loading-bar{width:220px;height:10px;border-radius:980px;background:var(--surface-2);border:1px solid var(--border);overflow:hidden;position:relative;}
   .loading-bar-fill{position:absolute;top:0;left:-40%;width:40%;height:100%;border-radius:inherit;background:var(--accent);animation:loading-slide 1.3s ease-in-out infinite;}
   .loading-message{font-size:var(--fs-base);color:var(--text-muted);min-height:2.8em;max-width:300px;line-height:1.5;}
+  .loading-message.msg-pop{animation:loading-message-pop .4s ease;}
   @keyframes loading-dance{
     0%,100%{transform:translateY(0) rotate(0deg);}
     15%{transform:translateY(-8px) rotate(-7deg);}
@@ -388,12 +400,22 @@
     60%{transform:translateY(0) rotate(0deg);}
     80%{transform:translateY(-5px) rotate(-3deg);}
   }
-  @keyframes loading-wing-left{0%,100%{transform:rotate(0deg);}50%{transform:rotate(-38deg);}}
-  @keyframes loading-wing-right{0%,100%{transform:rotate(0deg);}50%{transform:rotate(38deg);}}
-  @keyframes loading-blink{0%,92%,100%{transform:translateX(-50%) scaleY(1);}96%{transform:translateX(-50%) scaleY(0.1);}}
+  @keyframes loading-wing-left{0%,100%{transform:rotate(0deg);}50%{transform:rotate(-42deg);}}
+  @keyframes loading-wing-right{0%,100%{transform:scaleX(-1) rotate(0deg);}50%{transform:scaleX(-1) rotate(-42deg);}}
+  @keyframes loading-blink{0%,92%,100%{transform:translate(-50%,-50%) scaleY(1);}96%{transform:translate(-50%,-50%) scaleY(0.1);}}
   @keyframes loading-slide{0%{left:-40%;}100%{left:100%;}}
+  @keyframes loading-sparkle-float{
+    0%{opacity:0;transform:translateY(0) scale(.6) rotate(0deg);}
+    15%{opacity:1;}
+    65%{opacity:1;}
+    100%{opacity:0;transform:translateY(-24px) scale(1) rotate(25deg);}
+  }
+  @keyframes loading-message-pop{
+    0%{opacity:.2;transform:translateY(5px) scale(.97);}
+    100%{opacity:1;transform:translateY(0) scale(1);}
+  }
   @media (prefers-reduced-motion: reduce){
-    .loading-mascot,.loading-mascot-wing,.loading-mascot-eye::after,.loading-bar-fill{animation:none;}
+    .loading-mascot,.loading-mascot-wing,.loading-mascot-eye::after,.loading-bar-fill,.loading-sparkle,.loading-message.msg-pop{animation:none;}
     .loading-bar-fill{left:0;width:60%;}
   }
 
@@ -776,16 +798,20 @@
 <div class="loading-overlay" id="loading-overlay" hidden>
   <div class="loading-card">
     <div class="loading-mascot">
+      <span class="loading-sparkle s1">✨</span>
+      <span class="loading-sparkle s2">⭐</span>
+      <span class="loading-sparkle s3">✨</span>
       <span class="loading-mascot-wing left"></span>
       <span class="loading-mascot-wing right"></span>
       <div class="loading-mascot-body">
-        <span class="loading-mascot-brow left"></span>
-        <span class="loading-mascot-brow right"></span>
+        <span class="loading-mascot-tuft left"></span>
+        <span class="loading-mascot-tuft right"></span>
+        <span class="loading-mascot-belly"></span>
         <span class="loading-mascot-eye left"></span>
         <span class="loading-mascot-eye right"></span>
         <span class="loading-mascot-beak"></span>
-        <span class="loading-mascot-cheek left"></span>
-        <span class="loading-mascot-cheek right"></span>
+        <span class="loading-mascot-foot left"></span>
+        <span class="loading-mascot-foot right"></span>
       </div>
     </div>
     <h2 class="loading-title">열심히 만드는 중이에요!</h2>
@@ -2350,13 +2376,19 @@
       "⏳ 거의 다 됐어요, 조금만 기다려주세요!",
       "☕ 대량 업로드는 행이 많을수록 시간이 걸려요 — 잠시 커피 한 잔 어떠세요",
     ];
+    function setMessage(text) {
+      messageEl.textContent = text;
+      messageEl.classList.remove("msg-pop");
+      void messageEl.offsetWidth;
+      messageEl.classList.add("msg-pop");
+    }
     function showLoading() {
       overlay.hidden = false;
       var idx = 0;
-      messageEl.textContent = MESSAGES[idx];
+      setMessage(MESSAGES[idx]);
       setInterval(function () {
         idx = (idx + 1) % MESSAGES.length;
-        messageEl.textContent = MESSAGES[idx];
+        setMessage(MESSAGES[idx]);
       }, 3200);
     }
     ["manual-submit-form", "bulk-form"].forEach(function (id) {
