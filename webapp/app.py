@@ -10,6 +10,7 @@ Run (one-time setup):
 Run (every time after that — no need to re-export anything):
     python webapp/app.py
 """
+import contextlib
 import csv
 import io
 import json
@@ -643,9 +644,23 @@ def parse_bulk_row(cols):
     )
 
 
+@contextlib.contextmanager
 def _db_connect():
+    """A raw psycopg2 connection's own context-manager protocol only commits
+    or rolls back the transaction on exit — it never closes the underlying
+    connection. Every call site here does `with _db_connect() as conn: ...`
+    once per request, so without an explicit close() each request leaked one
+    live Postgres connection for the lifetime of the server process, until
+    the database's connection limit was hit and every DB-touching route
+    (heaviest first: bulk upload, many upserts per request) started failing
+    with a raw, unhandled 500. Wrapping it here guarantees the connection is
+    always closed, without touching any of the call sites."""
     import psycopg2
-    return psycopg2.connect(DATABASE_URL)
+    conn = psycopg2.connect(DATABASE_URL)
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 
 def _init_db():
