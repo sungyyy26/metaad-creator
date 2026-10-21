@@ -304,9 +304,10 @@ def admin_users():
     if denied:
         return denied
     non_admin_users = [u for u in load_allowed_users() if (u.get("email") or "").lower() != ADMIN_EMAIL]
+    non_admin_users.sort(key=lambda u: (u.get("email") or "").lower())
     return render_template("admin_users.html", admin_email=ADMIN_EMAIL,
                             admin_nickname=nickname_for(ADMIN_EMAIL),
-                            allowed_users=list(reversed(non_admin_users)))
+                            allowed_users=non_admin_users)
 
 
 @app.route("/admin/users/add", methods=["POST"])

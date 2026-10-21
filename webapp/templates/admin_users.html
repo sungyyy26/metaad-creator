@@ -30,16 +30,19 @@
   .sub a{ color:var(--accent); font-weight:700; text-decoration:underline; }
   .card{ background:var(--surface); border-radius:20px; box-shadow:var(--shadow); padding:24px; margin-bottom:20px; }
   .card h2{ font-family:var(--font-display); font-weight:700; font-size:16px; margin:0 0 14px; color:var(--text); }
-  .admin-row{ display:flex; align-items:center; gap:10px; font-size:14px; color:var(--text); margin-bottom:20px; font-weight:600; }
+  .admin-row{ display:flex; align-items:center; gap:10px; font-size:14px; color:var(--text); margin-bottom:12px; font-weight:600; }
   .admin-row span{ background:var(--bg); border-radius:980px; padding:6px 14px; }
-  form.add-form{ display:flex; gap:10px; flex-wrap:wrap; }
+  .field-label{ display:block; font-size:12px; font-weight:700; color:var(--text-muted); margin:0 0 6px; }
+  .field-hint{ font-size:12px; color:var(--text-muted); margin:8px 0 0; }
+  form.add-form{ display:flex; flex-direction:column; gap:14px; }
+  form.add-form .field{ display:flex; flex-direction:column; }
+  form.add-form button{ align-self:flex-start; }
   input[type=email],input[type=text]{
-    flex:1; min-width:120px; background:var(--bg); border:2px solid transparent; border-radius:var(--radius);
+    width:100%; background:var(--bg); border:2px solid transparent; border-radius:var(--radius);
     padding:12px 14px; font-size:14px; color:var(--text); font-family:var(--font-body); min-height:44px;
     transition:border-color 300ms ease;
   }
   input[type=email]:focus,input[type=text]:focus{ outline:none; border-color:var(--accent); }
-  form.add-form input[type=email]{ flex:2; }
   button{
     font-family:var(--font-display); font-weight:700; font-size:14px; border:none; border-radius:var(--radius);
     padding:12px 22px; min-height:44px; cursor:pointer; background:var(--primary); color:var(--on-primary);
@@ -49,17 +52,17 @@
   button:active{ transform:translateY(3px); box-shadow:0 1px 0 0 #7fc94f; }
   .list{ display:flex; flex-direction:column; gap:10px; }
   .list-row{
-    display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+    display:flex; flex-direction:column; gap:10px;
     background:var(--bg); border-radius:var(--radius); padding:12px 16px;
   }
   .list-row .email{ font-weight:700; font-size:14px; color:var(--text); }
   .list-row .nickname{ font-weight:600; color:var(--text-muted); }
   .list-row .meta{ font-size:12px; color:var(--text-muted); }
   .row-actions{ display:flex; align-items:center; gap:8px; }
-  .nickname-form{ display:flex; gap:6px; margin:0 0 20px; }
+  .nickname-form{ display:flex; gap:6px; flex:1; margin:0 0 20px; }
   .row-actions .nickname-form{ margin:0; }
   .nickname-form input[type=text]{
-    min-height:36px; min-width:100px; padding:8px 10px; font-size:13px; background:var(--surface);
+    flex:1; width:auto; min-height:36px; min-width:100px; padding:8px 10px; font-size:13px; background:var(--surface);
   }
   .save-btn{
     background:transparent; color:var(--accent); border:2px solid var(--accent); padding:8px 14px;
@@ -85,13 +88,20 @@
       <h2>관리자 (항상 허용)</h2>
       <div class="admin-row"><span>{{ admin_email }}{% if admin_nickname %} · {{ admin_nickname }}{% endif %}</span></div>
       <form method="post" action="/admin/users/{{ admin_email }}/nickname" class="nickname-form">
-        <input type="text" name="nickname" value="{{ admin_nickname or '' }}" placeholder="닉네임">
+        <input type="text" name="nickname" value="{{ admin_nickname or '' }}" placeholder="닉네임 (예: 예성)">
         <button type="submit" class="save-btn">저장</button>
       </form>
       <h2>계정 추가</h2>
       <form class="add-form" method="post" action="/admin/users/add">
-        <input type="email" name="email" placeholder="example@boosters.kr" required>
-        <input type="text" name="nickname" placeholder="닉네임 (선택 — 로그인 환영 메시지에 쓰임)">
+        <div class="field">
+          <label class="field-label" for="add-user-email">이메일</label>
+          <input type="email" id="add-user-email" name="email" placeholder="example@boosters.kr" required>
+        </div>
+        <div class="field">
+          <label class="field-label" for="add-user-nickname">닉네임 (선택)</label>
+          <input type="text" id="add-user-nickname" name="nickname" placeholder="예: 예성">
+          <p class="field-hint">로그인하면 "안녕하세요, {닉네임}님!"으로 인사해요 — "님"은 자동으로 붙으니 이름만 적어주세요.</p>
+        </div>
         <button type="submit">추가</button>
       </form>
     </div>
@@ -108,7 +118,7 @@
           </div>
           <div class="row-actions">
             <form method="post" action="/admin/users/{{ u.email }}/nickname" class="nickname-form">
-              <input type="text" name="nickname" value="{{ u.nickname or '' }}" placeholder="닉네임">
+              <input type="text" name="nickname" value="{{ u.nickname or '' }}" placeholder="예: 예성">
               <button type="submit" class="save-btn">저장</button>
             </form>
             <form method="post" action="/admin/users/{{ u.email }}/delete" onsubmit="return confirm('{{ u.email }} 계정을 삭제할까요?');">
