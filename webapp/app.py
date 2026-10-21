@@ -303,8 +303,10 @@ def admin_users():
     denied = require_admin()
     if denied:
         return denied
+    non_admin_users = [u for u in load_allowed_users() if (u.get("email") or "").lower() != ADMIN_EMAIL]
     return render_template("admin_users.html", admin_email=ADMIN_EMAIL,
-                            allowed_users=list(reversed(load_allowed_users())))
+                            admin_nickname=nickname_for(ADMIN_EMAIL),
+                            allowed_users=list(reversed(non_admin_users)))
 
 
 @app.route("/admin/users/add", methods=["POST"])
@@ -321,15 +323,23 @@ def admin_users_add():
 
 @app.route("/admin/users/<path:email>/nickname", methods=["POST"])
 def admin_users_set_nickname(email):
+    """Also handles the admin's own nickname (admin_email, from the 관리자
+    카드) even though ADMIN_EMAIL is never added via admin_users_add — there's
+    no existing entry to update in that case, so one is created just to hold
+    the nickname; it grants no extra access since ADMIN_EMAIL is already
+    always allowed regardless of list membership."""
     denied = require_admin()
     if denied:
         return denied
     email = email.strip().lower()
     nickname = (request.form.get("nickname") or "").strip()
     matches = [u for u in load_allowed_users() if (u.get("email") or "").lower() == email]
-    for u in matches:
-        u["nickname"] = nickname
-        upsert_allowed_user(u)
+    if matches:
+        for u in matches:
+            u["nickname"] = nickname
+            upsert_allowed_user(u)
+    elif email == ADMIN_EMAIL:
+        upsert_allowed_user(new_entry(email=email, nickname=nickname, addedBy=ADMIN_EMAIL))
     return redirect(url_for("admin_users"))
 
 
