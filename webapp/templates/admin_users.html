@@ -32,13 +32,14 @@
   .card h2{ font-family:var(--font-display); font-weight:700; font-size:16px; margin:0 0 14px; color:var(--text); }
   .admin-row{ display:flex; align-items:center; gap:10px; font-size:14px; color:var(--text); margin-bottom:20px; font-weight:600; }
   .admin-row span{ background:var(--bg); border-radius:980px; padding:6px 14px; }
-  form.add-form{ display:flex; gap:10px; }
-  input[type=email]{
-    flex:1; min-width:0; background:var(--bg); border:2px solid transparent; border-radius:var(--radius);
+  form.add-form{ display:flex; gap:10px; flex-wrap:wrap; }
+  input[type=email],input[type=text]{
+    flex:1; min-width:120px; background:var(--bg); border:2px solid transparent; border-radius:var(--radius);
     padding:12px 14px; font-size:14px; color:var(--text); font-family:var(--font-body); min-height:44px;
     transition:border-color 300ms ease;
   }
-  input[type=email]:focus{ outline:none; border-color:var(--accent); }
+  input[type=email]:focus,input[type=text]:focus{ outline:none; border-color:var(--accent); }
+  form.add-form input[type=email]{ flex:2; }
   button{
     font-family:var(--font-display); font-weight:700; font-size:14px; border:none; border-radius:var(--radius);
     padding:12px 22px; min-height:44px; cursor:pointer; background:var(--primary); color:var(--on-primary);
@@ -48,11 +49,23 @@
   button:active{ transform:translateY(3px); box-shadow:0 1px 0 0 #7fc94f; }
   .list{ display:flex; flex-direction:column; gap:10px; }
   .list-row{
-    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
     background:var(--bg); border-radius:var(--radius); padding:12px 16px;
   }
   .list-row .email{ font-weight:700; font-size:14px; color:var(--text); }
+  .list-row .nickname{ font-weight:600; color:var(--text-muted); }
   .list-row .meta{ font-size:12px; color:var(--text-muted); }
+  .row-actions{ display:flex; align-items:center; gap:8px; }
+  .nickname-form{ display:flex; gap:6px; margin:0; }
+  .nickname-form input[type=text]{
+    min-height:36px; min-width:100px; padding:8px 10px; font-size:13px; background:var(--surface);
+  }
+  .save-btn{
+    background:transparent; color:var(--accent); border:2px solid var(--accent); padding:8px 14px;
+    font-size:13px; min-height:36px; box-shadow:none;
+  }
+  .save-btn:hover{ background:var(--accent); color:#fff; filter:none; }
+  .save-btn:active{ transform:none; }
   .del-btn{
     background:transparent; color:var(--danger); border:2px solid var(--danger); padding:8px 16px;
     font-size:13px; min-height:36px; box-shadow:none;
@@ -73,6 +86,7 @@
       <h2>계정 추가</h2>
       <form class="add-form" method="post" action="/admin/users/add">
         <input type="email" name="email" placeholder="example@boosters.kr" required>
+        <input type="text" name="nickname" placeholder="닉네임 (선택 — 로그인 환영 메시지에 쓰임)">
         <button type="submit">추가</button>
       </form>
     </div>
@@ -84,12 +98,18 @@
         {% for u in allowed_users %}
         <div class="list-row">
           <div>
-            <div class="email">{{ u.email }}</div>
+            <div class="email">{{ u.email }}{% if u.nickname %} <span class="nickname">· {{ u.nickname }}</span>{% endif %}</div>
             <div class="meta">{{ u.submittedAt }} 추가</div>
           </div>
-          <form method="post" action="/admin/users/{{ u.email }}/delete" onsubmit="return confirm('{{ u.email }} 계정을 삭제할까요?');">
-            <button type="submit" class="del-btn">삭제</button>
-          </form>
+          <div class="row-actions">
+            <form method="post" action="/admin/users/{{ u.email }}/nickname" class="nickname-form">
+              <input type="text" name="nickname" value="{{ u.nickname or '' }}" placeholder="닉네임">
+              <button type="submit" class="save-btn">저장</button>
+            </form>
+            <form method="post" action="/admin/users/{{ u.email }}/delete" onsubmit="return confirm('{{ u.email }} 계정을 삭제할까요?');">
+              <button type="submit" class="del-btn">삭제</button>
+            </form>
+          </div>
         </div>
         {% endfor %}
       </div>

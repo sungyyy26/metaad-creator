@@ -94,6 +94,17 @@ def load_allowed_users():
     return _load_json_list(ALLOWED_USERS_PATH)
 
 
+def nickname_for(email):
+    """Admin-set display name for the 로그인 환영 메시지 — set via /admin/users'
+    닉네임 field, not the Google profile name. None when unset (ADMIN_EMAIL
+    is never in allowed_users, so it always falls through to None here)."""
+    email = (email or "").strip().lower()
+    for u in load_allowed_users():
+        if (u.get("email") or "").lower() == email:
+            return (u.get("nickname") or "").strip() or None
+    return None
+
+
 def is_email_allowed(email):
     email = (email or "").strip().lower()
     if not email:
@@ -247,6 +258,10 @@ def auth_callback():
     if is_email_allowed(email):
         session["user_email"] = email.lower()
         session["user_name"] = (userinfo.get("name") or "").strip()
+        session["flash_message"] = {
+            "kind": "ok",
+            "text": f"안녕하세요, {greeting_name_for(email)}님! 오늘도 광고 셋팅 화이팅입니다 💪",
+        }
         return redirect("/")
 
     if intent == "request":
@@ -298,8 +313,23 @@ def admin_users_add():
     if denied:
         return denied
     email = (request.form.get("email") or "").strip().lower()
+    nickname = (request.form.get("nickname") or "").strip()
     if email and email != ADMIN_EMAIL and not is_email_allowed(email):
-        upsert_allowed_user(new_entry(email=email, addedBy=ADMIN_EMAIL))
+        upsert_allowed_user(new_entry(email=email, nickname=nickname, addedBy=ADMIN_EMAIL))
+    return redirect(url_for("admin_users"))
+
+
+@app.route("/admin/users/<path:email>/nickname", methods=["POST"])
+def admin_users_set_nickname(email):
+    denied = require_admin()
+    if denied:
+        return denied
+    email = email.strip().lower()
+    nickname = (request.form.get("nickname") or "").strip()
+    matches = [u for u in load_allowed_users() if (u.get("email") or "").lower() == email]
+    for u in matches:
+        u["nickname"] = nickname
+        upsert_allowed_user(u)
     return redirect(url_for("admin_users"))
 
 
@@ -794,6 +824,13 @@ def current_user_label():
         return name
     email = (session.get("user_email") or "").strip()
     return email.split("@")[0] if email else email
+
+
+def greeting_name_for(email):
+    """Prefers the admin-set 닉네임 for the one-time login greeting over the
+    Google profile name — a nickname is a deliberate personal touch an admin
+    chose, where current_user_label() is just whatever Google reports."""
+    return nickname_for(email) or current_user_label()
 
 
 def new_entry(**fields):
