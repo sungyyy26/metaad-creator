@@ -258,10 +258,6 @@ def auth_callback():
     if is_email_allowed(email):
         session["user_email"] = email.lower()
         session["user_name"] = (userinfo.get("name") or "").strip()
-        session["flash_message"] = {
-            "kind": "ok",
-            "text": f"안녕하세요, {greeting_name_for(email)}님! 오늘도 광고 셋팅 화이팅입니다 💪",
-        }
         return redirect("/")
 
     if intent == "request":
@@ -962,12 +958,21 @@ def index():
     uploads = list(reversed(load_uploads()))
     message = session.pop("flash_message", None)
 
+    # 로그인된 사람에게 보여줄 이름 — 계정바 옆 상시 인사말과 로딩 화면 문구에
+    # 둘 다 쓰인다. 로그인이 꺼져 있거나(로컬 개발) 아직 로그인 전이면 None.
+    user_email = session.get("user_email")
+    greeting_name = greeting_name_for(user_email) if LOGIN_ENABLED and user_email else None
+    # </script> 등으로 <script> 블록을 깨고 나가는 걸 막기 위한 최소한의 이스케이프 —
+    # 닉네임은 관리자만 설정할 수 있지만, 그래도 그대로 JS 문자열에 꽂지 않는다.
+    greeting_name_json = json.dumps(greeting_name, ensure_ascii=False).replace("</", "<\\/")
+
     return render_template("index.html", accounts=ACCOUNTS, setting_items=setting_items,
                             budget_items=budget_items, shopify_items=shopify_items, uploads=uploads,
                             message=message, bulk_columns=BULK_COLUMNS,
                             shopify_status_labels=shopify_lib.STATUS_LABELS,
-                            user_email=session.get("user_email"),
-                            is_admin=LOGIN_ENABLED and (session.get("user_email") or "").lower() == ADMIN_EMAIL)
+                            user_email=user_email, greeting_name=greeting_name,
+                            greeting_name_json=greeting_name_json,
+                            is_admin=LOGIN_ENABLED and (user_email or "").lower() == ADMIN_EMAIL)
 
 
 def _manual_input_snapshot(form, headline, primary_text):

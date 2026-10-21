@@ -281,8 +281,16 @@
   .delete-btn:disabled{opacity:.5;cursor:default;}
 
   .header-bar{
-    position:fixed;top:20px;right:20px;z-index:10;
-    display:flex;align-items:center;gap:10px;
+    position:fixed;top:20px;right:20px;z-index:10;max-width:calc(100vw - 40px);
+    display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;
+  }
+
+  .greeting-pill{
+    display:flex;align-items:center;height:38px;padding:0 16px;flex:none;
+    background:var(--accent-soft);border:1px solid var(--glass-border);color:var(--accent);
+    backdrop-filter:blur(var(--glass-blur));-webkit-backdrop-filter:blur(var(--glass-blur));
+    border-radius:980px;box-shadow:var(--shadow);
+    font-family:var(--font-heading);font-weight:700;font-size:13px;white-space:nowrap;
   }
 
   .header-icon-btn{
@@ -727,6 +735,9 @@
 <div class="bg-orbs" aria-hidden="true"><span></span><span></span><span></span></div>
 <div class="header-bar">
   {% if user_email %}
+  {% if greeting_name %}
+  <div class="greeting-pill">{{ greeting_name }}님, 화이팅! 💪</div>
+  {% endif %}
   <div class="account-bar">
     <span class="account-email">{{ user_email }}</span>
     {% if is_admin %}
@@ -2363,17 +2374,21 @@
     var overlay = document.getElementById("loading-overlay");
     var messageEl = document.getElementById("loading-message");
     if (!overlay || !messageEl) return;
+    var USER_NAME = {{ greeting_name_json|safe }};
+    function withName(base, named) {
+      return USER_NAME ? named.replace("{name}", USER_NAME) : base;
+    }
     var MESSAGES = [
-      "⚙️ 광고 세트를 준비하고 있어요...",
+      withName("⚙️ 광고 세트를 준비하고 있어요...", "⚙️ 광고 세트를 준비하고 있어요, {name}님!"),
       "⚙️ 소재를 매칭하는 중...",
       "💡 팁: 헤드라인·기본 텍스트를 비워두면 소재명 기준으로 자동 생성돼요",
-      "⚙️ Meta에 광고를 생성하고 있어요...",
+      withName("⚙️ Meta에 광고를 생성하고 있어요...", "⚙️ Meta에 광고를 생성하고 있어요, {name}님!"),
       "🧠 퀴즈: 비타민 라인의 4대 성분은? → 비타민C · 나이아신아마이드 · 알부틴 · TXA",
       "⚙️ Shopify 페이지를 복제하는 중...",
       "💡 팁: 오류 난 행은 '입력값 수정'으로 바로 고쳐서 재시도할 수 있어요",
       "🧠 퀴즈: 바쿠치올 세럼이 레티놀 대신 쓰는 성분 함량은? → 0.5% 바쿠치올",
       "💡 팁: 완료된 요청은 '광고만' / '쇼피파이 페이지만' 따로 삭제할 수 있어요",
-      "⏳ 거의 다 됐어요, 조금만 기다려주세요!",
+      withName("⏳ 거의 다 됐어요, 조금만 기다려주세요!", "⏳ 광고 셋팅 중이니 조금만 더 기다려주세요, {name}님!"),
       "☕ 대량 업로드는 행이 많을수록 시간이 걸려요 — 잠시 커피 한 잔 어떠세요",
     ];
     function setMessage(text) {
