@@ -847,7 +847,7 @@ def new_entry(**fields):
         "status": "processing",
     }
     if LOGIN_ENABLED:
-        entry["createdBy"] = current_user_label()
+        entry["createdBy"] = greeting_name_for(session.get("user_email"))
     entry.update(fields)
     return entry
 

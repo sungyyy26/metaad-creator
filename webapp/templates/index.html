@@ -290,7 +290,7 @@
     background:var(--accent-soft);border:1px solid var(--glass-border);color:var(--accent);
     backdrop-filter:blur(var(--glass-blur));-webkit-backdrop-filter:blur(var(--glass-blur));
     border-radius:980px;box-shadow:var(--shadow);
-    font-family:var(--font-heading);font-weight:700;font-size:13px;white-space:nowrap;
+    font-family:var(--font-heading);font-weight:700;font-size:12px;white-space:nowrap;
   }
 
   .header-icon-btn{
@@ -736,7 +736,7 @@
 <div class="header-bar">
   {% if user_email %}
   {% if greeting_name %}
-  <div class="greeting-pill">{{ greeting_name }}님, 화이팅! 💪</div>
+  <div class="greeting-pill">안녕하세요 {{ greeting_name }}님, 오늘도 화이팅입니다! 💪</div>
   {% endif %}
   <div class="account-bar">
     <span class="account-email">{{ user_email }}</span>
