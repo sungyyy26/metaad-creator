@@ -39,6 +39,17 @@ load_dotenv()  # reads .env in the repo root (or nearest parent) if present;
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", os.urandom(24))
+
+
+@app.errorhandler(405)
+def _redirect_method_not_allowed(_err):
+    # /submit, /submit_bulk, /retry/<id> 등은 전부 POST 전용이라, 제출 중
+    # 서버가 재배포되며 끊기거나 사용자가 새로고침을 누르면 브라우저가 같은
+    # URL로 GET을 보내 "Method Not Allowed" 에러 화면이 뜬다. 안내 없는
+    # 에러 페이지 대신 대시보드로 돌려보낸다.
+    return redirect("/")
+
+
 # SameSite=Lax는 대부분의 cross-site POST 위조 요청에서 세션 쿠키가 전송되는 걸
 # 막아준다 — Flask가 이미 기본값으로 적용하지만, 버전에 기대지 않고 명시적으로
 # 고정해둔다. Secure는 HTTPS에서만 켠다 — 로컬 개발(http://127.0.0.1)에서까지
