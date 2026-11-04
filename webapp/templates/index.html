@@ -347,6 +347,27 @@
   .feedback-status.ok{color:var(--status-done-fg);}
   .feedback-status.err{color:var(--status-error-fg);}
 
+  #game-modal-overlay{z-index:300;}
+  .game-modal-box{max-width:480px;}
+  .game-picker{display:flex;gap:12px;}
+  .game-pick-btn{
+    flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px 8px;
+    background:var(--surface-3);border:1px solid var(--glass-border);border-radius:var(--radius-lg);
+    font-size:28px;cursor:pointer;color:var(--text);transition:border-color .12s,transform .12s;
+  }
+  .game-pick-btn:hover{border-color:var(--accent);transform:translateY(-2px);}
+  .game-pick-btn span{font-size:var(--fs-sm);font-weight:700;font-family:var(--font-heading);}
+  .game-stage-bar{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;font-size:var(--fs-sm);}
+  .game-stage-bar button{background:transparent;border:0;color:var(--accent);font-weight:700;cursor:pointer;padding:4px 0;}
+  #game-status{color:var(--text-muted);font-weight:600;}
+  #game-canvas{display:block;margin:0 auto;max-width:100%;background:var(--surface-3);border-radius:var(--radius);touch-action:none;}
+  .loading-game-btn{
+    margin-top:4px;padding:8px 18px;border-radius:980px;border:1px solid var(--glass-border);
+    background:var(--surface);color:var(--accent);font-family:var(--font-heading);font-weight:700;
+    font-size:var(--fs-sm);cursor:pointer;box-shadow:var(--shadow);
+  }
+  .loading-game-btn:hover{border-color:var(--accent);}
+
   .loading-overlay{
     position:fixed;inset:0;z-index:200;
     background:linear-gradient(160deg, var(--bg), var(--surface-3));
@@ -758,6 +779,9 @@
     <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"></path></svg>
     <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
   </button>
+  <button type="button" id="game-btn" class="header-icon-btn" aria-label="미니게임" title="미니게임">
+    <span style="font-size:18px;line-height:1;">🎮</span>
+  </button>
 </div>
 
 <div class="modal-overlay" id="help-modal-overlay" hidden>
@@ -806,6 +830,25 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="game-modal-overlay" hidden>
+  <div class="modal-box game-modal-box">
+    <button type="button" class="modal-close" data-close-modal="game-modal-overlay" aria-label="닫기">×</button>
+    <h2>🎮 미니게임</h2>
+    <div id="game-picker" class="game-picker">
+      <button type="button" class="game-pick-btn" data-game="mole">🐹<span>두더지 잡기</span></button>
+      <button type="button" class="game-pick-btn" data-game="ttt">⭕<span>틱택토</span></button>
+      <button type="button" class="game-pick-btn" data-game="dino">🦖<span>공룡 달리기</span></button>
+    </div>
+    <div id="game-stage" hidden>
+      <div class="game-stage-bar">
+        <button type="button" id="game-back-btn">← 목록</button>
+        <span id="game-status"></span>
+      </div>
+      <canvas id="game-canvas" width="400" height="300"></canvas>
+    </div>
+  </div>
+</div>
+
 <div class="loading-overlay" id="loading-overlay" hidden>
   <div class="loading-card">
     <div class="loading-mascot">
@@ -828,6 +871,7 @@
     <h2 class="loading-title">열심히 만드는 중이에요!</h2>
     <div class="loading-bar"><div class="loading-bar-fill"></div></div>
     <p class="loading-message" id="loading-message">광고 세트를 준비하고 있어요...</p>
+    <button type="button" id="loading-game-btn" class="loading-game-btn">🎮 기다리는 동안 게임하기</button>
   </div>
 </div>
 
@@ -2473,6 +2517,183 @@
           })
           .finally(function () { feedbackSubmitBtn.disabled = false; });
       });
+    }
+
+    var gameBtn = document.getElementById("game-btn");
+    var gameOverlay = document.getElementById("game-modal-overlay");
+    var loadingGameBtn = document.getElementById("loading-game-btn");
+    if (gameBtn && gameOverlay) {
+      gameBtn.addEventListener("click", function () { openModal(gameOverlay); });
+    }
+    if (loadingGameBtn && gameOverlay) {
+      loadingGameBtn.addEventListener("click", function () { openModal(gameOverlay); });
+    }
+  })();
+
+  (function () {
+    var overlay = document.getElementById("game-modal-overlay");
+    var picker = document.getElementById("game-picker");
+    var stage = document.getElementById("game-stage");
+    var canvas = document.getElementById("game-canvas");
+    var statusEl = document.getElementById("game-status");
+    var backBtn = document.getElementById("game-back-btn");
+    if (!overlay || !canvas) return;
+    var ctx = canvas.getContext("2d");
+    var stop = null;
+
+    function showPicker() {
+      if (stop) { stop(); stop = null; }
+      picker.hidden = false;
+      stage.hidden = true;
+    }
+    new MutationObserver(function () {
+      if (overlay.hidden && stop) { stop(); stop = null; }
+    }).observe(overlay, { attributes: true, attributeFilter: ["hidden"] });
+    backBtn.addEventListener("click", showPicker);
+    picker.addEventListener("click", function (e) {
+      var btn = e.target.closest(".game-pick-btn");
+      if (!btn) return;
+      picker.hidden = true;
+      stage.hidden = false;
+      if (stop) stop();
+      var game = btn.dataset.game;
+      if (game === "mole") stop = initMole();
+      else if (game === "ttt") stop = initTTT();
+      else stop = initDino();
+    });
+
+    function initMole() {
+      canvas.width = 390; canvas.height = 390;
+      var cols = 3, cw = 130;
+      var score = 0, time = 30, moleIdx = -1, moleTimer = null, tickTimer = null, ended = false;
+      function draw() {
+        ctx.clearRect(0, 0, 390, 390);
+        for (var i = 0; i < 9; i++) {
+          var x = (i % cols) * cw, y = Math.floor(i / cols) * cw;
+          ctx.fillStyle = "#8b5a2b";
+          ctx.beginPath(); ctx.ellipse(x + cw / 2, y + cw * 0.72, cw * 0.36, cw * 0.16, 0, 0, Math.PI * 2); ctx.fill();
+          if (i === moleIdx) { ctx.font = "60px serif"; ctx.textAlign = "center"; ctx.fillText("🐹", x + cw / 2, y + cw * 0.65); }
+        }
+      }
+      function pop() { moleIdx = Math.floor(Math.random() * 9); draw(); moleTimer = setTimeout(pop, 550 + Math.random() * 450); }
+      function onClick(e) {
+        if (ended) return;
+        var r = canvas.getBoundingClientRect();
+        var x = (e.clientX - r.left) * (390 / r.width), y = (e.clientY - r.top) * (390 / r.height);
+        var i = Math.floor(x / cw) + Math.floor(y / cw) * cols;
+        if (i === moleIdx) { score++; moleIdx = -1; draw(); statusEl.textContent = "점수: " + score + " | 남은 시간: " + time + "초"; }
+      }
+      statusEl.textContent = "점수: 0 | 남은 시간: 30초";
+      canvas.addEventListener("click", onClick);
+      pop();
+      tickTimer = setInterval(function () {
+        time--;
+        statusEl.textContent = "점수: " + score + " | 남은 시간: " + time + "초";
+        if (time <= 0) {
+          ended = true; clearInterval(tickTimer); clearTimeout(moleTimer); moleIdx = -1; draw();
+          ctx.fillStyle = "#555"; ctx.font = "24px sans-serif"; ctx.textAlign = "center";
+          ctx.fillText("종료! 최종 점수 " + score, 195, 195);
+        }
+      }, 1000);
+      return function () { clearInterval(tickTimer); clearTimeout(moleTimer); canvas.removeEventListener("click", onClick); };
+    }
+
+    function initTTT() {
+      canvas.width = 330; canvas.height = 330;
+      var cw = 110, board = ["", "", "", "", "", "", "", "", ""], over = false;
+      var LINES = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+      function winner(b) {
+        for (var i = 0; i < LINES.length; i++) {
+          var l = LINES[i];
+          if (b[l[0]] && b[l[0]] === b[l[1]] && b[l[1]] === b[l[2]]) return b[l[0]];
+        }
+        return b.every(function (c) { return c; }) ? "draw" : null;
+      }
+      function draw(msg) {
+        ctx.clearRect(0, 0, 330, 330);
+        ctx.strokeStyle = "#999"; ctx.lineWidth = 3;
+        for (var i = 1; i < 3; i++) {
+          ctx.beginPath(); ctx.moveTo(i * cw, 0); ctx.lineTo(i * cw, 330); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(0, i * cw); ctx.lineTo(330, i * cw); ctx.stroke();
+        }
+        ctx.font = "64px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        board.forEach(function (v, i) {
+          if (!v) return;
+          var x = (i % 3) * cw + cw / 2, y = Math.floor(i / 3) * cw + cw / 2;
+          ctx.fillStyle = v === "X" ? "#1cb0f6" : "#ff4b4b";
+          ctx.fillText(v, x, y);
+        });
+        statusEl.textContent = msg || "당신(X) 차례";
+      }
+      function aiMove() {
+        var empty = board.map(function (v, i) { return v ? null : i; }).filter(function (i) { return i !== null; });
+        function tryWin(sym) {
+          for (var k = 0; k < empty.length; k++) {
+            var i = empty[k]; board[i] = sym;
+            if (winner(board) === sym) { board[i] = ""; return i; }
+            board[i] = "";
+          }
+          return -1;
+        }
+        var mv = tryWin("O"); if (mv < 0) mv = tryWin("X"); if (mv < 0) mv = empty[Math.floor(Math.random() * empty.length)];
+        board[mv] = "O";
+      }
+      function onClick(e) {
+        if (over) { board = ["", "", "", "", "", "", "", "", ""]; over = false; draw(); return; }
+        var r = canvas.getBoundingClientRect();
+        var x = (e.clientX - r.left) * (330 / r.width), y = (e.clientY - r.top) * (330 / r.height);
+        var i = Math.floor(x / cw) + Math.floor(y / cw) * 3;
+        if (board[i]) return;
+        board[i] = "X";
+        var w = winner(board);
+        if (!w) { aiMove(); w = winner(board); }
+        draw();
+        if (w) { over = true; draw(w === "draw" ? "무승부! (클릭해서 재시작)" : (w === "X" ? "승리했습니다! 🎉 (클릭해서 재시작)" : "컴퓨터 승리 (클릭해서 재시작)")); }
+      }
+      canvas.addEventListener("click", onClick);
+      draw();
+      return function () { canvas.removeEventListener("click", onClick); };
+    }
+
+    function initDino() {
+      canvas.width = 440; canvas.height = 220;
+      var groundY = 180, dinoX = 50, dinoW = 30, dinoH = 34, dinoY = groundY - dinoH;
+      var vy = 0, jumping = false, obstacles = [], speed = 4.5, frame = 0, score = 0, over = false, raf;
+      function spawn() { obstacles.push({ x: canvas.width, w: 24, h: 30 + Math.random() * 20 }); }
+      function reset() { vy = 0; jumping = false; obstacles = []; speed = 4.5; frame = 0; score = 0; over = false; dinoY = groundY - dinoH; }
+      function jump() {
+        if (over) { reset(); return; }
+        if (!jumping) { jumping = true; vy = -11; }
+      }
+      function onKey(e) { if (e.code === "Space") { e.preventDefault(); jump(); } }
+      document.addEventListener("keydown", onKey);
+      canvas.addEventListener("click", jump);
+      function loop() {
+        frame++;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.strokeStyle = "#999"; ctx.beginPath(); ctx.moveTo(0, groundY + 34); ctx.lineTo(canvas.width, groundY + 34); ctx.stroke();
+        if (!over) {
+          vy += 0.6; dinoY += vy;
+          if (dinoY > groundY - dinoH) { dinoY = groundY - dinoH; vy = 0; jumping = false; }
+          if (frame % Math.max(40, 70 - Math.floor(speed * 3)) === 0) spawn();
+          obstacles.forEach(function (o) { o.x -= speed; });
+          obstacles = obstacles.filter(function (o) { return o.x + o.w > 0; });
+          obstacles.forEach(function (o) {
+            var oy = groundY + 34 - o.h;
+            if (dinoX < o.x + o.w && dinoX + dinoW > o.x && dinoY + dinoH > oy) over = true;
+          });
+          speed += 0.002; score = Math.floor(frame / 6);
+          statusEl.textContent = "점수: " + score + (over ? " — 스페이스바/클릭으로 재시작" : "");
+        }
+        ctx.font = "30px serif"; ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
+        ctx.fillText("🦖", dinoX, dinoY + dinoH);
+        obstacles.forEach(function (o) { ctx.fillText("🌵", o.x, groundY + 34); });
+        if (over) { ctx.fillStyle = "#555"; ctx.font = "bold 20px sans-serif"; ctx.textAlign = "center"; ctx.fillText("게임 오버! 점수 " + score, canvas.width / 2, 60); }
+        raf = requestAnimationFrame(loop);
+      }
+      statusEl.textContent = "점수: 0 — 스페이스바로 점프";
+      raf = requestAnimationFrame(loop);
+      return function () { cancelAnimationFrame(raf); document.removeEventListener("keydown", onKey); canvas.removeEventListener("click", jump); };
     }
   })();
 
