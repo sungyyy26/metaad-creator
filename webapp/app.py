@@ -63,10 +63,12 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 # 사라지는 디스크에 있기 때문).
 DB_PATH = "requests" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "requests.json")
 UPLOADS_DB_PATH = "uploads" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "uploads.json")
+SCORES_DB_PATH = "game_scores" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "game_scores.json")
+GAME_NAMES = {"mole", "snake", "dino"}
 ALLOWED_USERS_PATH = "allowed_users" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "allowed_users.json")
 ACCESS_REQUESTS_PATH = "access_requests" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "access_requests.json")
 FEEDBACK_PATH = "feedback" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "feedback.json")
-_VALID_TABLES = {"requests", "uploads", "allowed_users", "access_requests", "feedback"}
+_VALID_TABLES = {"requests", "uploads", "allowed_users", "access_requests", "feedback", "game_scores"}
 LOCK = threading.Lock()
 BUDGET_CACHE_LOCK = threading.Lock()
 BUDGET_META_CACHE = {}
@@ -237,6 +239,28 @@ def submit_feedback():
     _upsert(FEEDBACK_PATH, entry)
     emailed = send_feedback_email(sender_label, message)
     return {"ok": True, "emailed": emailed}
+
+
+@app.route("/game_score", methods=["POST"])
+def submit_game_score():
+    game = (request.form.get("game") or "").strip()
+    try:
+        score = int(request.form.get("score") or 0)
+    except ValueError:
+        score = 0
+    if game not in GAME_NAMES or score <= 0:
+        return {"ok": False}, 400
+    name = greeting_name_for(session.get("user_email")) if LOGIN_ENABLED and session.get("user_email") else "로컬 유저"
+    _upsert(SCORES_DB_PATH, {"id": str(uuid.uuid4()), "game": game, "name": name, "score": score})
+    return {"ok": True}
+
+
+@app.route("/game_leaderboard")
+def game_leaderboard():
+    game = (request.args.get("game") or "").strip()
+    rows = [r for r in _load_json_list(SCORES_DB_PATH) if r.get("game") == game]
+    rows.sort(key=lambda r: r.get("score", 0), reverse=True)
+    return {"ok": True, "rows": rows[:10]}
 
 
 @app.route("/login")
