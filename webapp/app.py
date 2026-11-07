@@ -64,7 +64,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 DB_PATH = "requests" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "requests.json")
 UPLOADS_DB_PATH = "uploads" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "uploads.json")
 SCORES_DB_PATH = "game_scores" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "game_scores.json")
-GAME_NAMES = {"mole", "snake", "dino"}
+GAME_NAMES = {"mole", "snake", "dino", "breakout"}
 ALLOWED_USERS_PATH = "allowed_users" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "allowed_users.json")
 ACCESS_REQUESTS_PATH = "access_requests" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "access_requests.json")
 FEEDBACK_PATH = "feedback" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "feedback.json")
@@ -258,7 +258,17 @@ def submit_game_score():
 @app.route("/game_leaderboard")
 def game_leaderboard():
     game = (request.args.get("game") or "").strip()
-    rows = [r for r in _load_json_list(SCORES_DB_PATH) if r.get("game") == game]
+    rows = _load_json_list(SCORES_DB_PATH)
+    if not game or game == "all":
+        totals = {}
+        for r in rows:
+            totals[r.get("name", "")] = totals.get(r.get("name", ""), 0) + r.get("score", 0)
+        agg = sorted(
+            ({"name": n, "score": s} for n, s in totals.items()),
+            key=lambda r: r["score"], reverse=True,
+        )
+        return {"ok": True, "rows": agg[:10]}
+    rows = [r for r in rows if r.get("game") == game]
     rows.sort(key=lambda r: r.get("score", 0), reverse=True)
     return {"ok": True, "rows": rows[:10]}
 

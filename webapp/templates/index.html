@@ -355,7 +355,14 @@
 
   #game-modal-overlay{z-index:300;}
   .game-modal-box{max-width:480px;}
-  .game-picker{display:flex;gap:12px;}
+  .game-picker{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
+  .game-overall-btn{
+    display:block;width:100%;margin-top:12px;padding:10px;border-radius:980px;
+    border:1px solid var(--glass-border);background:var(--surface-3);color:var(--accent);
+    font-family:var(--font-heading);font-weight:700;font-size:var(--fs-sm);cursor:pointer;
+  }
+  .game-overall-btn:hover{border-color:var(--accent);}
+  .game-record{color:var(--accent);font-weight:800;margin:0 0 6px;font-family:var(--font-heading);}
   .game-pick-btn{
     flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px 8px;
     background:var(--surface-3);border:1px solid var(--glass-border);border-radius:var(--radius-lg);
@@ -847,7 +854,9 @@
       <button type="button" class="game-pick-btn" data-game="mole">🐹<span>두더지 잡기</span></button>
       <button type="button" class="game-pick-btn" data-game="snake">🐍<span>뱀 게임</span></button>
       <button type="button" class="game-pick-btn" data-game="dino">🦖<span>공룡 달리기</span></button>
+      <button type="button" class="game-pick-btn" data-game="breakout">🧱<span>벽돌깨기</span></button>
     </div>
+    <button type="button" id="game-overall-btn" class="game-overall-btn">🏆 통합 순위</button>
     <div id="game-stage" hidden>
       <div class="game-stage-bar">
         <button type="button" id="game-back-btn">← 목록</button>
@@ -855,8 +864,8 @@
         <button type="button" id="game-board-btn">🏆 순위</button>
       </div>
       <canvas id="game-canvas" width="400" height="300"></canvas>
-      <div id="game-leaderboard" class="game-leaderboard" hidden></div>
     </div>
+    <div id="game-leaderboard" class="game-leaderboard" hidden></div>
   </div>
 </div>
 
@@ -2549,32 +2558,27 @@
     var statusEl = document.getElementById("game-status");
     var backBtn = document.getElementById("game-back-btn");
     var lbBtn = document.getElementById("game-board-btn");
+    var overallBtn = document.getElementById("game-overall-btn");
     var lbEl = document.getElementById("game-leaderboard");
     if (!overlay || !canvas) return;
     var ctx = canvas.getContext("2d");
     var stop = null, currentGame = null;
+    var GAME_LABELS = { mole: "두더지 잡기", snake: "뱀 게임", dino: "공룡 달리기", breakout: "벽돌깨기" };
 
-    function sendScore(game, score) {
-      if (score > 0) fetch("/game_score", { method: "POST", body: new URLSearchParams({ game: game, score: score }) }).catch(function () {});
-    }
-
-    function showPicker() {
-      if (stop) { stop(); stop = null; }
-      picker.hidden = false;
-      stage.hidden = true;
-      lbEl.hidden = true;
-    }
-    new MutationObserver(function () {
-      if (overlay.hidden && stop) { stop(); stop = null; }
-    }).observe(overlay, { attributes: true, attributeFilter: ["hidden"] });
-    backBtn.addEventListener("click", showPicker);
-    lbBtn.addEventListener("click", function () {
-      if (!lbEl.hidden) { lbEl.hidden = true; return; }
-      fetch("/game_leaderboard?game=" + encodeURIComponent(currentGame))
+    function showLeaderboard(game, justScored) {
+      fetch("/game_leaderboard?game=" + encodeURIComponent(game))
         .then(function (r) { return r.json(); })
         .then(function (res) {
           lbEl.innerHTML = "";
           var rows = (res && res.rows) || [];
+          if (justScored != null && rows.length && rows[0].score === justScored) {
+            var rec = document.createElement("p");
+            rec.className = "game-record"; rec.textContent = "🎉 신기록!";
+            lbEl.appendChild(rec);
+          }
+          var h = document.createElement("h3");
+          h.textContent = "🏆 " + (game === "all" ? "통합 순위" : (GAME_LABELS[game] || ""));
+          lbEl.appendChild(h);
           if (!rows.length) {
             var p = document.createElement("p");
             p.textContent = "아직 기록이 없어요.";
@@ -2590,18 +2594,47 @@
           }
           lbEl.hidden = false;
         }).catch(function () {});
+    }
+
+    function sendScore(game, score) {
+      if (score <= 0) return;
+      fetch("/game_score", { method: "POST", body: new URLSearchParams({ game: game, score: score }) })
+        .catch(function () {})
+        .then(function () { showLeaderboard(game, score); });
+    }
+
+    function showPicker() {
+      if (stop) { stop(); stop = null; }
+      picker.hidden = false;
+      overallBtn.hidden = false;
+      stage.hidden = true;
+      lbEl.hidden = true;
+    }
+    new MutationObserver(function () {
+      if (overlay.hidden && stop) { stop(); stop = null; }
+    }).observe(overlay, { attributes: true, attributeFilter: ["hidden"] });
+    backBtn.addEventListener("click", showPicker);
+    lbBtn.addEventListener("click", function () {
+      if (!lbEl.hidden) { lbEl.hidden = true; return; }
+      showLeaderboard(currentGame);
+    });
+    overallBtn.addEventListener("click", function () {
+      if (!lbEl.hidden) { lbEl.hidden = true; return; }
+      showLeaderboard("all");
     });
     picker.addEventListener("click", function (e) {
       var btn = e.target.closest(".game-pick-btn");
       if (!btn) return;
       picker.hidden = true;
+      overallBtn.hidden = true;
       stage.hidden = false;
       lbEl.hidden = true;
       if (stop) stop();
       currentGame = btn.dataset.game;
       if (currentGame === "mole") stop = initMole();
       else if (currentGame === "snake") stop = initSnake();
-      else stop = initDino();
+      else if (currentGame === "dino") stop = initDino();
+      else stop = initBreakout();
     });
 
     function initMole() {
@@ -2617,7 +2650,12 @@
           if (i === moleIdx) { ctx.font = "60px serif"; ctx.textAlign = "center"; ctx.fillText("🐹", x + cw / 2, y + cw * 0.65); }
         }
       }
-      function pop() { moleIdx = Math.floor(Math.random() * 9); draw(); moleTimer = setTimeout(pop, 550 + Math.random() * 450); }
+      function pop() {
+        moleIdx = Math.floor(Math.random() * 9);
+        draw();
+        var speedUp = Math.max(0.4, 1 - ((30 - time) / 30) * 0.6);
+        moleTimer = setTimeout(pop, (550 + Math.random() * 450) * speedUp);
+      }
       function onClick(e) {
         if (ended) return;
         var r = canvas.getBoundingClientRect();
@@ -2745,6 +2783,77 @@
       statusEl.textContent = "점수: 0 — 스페이스바로 점프";
       raf = requestAnimationFrame(loop);
       return function () { cancelAnimationFrame(raf); document.removeEventListener("keydown", onKey); canvas.removeEventListener("click", jump); };
+    }
+
+    function initBreakout() {
+      canvas.width = 330; canvas.height = 400;
+      var paddleW = 64, paddleH = 10, paddleY = 380, paddleX;
+      var ballR = 6, ballX, ballY, vx, vy, bricks, score, over, win, raf;
+      var rows = 4, cols = 5, bw = 58, bh = 16, gap = 6, top = 14, left = 8;
+      function resetGame() {
+        paddleX = (330 - paddleW) / 2;
+        ballX = 165; ballY = 300; vx = 3; vy = -3.4; score = 0; over = false; win = false;
+        bricks = [];
+        for (var r = 0; r < rows; r++) for (var c = 0; c < cols; c++) bricks.push({ x: left + c * (bw + gap), y: top + r * (bh + gap), w: bw, h: bh, alive: true });
+        statusEl.textContent = "점수: 0";
+      }
+      function draw() {
+        ctx.clearRect(0, 0, 330, 400);
+        ctx.fillStyle = "#1cb0f6";
+        bricks.forEach(function (b) { if (b.alive) ctx.fillRect(b.x, b.y, b.w, b.h); });
+        ctx.fillStyle = "#58cc02"; ctx.fillRect(paddleX, paddleY, paddleW, paddleH);
+        ctx.beginPath(); ctx.arc(ballX, ballY, ballR, 0, Math.PI * 2); ctx.fillStyle = "#ff4b4b"; ctx.fill();
+        if (over) {
+          ctx.fillStyle = "#555"; ctx.font = "20px sans-serif"; ctx.textAlign = "center";
+          ctx.fillText((win ? "클리어! " : "게임 오버! ") + "점수 " + score + " (탭해서 재시작)", 165, 200);
+        }
+      }
+      function step() {
+        if (!over) {
+          ballX += vx; ballY += vy;
+          if (ballX < ballR || ballX > 330 - ballR) vx = -vx;
+          if (ballY < ballR) vy = -vy;
+          if (ballY > paddleY - ballR && ballY < paddleY + paddleH && ballX > paddleX && ballX < paddleX + paddleW) {
+            vy = -Math.abs(vy); vx += (ballX - (paddleX + paddleW / 2)) * 0.08;
+          }
+          bricks.forEach(function (b) {
+            if (!b.alive) return;
+            if (ballX > b.x && ballX < b.x + b.w && ballY > b.y && ballY < b.y + b.h) {
+              b.alive = false; vy = -vy; score++; statusEl.textContent = "점수: " + score;
+            }
+          });
+          if (bricks.every(function (b) { return !b.alive; })) { over = true; win = true; sendScore("breakout", score); }
+          else if (ballY > 400) { over = true; sendScore("breakout", score); }
+        }
+        draw();
+        raf = requestAnimationFrame(step);
+      }
+      function onMove(e) {
+        var r = canvas.getBoundingClientRect();
+        var cx = e.touches ? e.touches[0].clientX : e.clientX;
+        var x = (cx - r.left) * (330 / r.width);
+        paddleX = Math.max(0, Math.min(330 - paddleW, x - paddleW / 2));
+      }
+      function onKey(e) {
+        if (e.key === "ArrowLeft") paddleX = Math.max(0, paddleX - 20);
+        else if (e.key === "ArrowRight") paddleX = Math.min(330 - paddleW, paddleX + 20);
+        else return;
+        e.preventDefault();
+      }
+      function onClick() { if (over) resetGame(); }
+      canvas.addEventListener("mousemove", onMove);
+      canvas.addEventListener("touchmove", onMove);
+      canvas.addEventListener("click", onClick);
+      document.addEventListener("keydown", onKey);
+      resetGame();
+      raf = requestAnimationFrame(step);
+      return function () {
+        cancelAnimationFrame(raf);
+        canvas.removeEventListener("mousemove", onMove);
+        canvas.removeEventListener("touchmove", onMove);
+        canvas.removeEventListener("click", onClick);
+        document.removeEventListener("keydown", onKey);
+      };
     }
   })();
 
