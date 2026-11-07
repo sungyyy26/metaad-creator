@@ -362,6 +362,7 @@
     font-family:var(--font-heading);font-weight:700;font-size:var(--fs-sm);cursor:pointer;
   }
   .game-overall-btn:hover{border-color:var(--accent);}
+  .game-clear-btn{margin-top:8px;color:var(--status-error-fg,#ff4b4b);}
   .game-record{color:var(--accent);font-weight:800;margin:0 0 6px;font-family:var(--font-heading);}
   .game-pick-btn{
     flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;padding:18px 8px;
@@ -802,6 +803,17 @@
   </button>
 </div>
 
+{% if show_update %}
+<div class="modal-overlay" id="update-modal-overlay">
+  <div class="modal-box">
+    <button type="button" class="modal-close" data-close-modal="update-modal-overlay" aria-label="닫기">×</button>
+    <h2>{{ update_info.title }}</h2>
+    <p class="hint">{{ update_info.body }}</p>
+    <button type="button" class="primary" data-close-modal="update-modal-overlay">확인했어요</button>
+  </div>
+</div>
+{% endif %}
+
 <div class="modal-overlay" id="help-modal-overlay" hidden>
   <div class="modal-box">
     <button type="button" class="modal-close" data-close-modal="help-modal-overlay" aria-label="닫기">×</button>
@@ -859,6 +871,9 @@
       <button type="button" class="game-pick-btn" data-game="breakout">🧱<span>벽돌깨기</span></button>
     </div>
     <button type="button" id="game-overall-btn" class="game-overall-btn">🏆 통합 순위</button>
+    {% if is_admin %}
+    <button type="button" id="game-clear-btn" class="game-overall-btn game-clear-btn">🗑️ 전체 기록 삭제</button>
+    {% endif %}
     <div id="game-stage" hidden>
       <div class="game-stage-bar">
         <button type="button" id="game-back-btn">← 목록</button>
@@ -2541,6 +2556,9 @@
       });
     }
 
+    var updateOverlay = document.getElementById("update-modal-overlay");
+    if (updateOverlay) { fetch("/mark_update_seen", { method: "POST" }).catch(function () {}); }
+
     var gameBtn = document.getElementById("game-btn");
     var gameOverlay = document.getElementById("game-modal-overlay");
     var loadingGameBtn = document.getElementById("loading-game-btn");
@@ -2561,6 +2579,7 @@
     var backBtn = document.getElementById("game-back-btn");
     var lbBtn = document.getElementById("game-board-btn");
     var overallBtn = document.getElementById("game-overall-btn");
+    var clearBtn = document.getElementById("game-clear-btn");
     var lbEl = document.getElementById("game-leaderboard");
     if (!overlay || !canvas) return;
     var ctx = canvas.getContext("2d");
@@ -2585,6 +2604,25 @@
             var p = document.createElement("p");
             p.textContent = "아직 기록이 없어요.";
             lbEl.appendChild(p);
+          } else if (game === "all") {
+            var table = document.createElement("table");
+            table.className = "help-table";
+            var thead = document.createElement("thead");
+            var htr = document.createElement("tr");
+            ["순위", "게임", "이름", "점수"].forEach(function (label) {
+              var th = document.createElement("th"); th.textContent = label; htr.appendChild(th);
+            });
+            thead.appendChild(htr); table.appendChild(thead);
+            var tbody = document.createElement("tbody");
+            rows.forEach(function (row, i) {
+              var tr = document.createElement("tr");
+              [i + 1, GAME_LABELS[row.game] || row.game, row.name, row.score].forEach(function (val) {
+                var td = document.createElement("td"); td.textContent = val; tr.appendChild(td);
+              });
+              tbody.appendChild(tr);
+            });
+            table.appendChild(tbody);
+            lbEl.appendChild(table);
           } else {
             var ol = document.createElement("ol");
             rows.forEach(function (row) {
@@ -2616,6 +2654,7 @@
       if (stop) { stop(); stop = null; }
       picker.hidden = false;
       overallBtn.hidden = false;
+      if (clearBtn) clearBtn.hidden = false;
       stage.hidden = true;
       lbEl.hidden = true;
     }
@@ -2631,11 +2670,20 @@
       if (!lbEl.hidden) { lbEl.hidden = true; return; }
       showLeaderboard("all");
     });
+    if (clearBtn) {
+      clearBtn.addEventListener("click", function () {
+        if (!confirm("모든 게임 기록을 삭제할까요? 되돌릴 수 없습니다.")) return;
+        fetch("/admin/game_scores/clear", { method: "POST" })
+          .then(function () { lbEl.hidden = true; })
+          .catch(function () {});
+      });
+    }
     picker.addEventListener("click", function (e) {
       var btn = e.target.closest(".game-pick-btn");
       if (!btn) return;
       picker.hidden = true;
       overallBtn.hidden = true;
+      if (clearBtn) clearBtn.hidden = true;
       stage.hidden = false;
       lbEl.hidden = true;
       if (stop) stop();

@@ -65,6 +65,15 @@ DB_PATH = "requests" if DATABASE_URL else os.path.join(os.path.dirname(__file__)
 UPLOADS_DB_PATH = "uploads" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "uploads.json")
 SCORES_DB_PATH = "game_scores" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "game_scores.json")
 GAME_NAMES = {"mole", "snake", "dino", "breakout"}
+# 새 기능을 배포할 때마다 이 version을 바꾸고 내용을 갱신한다 — 관리자(ADMIN_EMAIL)를
+# 제외한 나머지 로그인 사용자에게, 각자 이 version을 아직 못 본 경우에만 처음
+# 방문했을 때 1회성 팝업으로 보여준다(allowed_users의 seenUpdateVersion과 비교).
+LATEST_UPDATE = {
+    "version": "2026-11-07-games",
+    "title": "🎮 미니게임이 추가됐어요!",
+    "body": "헤더의 🎮 아이콘을 눌러보세요 — 두더지 잡기 · 뱀 게임 · 공룡 달리기 · 벽돌깨기를 즐길 수 있어요. "
+            "게임별 순위표와 전체 통합 순위표도 확인할 수 있고, 광고 생성 로딩 화면에서도 바로 플레이할 수 있습니다.",
+}
 ALLOWED_USERS_PATH = "allowed_users" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "allowed_users.json")
 ACCESS_REQUESTS_PATH = "access_requests" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "access_requests.json")
 FEEDBACK_PATH = "feedback" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "feedback.json")
@@ -259,20 +268,35 @@ def submit_game_score():
 
 @app.route("/game_leaderboard")
 def game_leaderboard():
+    """game='all'(또는 생략): 모든 게임의 개별 기록을 한데 섞어 점수순 top 10
+    (각 행에 어느 게임인지 포함) — 특정 게임이면 그 게임만."""
     game = (request.args.get("game") or "").strip()
     rows = _load_json_list(SCORES_DB_PATH)
-    if not game or game == "all":
-        totals = {}
-        for r in rows:
-            totals[r.get("name", "")] = totals.get(r.get("name", ""), 0) + r.get("score", 0)
-        agg = sorted(
-            ({"name": n, "score": s} for n, s in totals.items()),
-            key=lambda r: r["score"], reverse=True,
-        )
-        return {"ok": True, "rows": agg[:10]}
-    rows = [r for r in rows if r.get("game") == game]
+    if game and game != "all":
+        rows = [r for r in rows if r.get("game") == game]
     rows.sort(key=lambda r: r.get("score", 0), reverse=True)
     return {"ok": True, "rows": rows[:10]}
+
+
+@app.route("/admin/game_scores/clear", methods=["POST"])
+def clear_game_scores():
+    denied = require_admin()
+    if denied:
+        return denied
+    _save_json_list(SCORES_DB_PATH, [])
+    return {"ok": True}
+
+
+@app.route("/mark_update_seen", methods=["POST"])
+def mark_update_seen():
+    email = (session.get("user_email") or "").strip().lower()
+    if not email or email == ADMIN_EMAIL:
+        return {"ok": False}, 400
+    for u in load_allowed_users():
+        if (u.get("email") or "").lower() == email:
+            u["seenUpdateVersion"] = LATEST_UPDATE["version"]
+            upsert_allowed_user(u)
+    return {"ok": True}
 
 
 @app.route("/login")
@@ -1013,12 +1037,23 @@ def index():
     # 닉네임은 관리자만 설정할 수 있지만, 그래도 그대로 JS 문자열에 꽂지 않는다.
     greeting_name_json = json.dumps(greeting_name, ensure_ascii=False).replace("</", "<\\/")
 
+    # 업데이트 안내 팝업 — 요청한 관리자 본인(ADMIN_EMAIL)은 제외하고, 아직 이
+    # LATEST_UPDATE["version"]을 못 본 로그인 사용자에게만 1회 보여준다.
+    show_update = False
+    if LOGIN_ENABLED and user_email and user_email.lower() != ADMIN_EMAIL:
+        seen = next(
+            (u.get("seenUpdateVersion") for u in load_allowed_users() if (u.get("email") or "").lower() == user_email.lower()),
+            None,
+        )
+        show_update = seen != LATEST_UPDATE["version"]
+
     return render_template("index.html", accounts=ACCOUNTS, setting_items=setting_items,
                             budget_items=budget_items, shopify_items=shopify_items, uploads=uploads,
                             message=message, bulk_columns=BULK_COLUMNS,
                             shopify_status_labels=shopify_lib.STATUS_LABELS,
                             user_email=user_email, greeting_name=greeting_name,
                             greeting_name_json=greeting_name_json,
+                            show_update=show_update, update_info=LATEST_UPDATE,
                             is_admin=LOGIN_ENABLED and (user_email or "").lower() == ADMIN_EMAIL)
 
 
