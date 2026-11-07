@@ -377,6 +377,8 @@
   .game-leaderboard{margin-top:10px;font-size:var(--fs-sm);}
   .game-leaderboard ol{margin:0;padding-left:20px;}
   .game-leaderboard li{padding:3px 0;}
+  .game-rank-sep{text-align:center;color:var(--text-faint);margin:4px 0;letter-spacing:2px;}
+  .game-my-rank{font-weight:700;color:var(--accent);margin:0;}
   .loading-game-btn{
     margin-top:4px;padding:8px 18px;border-radius:980px;border:1px solid var(--glass-border);
     background:var(--surface);color:var(--accent);font-family:var(--font-heading);font-weight:700;
@@ -2565,7 +2567,7 @@
     var stop = null, currentGame = null;
     var GAME_LABELS = { mole: "두더지 잡기", snake: "뱀 게임", dino: "공룡 달리기", breakout: "벽돌깨기" };
 
-    function showLeaderboard(game, justScored) {
+    function showLeaderboard(game, justScored, myRank, myName) {
       fetch("/game_leaderboard?game=" + encodeURIComponent(game))
         .then(function (r) { return r.json(); })
         .then(function (res) {
@@ -2592,6 +2594,13 @@
             });
             lbEl.appendChild(ol);
           }
+          if (myRank != null && myRank > rows.length) {
+            var sep = document.createElement("p");
+            sep.className = "game-rank-sep"; sep.textContent = ". . .";
+            var mine = document.createElement("p");
+            mine.className = "game-my-rank"; mine.textContent = myRank + "위  " + myName + " — " + justScored + "점";
+            lbEl.appendChild(sep); lbEl.appendChild(mine);
+          }
           lbEl.hidden = false;
         }).catch(function () {});
     }
@@ -2599,8 +2608,8 @@
     function sendScore(game, score) {
       if (score <= 0) return;
       fetch("/game_score", { method: "POST", body: new URLSearchParams({ game: game, score: score }) })
-        .catch(function () {})
-        .then(function () { showLeaderboard(game, score); });
+        .then(function (r) { return r.json(); }).catch(function () { return {}; })
+        .then(function (res) { showLeaderboard(game, score, res && res.rank, res && res.name); });
     }
 
     function showPicker() {
@@ -2682,7 +2691,7 @@
     function initSnake() {
       canvas.width = 330; canvas.height = 330;
       var cell = 22, cols = 15;
-      var snake, dir, nextDir, food, score, over, timer;
+      var snake, dir, nextDir, food, score, over, timer, startTime;
       function spawnFood() {
         var p;
         do { p = { x: Math.floor(Math.random() * cols), y: Math.floor(Math.random() * cols) }; }
@@ -2691,8 +2700,13 @@
       }
       function resetGame() {
         snake = [{ x: 7, y: 7 }]; dir = { x: 1, y: 0 }; nextDir = dir; score = 0; over = false;
+        startTime = Date.now();
         food = spawnFood();
         statusEl.textContent = "점수: 0 — 방향키 또는 탭";
+      }
+      function currentDelay() {
+        var elapsed = (Date.now() - startTime) / 1000;
+        return Math.max(60, 140 - elapsed * 2.5);
       }
       function draw() {
         ctx.clearRect(0, 0, 330, 330);
@@ -2726,7 +2740,7 @@
         e.preventDefault(); nextDir = d;
       }
       function onClick(e) {
-        if (over) { resetGame(); draw(); return; }
+        if (over) { resetGame(); draw(); scheduleTick(); return; }
         var r = canvas.getBoundingClientRect();
         var x = (e.clientX - r.left) - r.width / 2, y = (e.clientY - r.top) - r.height / 2;
         if (Math.abs(x) > Math.abs(y)) { if (dir.x === 0) nextDir = { x: x > 0 ? 1 : -1, y: 0 }; }
@@ -2734,10 +2748,13 @@
       }
       document.addEventListener("keydown", onKey);
       canvas.addEventListener("click", onClick);
+      function scheduleTick() {
+        timer = setTimeout(function () { tick(); if (!over) scheduleTick(); }, currentDelay());
+      }
       resetGame();
       draw();
-      timer = setInterval(tick, 140);
-      return function () { clearInterval(timer); document.removeEventListener("keydown", onKey); canvas.removeEventListener("click", onClick); };
+      scheduleTick();
+      return function () { clearTimeout(timer); document.removeEventListener("keydown", onKey); canvas.removeEventListener("click", onClick); };
     }
 
     function initDino() {
@@ -2767,7 +2784,7 @@
             var oy = groundY + 34 - o.h;
             if (dinoX < o.x + o.w && dinoX + dinoW > o.x && dinoY + dinoH > oy) over = true;
           });
-          speed += 0.002; score = Math.floor(frame / 6);
+          speed += 0.0035; score = Math.floor(frame / 6);
           statusEl.textContent = "점수: " + score + (over ? " — 스페이스바/클릭으로 재시작" : "");
           if (over && !scored) { scored = true; sendScore("dino", score); }
         }
@@ -2787,22 +2804,40 @@
 
     function initBreakout() {
       canvas.width = 330; canvas.height = 400;
-      var paddleW = 64, paddleH = 10, paddleY = 380, paddleX;
-      var ballR = 6, ballX, ballY, vx, vy, bricks, score, over, win, raf;
+      var paddleH = 10, paddleY = 380, paddleX, paddleW;
+      var ballR = 6, balls, bricks, score, over, win, raf, diffTimer, extraBallAdded;
       var rows = 4, cols = 5, bw = 58, bh = 16, gap = 6, top = 14, left = 8;
       function resetGame() {
-        paddleX = (330 - paddleW) / 2;
-        ballX = 165; ballY = 300; vx = 3; vy = -3.4; score = 0; over = false; win = false;
+        paddleW = 64; paddleX = (330 - paddleW) / 2;
+        balls = [{ x: 165, y: 300, vx: 3, vy: -3.4 }];
+        score = 0; over = false; win = false; extraBallAdded = false;
         bricks = [];
         for (var r = 0; r < rows; r++) for (var c = 0; c < cols; c++) bricks.push({ x: left + c * (bw + gap), y: top + r * (bh + gap), w: bw, h: bh, alive: true });
         statusEl.textContent = "점수: 0";
+        if (diffTimer) clearInterval(diffTimer);
+        // 공 하나로 오래 버티는 느낌이 안 나도록(1판 최대 1분 30초 가정), 15초마다
+        // 패들을 줄이고 공 속도를 올리고, 첫 15초엔 공을 하나 더 추가한다.
+        diffTimer = setInterval(function () {
+          if (over) return;
+          paddleW = Math.max(34, paddleW - 6);
+          balls.forEach(function (b) {
+            var mag = Math.hypot(b.vx, b.vy), newMag = Math.min(mag * 1.15, 9);
+            var scale = newMag / mag;
+            b.vx *= scale; b.vy *= scale;
+          });
+          if (!extraBallAdded) {
+            extraBallAdded = true;
+            balls.push({ x: balls[0].x, y: balls[0].y, vx: -balls[0].vx, vy: balls[0].vy });
+          }
+        }, 15000);
       }
       function draw() {
         ctx.clearRect(0, 0, 330, 400);
         ctx.fillStyle = "#1cb0f6";
         bricks.forEach(function (b) { if (b.alive) ctx.fillRect(b.x, b.y, b.w, b.h); });
         ctx.fillStyle = "#58cc02"; ctx.fillRect(paddleX, paddleY, paddleW, paddleH);
-        ctx.beginPath(); ctx.arc(ballX, ballY, ballR, 0, Math.PI * 2); ctx.fillStyle = "#ff4b4b"; ctx.fill();
+        ctx.fillStyle = "#ff4b4b";
+        balls.forEach(function (b) { ctx.beginPath(); ctx.arc(b.x, b.y, ballR, 0, Math.PI * 2); ctx.fill(); });
         if (over) {
           ctx.fillStyle = "#555"; ctx.font = "20px sans-serif"; ctx.textAlign = "center";
           ctx.fillText((win ? "클리어! " : "게임 오버! ") + "점수 " + score + " (탭해서 재시작)", 165, 200);
@@ -2810,20 +2845,25 @@
       }
       function step() {
         if (!over) {
-          ballX += vx; ballY += vy;
-          if (ballX < ballR || ballX > 330 - ballR) vx = -vx;
-          if (ballY < ballR) vy = -vy;
-          if (ballY > paddleY - ballR && ballY < paddleY + paddleH && ballX > paddleX && ballX < paddleX + paddleW) {
-            vy = -Math.abs(vy); vx += (ballX - (paddleX + paddleW / 2)) * 0.08;
-          }
-          bricks.forEach(function (b) {
-            if (!b.alive) return;
-            if (ballX > b.x && ballX < b.x + b.w && ballY > b.y && ballY < b.y + b.h) {
-              b.alive = false; vy = -vy; score++; statusEl.textContent = "점수: " + score;
+          balls.forEach(function (b) {
+            b.x += b.vx; b.y += b.vy;
+            if (b.x < ballR || b.x > 330 - ballR) b.vx = -b.vx;
+            if (b.y < ballR) b.vy = -b.vy;
+            if (b.y > paddleY - ballR && b.y < paddleY + paddleH && b.x > paddleX && b.x < paddleX + paddleW) {
+              b.vy = -Math.abs(b.vy); b.vx += (b.x - (paddleX + paddleW / 2)) * 0.08;
             }
           });
-          if (bricks.every(function (b) { return !b.alive; })) { over = true; win = true; sendScore("breakout", score); }
-          else if (ballY > 400) { over = true; sendScore("breakout", score); }
+          bricks.forEach(function (br) {
+            if (!br.alive) return;
+            balls.forEach(function (b) {
+              if (b.x > br.x && b.x < br.x + br.w && b.y > br.y && b.y < br.y + br.h) {
+                br.alive = false; b.vy = -b.vy; score++; statusEl.textContent = "점수: " + score;
+              }
+            });
+          });
+          balls = balls.filter(function (b) { return b.y <= 400; });
+          if (bricks.every(function (b) { return !b.alive; })) { over = true; win = true; clearInterval(diffTimer); sendScore("breakout", score); }
+          else if (!balls.length) { over = true; clearInterval(diffTimer); sendScore("breakout", score); }
         }
         draw();
         raf = requestAnimationFrame(step);
@@ -2849,6 +2889,7 @@
       raf = requestAnimationFrame(step);
       return function () {
         cancelAnimationFrame(raf);
+        clearInterval(diffTimer);
         canvas.removeEventListener("mousemove", onMove);
         canvas.removeEventListener("touchmove", onMove);
         canvas.removeEventListener("click", onClick);

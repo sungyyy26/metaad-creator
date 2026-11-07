@@ -251,8 +251,10 @@ def submit_game_score():
     if game not in GAME_NAMES or score <= 0:
         return {"ok": False}, 400
     name = greeting_name_for(session.get("user_email")) if LOGIN_ENABLED and session.get("user_email") else "로컬 유저"
+    existing = [r for r in _load_json_list(SCORES_DB_PATH) if r.get("game") == game]
+    rank = sum(1 for r in existing if r.get("score", 0) > score) + 1
     _upsert(SCORES_DB_PATH, {"id": str(uuid.uuid4()), "game": game, "name": name, "score": score})
-    return {"ok": True}
+    return {"ok": True, "rank": rank, "name": name}
 
 
 @app.route("/game_leaderboard")
