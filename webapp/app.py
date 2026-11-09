@@ -65,15 +65,36 @@ DB_PATH = "requests" if DATABASE_URL else os.path.join(os.path.dirname(__file__)
 UPLOADS_DB_PATH = "uploads" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "uploads.json")
 SCORES_DB_PATH = "game_scores" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "game_scores.json")
 GAME_NAMES = {"mole", "snake", "dino", "breakout"}
-# 새 기능을 배포할 때마다 이 version을 바꾸고 내용을 갱신한다 — 관리자(ADMIN_EMAIL)를
-# 제외한 나머지 로그인 사용자에게, 각자 이 version을 아직 못 본 경우에만 처음
-# 방문했을 때 1회성 팝업으로 보여준다(allowed_users의 seenUpdateVersion과 비교).
-LATEST_UPDATE = {
-    "version": "2026-11-07-games",
-    "title": "🎮 미니게임이 추가됐어요!",
-    "body": "헤더의 🎮 아이콘을 눌러보세요 — 두더지 잡기 · 뱀 게임 · 공룡 달리기 · 벽돌깨기를 즐길 수 있어요. "
-            "게임별 순위표와 전체 통합 순위표도 확인할 수 있고, 광고 생성 로딩 화면에서도 바로 플레이할 수 있습니다.",
-}
+# 새 기능을 배포할 때마다 맨 앞에 새 항목을 추가한다(오래된 건 지워도 됨) — 목록의
+# 첫 항목 version이 전체 팝업의 기준이 된다. 관리자(ADMIN_EMAIL)를 제외한 나머지
+# 로그인 사용자에게, 이 version을 아직 못 본 경우에만 처음 방문했을 때 1회성
+# 팝업으로 목록 전체를 보여준다(allowed_users의 seenUpdateVersion과 비교).
+# target은 선택 — 카드를 누르면 그 id를 가진 요소를 대신 클릭해준다(예: 헤더의
+# 🎮 아이콘으로 바로 이동).
+UPDATE_ITEMS = [
+    {
+        "version": "2026-11-09-games-2",
+        "icon": "🏆",
+        "title": "게임별 · 통합 순위표",
+        "desc": "닉네임으로 기록을 남기고 다른 분들과 순위를 겨뤄보세요.",
+        "date": "11월 9일 업데이트",
+        "target": "game-btn",
+    },
+    {
+        "version": "2026-11-07-games-1",
+        "icon": "🎮",
+        "title": "미니게임 4종 추가",
+        "desc": "두더지 잡기 · 뱀 게임 · 공룡 달리기 · 벽돌깨기",
+        "date": "11월 7일 업데이트",
+        "target": "game-btn",
+    },
+]
+LATEST_UPDATE_VERSION = UPDATE_ITEMS[0]["version"]
+UPDATE_POPUP_TITLE = (
+    f"띵동! {UPDATE_ITEMS[0]['title']} 외 {len(UPDATE_ITEMS) - 1}개 기능이 업데이트됐어요"
+    if len(UPDATE_ITEMS) > 1
+    else f"띵동! {UPDATE_ITEMS[0]['title']}가 업데이트됐어요"
+)
 ALLOWED_USERS_PATH = "allowed_users" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "allowed_users.json")
 ACCESS_REQUESTS_PATH = "access_requests" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "access_requests.json")
 FEEDBACK_PATH = "feedback" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "feedback.json")
@@ -294,7 +315,7 @@ def mark_update_seen():
         return {"ok": False}, 400
     for u in load_allowed_users():
         if (u.get("email") or "").lower() == email:
-            u["seenUpdateVersion"] = LATEST_UPDATE["version"]
+            u["seenUpdateVersion"] = LATEST_UPDATE_VERSION
             upsert_allowed_user(u)
     return {"ok": True}
 
@@ -1045,7 +1066,7 @@ def index():
             (u.get("seenUpdateVersion") for u in load_allowed_users() if (u.get("email") or "").lower() == user_email.lower()),
             None,
         )
-        show_update = seen != LATEST_UPDATE["version"]
+        show_update = seen != LATEST_UPDATE_VERSION
 
     return render_template("index.html", accounts=ACCOUNTS, setting_items=setting_items,
                             budget_items=budget_items, shopify_items=shopify_items, uploads=uploads,
@@ -1053,7 +1074,7 @@ def index():
                             shopify_status_labels=shopify_lib.STATUS_LABELS,
                             user_email=user_email, greeting_name=greeting_name,
                             greeting_name_json=greeting_name_json,
-                            show_update=show_update, update_info=LATEST_UPDATE,
+                            show_update=show_update, update_items=UPDATE_ITEMS, update_title=UPDATE_POPUP_TITLE,
                             is_admin=LOGIN_ENABLED and (user_email or "").lower() == ADMIN_EMAIL)
 
 

@@ -353,6 +353,27 @@
   .feedback-status.ok{color:var(--status-done-fg);}
   .feedback-status.err{color:var(--status-error-fg);}
 
+  .update-modal-box{max-width:520px;}
+  .update-modal-header{display:flex;gap:14px;align-items:flex-start;margin-bottom:var(--sp-4);}
+  .update-modal-icon{
+    flex:none;width:44px;height:44px;border-radius:50%;background:var(--accent-soft);
+    display:flex;align-items:center;justify-content:center;font-size:20px;
+  }
+  .update-modal-header h2{margin:0 0 4px;}
+  .update-list{display:flex;flex-direction:column;gap:10px;margin-bottom:var(--sp-4);}
+  .update-item{
+    display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+    background:var(--surface-3);border:1px solid var(--border);border-radius:var(--radius-md);
+    padding:12px 14px;cursor:pointer;transition:border-color .12s,transform .12s;font-family:inherit;
+  }
+  .update-item:hover{border-color:var(--accent);transform:translateY(-1px);}
+  .update-item-icon{flex:none;font-size:22px;}
+  .update-item-body{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+  .update-item-title{font-family:var(--font-heading);font-weight:700;font-size:var(--fs-sm);color:var(--text);}
+  .update-item-desc{font-size:var(--fs-xs);color:var(--text-muted);}
+  .update-item-date{flex:none;font-size:var(--fs-xs);font-weight:700;color:var(--accent);white-space:nowrap;}
+  .update-modal-footer{display:flex;justify-content:flex-end;}
+
   #game-modal-overlay{z-index:300;}
   .game-modal-box{max-width:480px;}
   .game-picker{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
@@ -805,11 +826,31 @@
 
 {% if show_update %}
 <div class="modal-overlay" id="update-modal-overlay">
-  <div class="modal-box">
+  <div class="modal-box update-modal-box">
     <button type="button" class="modal-close" data-close-modal="update-modal-overlay" aria-label="닫기">×</button>
-    <h2>{{ update_info.title }}</h2>
-    <p class="hint">{{ update_info.body }}</p>
-    <button type="button" class="primary" data-close-modal="update-modal-overlay">확인했어요</button>
+    <div class="update-modal-header">
+      <div class="update-modal-icon">🔔</div>
+      <div>
+        <h2>{{ update_title }}</h2>
+        <p class="hint">최근 업데이트예요. 카드를 누르면 바로 확인할 수 있어요.</p>
+      </div>
+    </div>
+    <div class="update-list">
+      {% for item in update_items %}
+      <button type="button" class="update-item" data-close-modal="update-modal-overlay"
+              {% if item.target %}data-update-target="{{ item.target }}"{% endif %}>
+        <span class="update-item-icon">{{ item.icon }}</span>
+        <span class="update-item-body">
+          <span class="update-item-title">{{ item.title }}</span>
+          <span class="update-item-desc">{{ item.desc }}</span>
+        </span>
+        <span class="update-item-date">{{ item.date }}</span>
+      </button>
+      {% endfor %}
+    </div>
+    <div class="update-modal-footer">
+      <button type="button" class="primary" data-close-modal="update-modal-overlay">확인했어요</button>
+    </div>
   </div>
 </div>
 {% endif %}
@@ -2557,7 +2598,15 @@
     }
 
     var updateOverlay = document.getElementById("update-modal-overlay");
-    if (updateOverlay) { fetch("/mark_update_seen", { method: "POST" }).catch(function () {}); }
+    if (updateOverlay) {
+      fetch("/mark_update_seen", { method: "POST" }).catch(function () {});
+      updateOverlay.querySelectorAll(".update-item[data-update-target]").forEach(function (item) {
+        item.addEventListener("click", function () {
+          var target = document.getElementById(item.dataset.updateTarget);
+          if (target) target.click();
+        });
+      });
+    }
 
     var gameBtn = document.getElementById("game-btn");
     var gameOverlay = document.getElementById("game-modal-overlay");
