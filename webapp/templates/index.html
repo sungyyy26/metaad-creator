@@ -373,6 +373,11 @@
   .update-item-desc{font-size:var(--fs-xs);color:var(--text-muted);}
   .update-item-date{flex:none;font-size:var(--fs-xs);font-weight:700;color:var(--accent);white-space:nowrap;}
   .update-modal-footer{display:flex;justify-content:flex-end;}
+  .dup-link-icon{background:var(--status-incomplete-bg);}
+  .dup-link-row{
+    background:var(--surface-3);border:1px solid var(--border);border-radius:var(--radius-md);
+    padding:10px 14px;font-size:var(--fs-sm);color:var(--text);word-break:break-all;
+  }
 
   #game-modal-overlay{z-index:300;}
   .game-modal-box{max-width:480px;}
@@ -898,6 +903,24 @@
       <button type="submit" class="primary" id="feedback-submit-btn">보내기</button>
       <p class="feedback-status" id="feedback-status" hidden></p>
     </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="dup-link-modal-overlay" hidden>
+  <div class="modal-box">
+    <button type="button" class="modal-close" data-close-modal="dup-link-modal-overlay" aria-label="닫기">×</button>
+    <div class="update-modal-header">
+      <div class="update-modal-icon dup-link-icon">⚠️</div>
+      <div>
+        <h2>이미 사용된 아마존 링크예요</h2>
+        <p class="hint">아래 링크는 예전에 다른 광고에서 이미 사용했어요. 그래도 계속할까요?</p>
+      </div>
+    </div>
+    <div class="update-list" id="dup-link-list"></div>
+    <div class="update-modal-footer" style="justify-content:space-between;">
+      <button type="button" class="secondary" data-close-modal="dup-link-modal-overlay">취소</button>
+      <button type="button" class="primary" id="dup-link-continue-btn">그래도 계속하기</button>
+    </div>
   </div>
 </div>
 
@@ -2528,9 +2551,52 @@
         setMessage(MESSAGES[idx]);
       }, 3200);
     }
+    var dupOverlay = document.getElementById("dup-link-modal-overlay");
+    var dupList = document.getElementById("dup-link-list");
+    var dupContinueBtn = document.getElementById("dup-link-continue-btn");
+    var pendingForm = null;
+
+    function openDupWarning(form, links) {
+      pendingForm = form;
+      dupList.innerHTML = "";
+      links.forEach(function (link) {
+        var row = document.createElement("div");
+        row.className = "dup-link-row";
+        row.textContent = link;
+        dupList.appendChild(row);
+      });
+      dupOverlay.hidden = false;
+    }
+    if (dupContinueBtn) {
+      dupContinueBtn.addEventListener("click", function () {
+        dupOverlay.hidden = true;
+        if (pendingForm) { showLoading(); pendingForm.submit(); pendingForm = null; }
+      });
+    }
+
     ["manual-submit-form", "bulk-form"].forEach(function (id) {
       var form = document.getElementById(id);
-      if (form) form.addEventListener("submit", showLoading);
+      if (!form) return;
+      form.addEventListener("submit", function (e) {
+        var body;
+        if (id === "bulk-form") {
+          body = new URLSearchParams({ bulk_text: form.bulk_text ? form.bulk_text.value : "" });
+        } else {
+          var field = form.querySelector("[name=shopify_amazon_override]");
+          var link = field ? field.value.trim() : "";
+          if (!link) { showLoading(); return; }
+          body = new URLSearchParams({ link: link });
+        }
+        e.preventDefault();
+        fetch("/check_amazon_links", { method: "POST", body: body })
+          .then(function (r) { return r.json(); })
+          .then(function (res) {
+            var dupes = (res && res.duplicates) || [];
+            if (dupes.length) { openDupWarning(form, dupes); }
+            else { showLoading(); form.submit(); }
+          })
+          .catch(function () { showLoading(); form.submit(); });
+      });
     });
   })();
 

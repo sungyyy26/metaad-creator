@@ -1358,6 +1358,39 @@ def submit_bulk():
     return redirect("/")
 
 
+def _used_amazon_links():
+    """모든 과거 요청에서 사용자가 실제로 입력했던 '아마존 어트리뷰션 링크
+    재지정' 값의 집합 — 비워뒀던 행(원본 링크 그대로 사용)은 우리가 그
+    결과값을 모르므로 포함되지 않는다."""
+    return {
+        (it.get("input") or {}).get("shopify_amazon", "").strip()
+        for it in load_requests()
+        if (it.get("input") or {}).get("shopify_amazon")
+    }
+
+
+@app.route("/check_amazon_links", methods=["POST"])
+def check_amazon_links():
+    """제출 전 미리 확인 — bulk_text가 오면 각 행을 똑같이 파싱해서 재지정된
+    링크를, 아니면 link 하나를 과거에 이미 쓴 적 있는지 검사한다."""
+    candidates = []
+    if "bulk_text" in request.form:
+        for cols in split_bulk_rows(request.form.get("bulk_text", "")):
+            try:
+                row = parse_bulk_row(cols)
+            except RowError:
+                continue
+            if row.get("shopify_amazon"):
+                candidates.append(row["shopify_amazon"])
+    else:
+        link = (request.form.get("link") or "").strip()
+        if link:
+            candidates.append(link)
+    used = _used_amazon_links()
+    duplicates = sorted({c for c in candidates if c in used})
+    return {"ok": True, "duplicates": duplicates}
+
+
 @app.route("/preview_bulk", methods=["POST"])
 def preview_bulk():
     """Parses the pasted bulk text the same way /submit_bulk does — nothing
