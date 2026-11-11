@@ -5,9 +5,6 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="light dark">
 <title>Meta Ad Desk</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Noto+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script>
 (function () {
   try {
@@ -41,9 +38,9 @@
     --fs-2xs:11px; --fs-xs:12px; --fs-sm:13px; --fs-base:15px; --fs-md:16px; --fs-lg:19px; --fs-xl:28px;
     /* Spacing scale — sibling gaps and section rhythm use these, not one-off values. */
     --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px; --sp-7:40px; --sp-8:56px;
-    --font-ui:"Noto Sans KR",-apple-system,BlinkMacSystemFont,"Helvetica Neue",Arial,sans-serif;
-    --font-heading:"Baloo 2","Noto Sans KR",-apple-system,sans-serif;
-    --font-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --font-ui:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+    --font-heading:var(--font-ui);
+    --font-mono:var(--font-ui);
   }
   @media (prefers-color-scheme: dark){
     :root:not([data-theme="light"]){
@@ -83,6 +80,8 @@
     --shadow: 0 2px 10px rgba(0,0,0,0.3), 0 14px 30px -16px rgba(0,0,0,0.6);
   }
   *{box-sizing:border-box;}
+  input,textarea,select,button{font-family:inherit;}
+  ::placeholder{font-family:inherit;}
   [hidden]{display:none!important;}
   body{
     margin:0;background:var(--bg);color:var(--text);
@@ -461,11 +460,11 @@
   .loading-sparkle.s1{top:-10px;left:-18px;animation-delay:0s;}
   .loading-sparkle.s2{top:2px;right:-20px;font-size:12px;animation-delay:.9s;}
   .loading-sparkle.s3{bottom:10px;left:-16px;font-size:11px;animation-delay:1.8s;}
-  .loading-title{font-family:var(--font-heading);font-weight:700;font-size:var(--fs-xl);margin:0;}
+  .loading-title{font-family:var(--font-heading);font-weight:700;font-size:var(--fs-xl);margin:0;min-height:1.3em;}
   .loading-bar{width:220px;height:10px;border-radius:980px;background:var(--surface-2);border:1px solid var(--border);overflow:hidden;position:relative;}
   .loading-bar-fill{position:absolute;top:0;left:-40%;width:40%;height:100%;border-radius:inherit;background:var(--accent);animation:loading-slide 1.3s ease-in-out infinite;}
   .loading-message{font-size:var(--fs-base);color:var(--text-muted);min-height:2.8em;max-width:300px;line-height:1.5;}
-  .loading-message.msg-pop{animation:loading-message-pop .4s ease;}
+  .loading-message.msg-pop{animation:loading-message-pop .45s cubic-bezier(.22,1,.36,1);}
   @keyframes loading-dance{
     0%,100%{transform:translateY(0) rotate(0deg);}
     15%{transform:translateY(-8px) rotate(-7deg);}
@@ -485,8 +484,8 @@
     100%{opacity:0;transform:translateY(-24px) scale(1) rotate(25deg);}
   }
   @keyframes loading-message-pop{
-    0%{opacity:.2;transform:translateY(5px) scale(.97);}
-    100%{opacity:1;transform:translateY(0) scale(1);}
+    0%{opacity:0;transform:translateY(70%);filter:blur(2px);}
+    100%{opacity:1;transform:translateY(0);filter:blur(0);}
   }
   @media (prefers-reduced-motion: reduce){
     .loading-mascot,.loading-mascot-wing,.loading-mascot-eye::after,.loading-bar-fill,.loading-sparkle,.loading-message.msg-pop{animation:none;}
@@ -655,19 +654,19 @@
        shares this dark palette, so the shopify panel sits directly on the
        page like every other tab instead of nesting a second black box. */
     color:var(--sf-ink);
-    font-family:"Noto Sans KR",-apple-system,sans-serif;font-size:14px;line-height:1.55;
+    font-family:var(--font-ui);font-size:14px;line-height:1.55;
   }
   .sf-app *{box-sizing:border-box;}
   .sf-wrap{max-width:1180px;margin:0 auto;padding:0;}
   .sf-top{margin-bottom:32px;display:flex;justify-content:space-between;align-items:flex-start;gap:20px;background:var(--surface-opaque);border:1px solid var(--glass-border);border-radius:var(--radius-lg);box-shadow:var(--sf-shadow);padding:22px 26px;}
-  .sf-eyebrow{font-family:"Baloo 2","Noto Sans KR",sans-serif;font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--sf-accent);margin:0 0 10px;}
-  .sf-h1{font-family:"Baloo 2","Noto Sans KR",sans-serif;font-weight:800;font-size:30px;letter-spacing:-.02em;margin:0 0 8px;color:var(--sf-ink);}
+  .sf-eyebrow{font-family:var(--font-heading);font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--sf-accent);margin:0 0 10px;}
+  .sf-h1{font-family:var(--font-heading);font-weight:800;font-size:30px;letter-spacing:-.02em;margin:0 0 8px;color:var(--sf-ink);}
   .sf-sub{color:var(--sf-ink-dim);margin:0;max-width:64ch;font-size:14.5px;line-height:1.6;}
   .sf-logo{color:var(--sf-ink);flex-shrink:0;margin-top:6px;}
 
   .sf-tabs{display:flex;gap:4px;border-bottom:1px solid var(--sf-line);margin-bottom:28px;}
-  .sf-tab-btn{font-family:"Baloo 2","Noto Sans KR",sans-serif;font-weight:600;font-size:14px;color:var(--sf-ink-dim);background:none;border:none;border-bottom:2px solid transparent;padding:10px 4px 14px;margin-right:24px;cursor:pointer;}
-  .sf-tab-btn .sf-step-no{font-family:"IBM Plex Mono",monospace;font-weight:500;color:var(--sf-ink-dim);margin-right:6px;opacity:.7;}
+  .sf-tab-btn{font-family:var(--font-heading);font-weight:600;font-size:14px;color:var(--sf-ink-dim);background:none;border:none;border-bottom:2px solid transparent;padding:10px 4px 14px;margin-right:24px;cursor:pointer;}
+  .sf-tab-btn .sf-step-no{font-family:var(--font-mono);font-weight:500;color:var(--sf-ink-dim);margin-right:6px;opacity:.7;}
   .sf-tab-btn.active{color:var(--sf-ink);border-bottom-color:var(--sf-accent);}
   .sf-tab-btn.active .sf-step-no{color:var(--sf-accent);opacity:1;}
   .sf-tab-btn:disabled{color:var(--sf-line);cursor:not-allowed;}
@@ -675,35 +674,35 @@
 
   .sf-panel{background:var(--sf-panel);border:1px solid var(--glass-border);border-radius:20px;box-shadow:var(--sf-shadow);padding:28px;display:flex;flex-direction:column;gap:22px;backdrop-filter:blur(var(--glass-blur));-webkit-backdrop-filter:blur(var(--glass-blur));}
   .sf-panel-head{display:flex;align-items:baseline;gap:9px;border-bottom:1px solid var(--sf-line);padding-bottom:16px;}
-  .sf-panel-num{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--sf-accent);background:var(--sf-accent-soft);border-radius:6px;padding:3px 7px;}
-  .sf-panel-title{font-family:"Baloo 2","Noto Sans KR",sans-serif;font-weight:700;font-size:17px;letter-spacing:-.01em;}
+  .sf-panel-num{font-family:var(--font-mono);font-size:11px;color:var(--sf-accent);background:var(--sf-accent-soft);border-radius:6px;padding:3px 7px;}
+  .sf-panel-title{font-family:var(--font-heading);font-weight:700;font-size:17px;letter-spacing:-.01em;}
   .sf-panel-hint{font-size:12.5px;color:var(--sf-ink-dim);margin:-8px 0 0;}
-  .sf-app code{font-family:"IBM Plex Mono",monospace;background:var(--sf-paper);border:1px solid var(--sf-line);border-radius:4px;padding:.1em .4em;}
+  .sf-app code{font-family:var(--font-mono);background:var(--sf-paper);border:1px solid var(--sf-line);border-radius:4px;padding:.1em .4em;}
 
   .sf-field{display:flex;flex-direction:column;gap:8px;}
-  .sf-lbl{font-family:"Baloo 2","Noto Sans KR",sans-serif;font-weight:600;font-size:12.5px;color:var(--sf-ink-dim);}
+  .sf-lbl{font-family:var(--font-heading);font-weight:600;font-size:12.5px;color:var(--sf-ink-dim);}
   .sf-app input[type=text],.sf-app textarea,.sf-app select{font:inherit;font-size:14px;color:var(--sf-ink);background:var(--sf-paper);border:1px solid var(--sf-line);border-radius:12px;padding:8px 14px;width:100%;}
   .sf-app input[type=text]:focus,.sf-app textarea:focus,.sf-app select:focus{outline:2px solid var(--sf-accent);outline-offset:1px;}
   .sf-app input::placeholder,.sf-app textarea::placeholder{color:var(--sf-ink-dim);opacity:.65;}
   .sf-app textarea{min-height:56px;resize:vertical;}
 
   .sf-chiprow{display:flex;flex-wrap:wrap;gap:8px;}
-  .sf-chip{font-family:"Baloo 2","Noto Sans KR",sans-serif;font-weight:600;font-size:12.5px;border:1px solid var(--sf-line);background:var(--sf-panel);color:var(--sf-ink-dim);border-radius:999px;padding:8px 16px;cursor:pointer;user-select:none;position:relative;opacity:.65;}
+  .sf-chip{font-family:var(--font-heading);font-weight:600;font-size:12.5px;border:1px solid var(--sf-line);background:var(--sf-panel);color:var(--sf-ink-dim);border-radius:999px;padding:8px 16px;cursor:pointer;user-select:none;position:relative;opacity:.65;}
   .sf-chip input{position:absolute;opacity:0;pointer-events:none;}
   .sf-chip:has(input:checked){background:var(--sf-accent);border-color:var(--sf-accent);color:var(--sf-accent-ink);opacity:1;}
   .sf-chip:focus-within{outline:2px solid var(--sf-accent);outline-offset:1px;}
 
-  .sf-btn-secondary{font-family:"Baloo 2","Noto Sans KR",sans-serif;font-weight:600;font-size:13px;background:var(--sf-panel);color:var(--sf-accent);border:1px solid var(--sf-line);border-radius:980px;padding:9px 18px;cursor:pointer;}
+  .sf-btn-secondary{font-family:var(--font-heading);font-weight:600;font-size:13px;background:var(--sf-panel);color:var(--sf-accent);border:1px solid var(--sf-line);border-radius:980px;padding:9px 18px;cursor:pointer;}
   .sf-btn-secondary:hover{background:var(--sf-accent-soft);border-color:var(--sf-accent-soft);}
-  .sf-submit{font-family:"Baloo 2","Noto Sans KR",sans-serif;font-weight:700;font-size:13px;background:var(--primary);color:var(--on-primary);border:none;border-radius:980px;padding:9px 20px;cursor:pointer;transition:filter .3s ease,transform .1s ease;box-shadow:0 4px 0 0 var(--primary-shadow);}
+  .sf-submit{font-family:var(--font-heading);font-weight:700;font-size:13px;background:var(--primary);color:var(--on-primary);border:none;border-radius:980px;padding:9px 20px;cursor:pointer;transition:filter .3s ease,transform .1s ease;box-shadow:0 4px 0 0 var(--primary-shadow);}
   .sf-submit:disabled{opacity:.4;cursor:not-allowed;box-shadow:none;}
   .sf-submit:not(:disabled):hover{filter:brightness(1.04);}
   .sf-submit:not(:disabled):active{transform:translateY(3px);box-shadow:0 1px 0 0 var(--primary-shadow);}
-  .sf-select-all{font-family:"Baloo 2","Noto Sans KR",sans-serif;font-weight:600;font-size:12.5px;color:var(--sf-accent);background:none;border:none;cursor:pointer;padding:0;}
+  .sf-select-all{font-family:var(--font-heading);font-weight:600;font-size:12.5px;color:var(--sf-accent);background:none;border:none;cursor:pointer;padding:0;}
 
   .sf-results-head{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap;}
-  .sf-results-head h3{font-family:"Baloo 2","Noto Sans KR",sans-serif;font-weight:700;font-size:15px;margin:0;color:var(--sf-ink);}
-  .sf-count-badge{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--sf-ink-dim);}
+  .sf-results-head h3{font-family:var(--font-heading);font-weight:700;font-size:15px;margin:0;color:var(--sf-ink);}
+  .sf-count-badge{font-family:var(--font-mono);font-size:12px;color:var(--sf-ink-dim);}
   .sf-results-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;}
   @media (max-width:900px){.sf-results-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
   @media (max-width:560px){.sf-results-grid{grid-template-columns:1fr;}}
@@ -715,12 +714,12 @@
   .sf-thumb-tile svg{width:24px;height:24px;}
   .sf-thumb-img{width:52px;height:52px;border-radius:11px;flex-shrink:0;object-fit:cover;background:var(--sf-accent-soft);border:1px solid var(--sf-line);}
   .sf-result-info{min-width:0;display:flex;flex-direction:column;gap:4px;flex:1;}
-  .sf-result-title{font-family:"Baloo 2","Noto Sans KR",sans-serif;font-weight:600;font-size:13.5px;line-height:1.4;white-space:normal;overflow-wrap:anywhere;word-break:break-word;}
-  .sf-result-handle{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--sf-ink-dim);white-space:normal;overflow-wrap:anywhere;word-break:break-word;}
+  .sf-result-title{font-family:var(--font-heading);font-weight:600;font-size:13.5px;line-height:1.4;white-space:normal;overflow-wrap:anywhere;word-break:break-word;}
+  .sf-result-handle{font-family:var(--font-mono);font-size:11.5px;color:var(--sf-ink-dim);white-space:normal;overflow-wrap:anywhere;word-break:break-word;}
   .sf-result-tags{font-size:11.5px;color:var(--sf-ink-dim);white-space:normal;overflow-wrap:anywhere;word-break:break-word;}
   .sf-result-url{color:var(--sf-accent);text-decoration:none;}
   .sf-result-url:hover{text-decoration:none;}
-  .sf-r-badge{font-family:"IBM Plex Mono",monospace;font-size:10.5px;border-radius:999px;padding:1px 8px;display:inline-block;width:fit-content;}
+  .sf-r-badge{font-family:var(--font-mono);font-size:10.5px;border-radius:999px;padding:1px 8px;display:inline-block;width:fit-content;}
   .sf-r-active{color:var(--sf-done);background:var(--sf-done-bg);}
   .sf-r-draft{color:var(--sf-pending);background:var(--sf-pending-bg);}
   .sf-r-unlisted{color:var(--sf-processing);background:var(--sf-processing-bg);}
@@ -733,7 +732,7 @@
   .sf-preview-row{background:var(--sf-panel);border:1px solid var(--sf-line);border-radius:14px;padding:14px 16px;display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
   .sf-preview-row:last-child{margin-bottom:0;}
   .sf-preview-row .sf-result-title{-webkit-line-clamp:unset;}
-  .sf-item-status{font-family:"IBM Plex Mono",monospace;font-size:10.5px;border-radius:999px;padding:1px 8px;display:inline-block;}
+  .sf-item-status{font-family:var(--font-mono);font-size:10.5px;border-radius:999px;padding:1px 8px;display:inline-block;}
   .sf-item-apply{color:var(--sf-done);background:var(--sf-done-bg);}
   .sf-item-skip{color:var(--sf-pending);background:var(--sf-pending-bg);}
   .sf-item-error{color:var(--sf-error);background:var(--sf-error-bg);}
@@ -743,7 +742,7 @@
   .sf-detail-row .sf-ex-after{color:var(--sf-ink);font-weight:600;}
 
   .sf-pager{display:flex;align-items:center;justify-content:center;gap:6px;flex-wrap:wrap;margin-top:16px;}
-  .sf-pager button{font-family:"IBM Plex Mono",monospace;font-size:12px;min-width:32px;height:32px;border-radius:999px;border:1px solid var(--sf-line);background:var(--sf-panel);color:var(--sf-ink-dim);cursor:pointer;}
+  .sf-pager button{font-family:var(--font-mono);font-size:12px;min-width:32px;height:32px;border-radius:999px;border:1px solid var(--sf-line);background:var(--sf-panel);color:var(--sf-ink-dim);cursor:pointer;}
   .sf-pager button.current{border-color:var(--sf-accent);background:var(--sf-accent);color:var(--sf-accent-ink);}
   .sf-pager button:disabled{opacity:.35;cursor:not-allowed;}
 
@@ -753,7 +752,7 @@
   .sf-media-grid{display:grid;grid-template-columns:minmax(0,1fr) 130px 130px;gap:12px;}
   @media (max-width:720px){.sf-media-grid{grid-template-columns:1fr;}}
   .sf-mode-row{display:flex;gap:8px;flex-wrap:wrap;}
-  .sf-mode-btn{font-family:"Baloo 2","Noto Sans KR",sans-serif;font-weight:600;font-size:12px;border:1px solid var(--sf-line);background:var(--sf-panel);color:var(--sf-ink-dim);border-radius:999px;padding:7px 13px;cursor:pointer;}
+  .sf-mode-btn{font-family:var(--font-heading);font-weight:600;font-size:12px;border:1px solid var(--sf-line);background:var(--sf-panel);color:var(--sf-ink-dim);border-radius:999px;padding:7px 13px;cursor:pointer;}
   .sf-mode-btn.active{background:var(--sf-accent-soft);border-color:var(--sf-accent);color:var(--sf-accent);}
   .sf-media-remove{background:none;border:none;color:var(--sf-error);cursor:pointer;font-size:12px;}
   .sf-media-lookup{position:relative;}
@@ -771,7 +770,7 @@
   .sf-media-compare{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:8px;}
   @media (max-width:700px){.sf-media-compare{grid-template-columns:1fr;}}
   .sf-media-state{border:1px solid var(--sf-line);border-radius:12px;padding:10px;}
-  .sf-media-state-label{font-family:"Baloo 2","Noto Sans KR",sans-serif;font-weight:700;font-size:11px;color:var(--sf-ink-dim);margin-bottom:8px;}
+  .sf-media-state-label{font-family:var(--font-heading);font-weight:700;font-size:11px;color:var(--sf-ink-dim);margin-bottom:8px;}
   .sf-thumb-strip{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;}
   .sf-thumb-mini{width:72px;flex:0 0 72px;}
   .sf-thumb-mini img,.sf-thumb-mini-empty{width:72px;height:72px;border-radius:9px;object-fit:cover;background:var(--sf-accent-soft);display:flex;align-items:center;justify-content:center;}
@@ -779,22 +778,89 @@
 
   .sf-history{margin-top:40px;}
   .sf-history-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px;}
-  .sf-history-head h2{font-family:"Baloo 2","Noto Sans KR",sans-serif;font-weight:800;font-size:19px;letter-spacing:-.01em;margin:0;color:var(--sf-ink);}
+  .sf-history-head h2{font-family:var(--font-heading);font-weight:800;font-size:19px;letter-spacing:-.01em;margin:0;color:var(--sf-ink);}
   .sf-job{background:var(--sf-panel);border:1px solid var(--sf-line);border-radius:14px;box-shadow:var(--sf-shadow);padding:12px 16px;margin-bottom:8px;display:flex;flex-direction:column;gap:6px;}
   .sf-job-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
   .sf-job-top-left{display:flex;align-items:center;gap:8px;}
-  .sf-job-time{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--sf-ink-dim);}
+  .sf-job-time{font-family:var(--font-mono);font-size:11.5px;color:var(--sf-ink-dim);}
   .sf-job-del{background:none;border:none;color:var(--sf-ink-dim);cursor:pointer;font-size:15px;line-height:1;padding:2px 4px;border-radius:4px;}
   .sf-job-del:hover{color:var(--sf-error);background:var(--sf-error-bg);}
-  .sf-status-pill{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.03em;border-radius:999px;padding:3px 10px;white-space:nowrap;}
+  .sf-status-pill{font-family:var(--font-mono);font-size:11px;letter-spacing:.03em;border-radius:999px;padding:3px 10px;white-space:nowrap;}
   .sf-status-done{color:var(--sf-done);background:var(--sf-done-bg);}
   .sf-status-error{color:var(--sf-error);background:var(--sf-error-bg);}
   .sf-status-incomplete{color:var(--sf-pending);background:var(--sf-pending-bg);}
-  .sf-disclosure{display:flex;align-items:center;gap:6px;font-family:"Baloo 2","Noto Sans KR",sans-serif;font-weight:700;font-size:14px;color:var(--sf-ink);background:none;border:none;padding:0;cursor:pointer;width:100%;text-align:left;}
-  .sf-caret{font-family:"IBM Plex Mono",monospace;color:var(--sf-accent);transition:transform .15s;margin-left:auto;}
+  .sf-disclosure{display:flex;align-items:center;gap:6px;font-family:var(--font-heading);font-weight:700;font-size:14px;color:var(--sf-ink);background:none;border:none;padding:0;cursor:pointer;width:100%;text-align:left;}
+  .sf-caret{font-family:var(--font-mono);color:var(--sf-accent);transition:transform .15s;margin-left:auto;}
   .sf-disclosure[aria-expanded="true"] .sf-caret{transform:rotate(180deg);}
   .sf-disclosure-body{margin-top:10px;}
   .sf-result-line{font-size:12px;color:var(--sf-ink-dim);border-top:1px solid var(--sf-line);padding-top:8px;}
+
+  /* ---- Motion: 화면 전환 / 텍스트 등장. JS(맨 아래 motion 스크립트)가 요소가
+     보일 때 mo-* 클래스를 붙여 재생한다. fill-mode는 backwards만 — 끝난 뒤엔
+     원래 스타일(hover transform 등)이 그대로 적용되도록. ---- */
+  :root{
+    --ease-out:cubic-bezier(.22,1,.36,1);
+    --dur-1:160ms; --dur-2:260ms; --dur-3:420ms;
+    --highlight:rgba(255,200,0,.38);
+  }
+  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --highlight:rgba(255,212,61,.26); } }
+  :root[data-theme="dark"]{ --highlight:rgba(255,212,61,.26); }
+
+  @keyframes mo-push-r{from{opacity:0;transform:translateX(32px);}}
+  @keyframes mo-push-l{from{opacity:0;transform:translateX(-32px);}}
+  @keyframes mo-fade-through{from{opacity:0;transform:scale(.985);}}
+  @keyframes mo-tab{from{opacity:0;transform:translateY(6px);}}
+  @keyframes mo-backdrop{from{opacity:0;}}
+  @keyframes mo-modal{from{opacity:0;transform:translateY(28px) scale(.96);}}
+  @keyframes mo-zoom{from{opacity:0;transform:scale(.88);}}
+  @keyframes mo-rise{from{opacity:0;transform:translateY(12px);}}
+  @keyframes mo-expand{from{opacity:0;transform:scaleY(.9);}}
+  @keyframes mo-sheet{from{opacity:0;transform:translateY(-6px);clip-path:inset(0 0 100% 0);}to{clip-path:inset(0 0 0 0);}}
+  @keyframes mo-blur{from{opacity:0;filter:blur(8px);}}
+  @keyframes mo-mask{from{clip-path:inset(-.3em 100% -.3em 0);}to{clip-path:inset(-.3em 0 -.3em 0);}}
+  @keyframes mo-letter{from{opacity:0;transform:translateY(.45em);}}
+  @keyframes mo-highlight{from{background-size:0% 42%;}}
+  @keyframes mo-caret{50%{opacity:0;}}
+
+  .mo-push-r{animation:mo-push-r var(--dur-3) var(--ease-out) backwards;}
+  .mo-push-l{animation:mo-push-l var(--dur-3) var(--ease-out) backwards;}
+  .mo-fade-through{animation:mo-fade-through var(--dur-3) var(--ease-out) backwards;}
+  .mo-tab{animation:mo-tab var(--dur-2) var(--ease-out) backwards;}
+  .mo-backdrop{animation:mo-backdrop var(--dur-2) ease-out backwards;}
+  .mo-modal{animation:mo-modal var(--dur-3) var(--ease-out) backwards;}
+  .mo-zoom{animation:mo-zoom var(--dur-3) var(--ease-out) backwards;}
+  .mo-rise{animation:mo-rise var(--dur-3) var(--ease-out) backwards;}
+  .mo-expand{animation:mo-expand var(--dur-2) var(--ease-out) backwards;transform-origin:top center;}
+  .mo-sheet{animation:mo-sheet var(--dur-3) var(--ease-out) backwards;}
+  .mo-blur{animation:mo-blur 520ms var(--ease-out) backwards;}
+  .mo-mask{animation:mo-mask 560ms var(--ease-out) backwards;}
+  .mo-ltr{display:inline-block;white-space:pre;animation:mo-letter var(--dur-3) var(--ease-out) backwards;}
+
+  /* 탭 전환: 활성 탭 밑줄이 가운데서 양옆으로 자라난다. */
+  .tab-btn,.mode-btn,.ads-section-btn,.sf-tab-btn{
+    background-image:linear-gradient(var(--tab-ul,var(--accent)),var(--tab-ul,var(--accent)));
+    background-repeat:no-repeat;background-position:center bottom;background-size:0% 2px;
+    background-origin:border-box;background-clip:border-box;
+    transition:background-size var(--dur-2) var(--ease-out),color var(--dur-1);
+  }
+  .sf-tab-btn{--tab-ul:var(--sf-accent);}
+  .tab-btn.active,.mode-btn.active,.ads-section-btn.active,.sf-tab-btn.active{border-bottom-color:transparent;background-size:100% 2px;}
+
+  /* 하이라이트: 인사말 속 닉네임에 형광펜이 그어진다. */
+  .greeting-name{
+    background-color:transparent;color:inherit;padding:0 1px;
+    background-image:linear-gradient(var(--highlight),var(--highlight));
+    background-repeat:no-repeat;background-position:0 88%;background-size:100% 42%;
+  }
+  .greeting-name.mo-hl{animation:mo-highlight 640ms var(--ease-out) backwards;}
+
+  /* 타이핑: 로딩 제목 끝의 깜빡이는 커서 */
+  .mo-typing::after{content:"";display:inline-block;width:2px;height:.9em;margin-left:3px;background:currentColor;vertical-align:-.08em;animation:mo-caret .8s steps(1) infinite;}
+
+  @media (prefers-reduced-motion: reduce){
+    .tab-btn,.mode-btn,.ads-section-btn,.sf-tab-btn{transition:none;}
+    .mo-typing::after{display:none;}
+  }
 </style>
 </head>
 <body>
@@ -802,7 +868,7 @@
 <div class="header-bar">
   {% if user_email %}
   {% if greeting_name %}
-  <div class="greeting-pill">안녕하세요 {{ greeting_name }}님, 오늘도 화이팅입니다! 💪</div>
+  <div class="greeting-pill">안녕하세요 <mark class="greeting-name">{{ greeting_name }}님</mark>, 오늘도 화이팅입니다! 💪</div>
   {% endif %}
   <div class="account-bar">
     <span class="account-email">{{ user_email }}</span>
@@ -1737,6 +1803,10 @@
   // 탭을 그대로 복원한다 (항상 광고 셋팅으로 리셋하지 않음).
   document.querySelectorAll("#top-toggle .top-btn").forEach(function (btn) {
     btn.addEventListener("click", function () {
+      // 푸시 전환 방향: 오른쪽 탭으로 가면 오른쪽에서, 왼쪽 탭으로 가면 왼쪽에서 밀고 들어온다.
+      var topBtns = Array.prototype.slice.call(document.querySelectorAll("#top-toggle .top-btn"));
+      var prevIdx = topBtns.indexOf(document.querySelector("#top-toggle .top-btn.active"));
+      document.documentElement.setAttribute("data-push-dir", topBtns.indexOf(btn) < prevIdx ? "left" : "right");
       document.querySelectorAll("#top-toggle .top-btn").forEach(function (b) { b.classList.remove("active"); });
       btn.classList.add("active");
       var top = btn.getAttribute("data-top");
@@ -2731,8 +2801,10 @@
             var tbody = document.createElement("tbody");
             rows.forEach(function (row, i) {
               var tr = document.createElement("tr");
-              [i + 1, GAME_LABELS[row.game] || row.game, row.name, row.score].forEach(function (val) {
-                var td = document.createElement("td"); td.textContent = val; tr.appendChild(td);
+              [i + 1, GAME_LABELS[row.game] || row.game, row.name, row.score].forEach(function (val, col) {
+                var td = document.createElement("td"); td.textContent = val;
+                if (col === 3) td.className = "mo-count";
+                tr.appendChild(td);
               });
               tbody.appendChild(tr);
             });
@@ -2742,7 +2814,11 @@
             var ol = document.createElement("ol");
             rows.forEach(function (row) {
               var li = document.createElement("li");
-              li.textContent = row.name + " — " + row.score;
+              li.textContent = row.name + " — ";
+              var scoreEl = document.createElement("span");
+              scoreEl.className = "mo-count";
+              scoreEl.textContent = row.score;
+              li.appendChild(scoreEl);
               ol.appendChild(li);
             });
             lbEl.appendChild(ol);
@@ -2843,7 +2919,7 @@
         statusEl.textContent = "점수: " + score + " | 남은 시간: " + time + "초";
         if (time <= 0) {
           ended = true; clearInterval(tickTimer); clearTimeout(moleTimer); moleIdx = -1; draw();
-          ctx.fillStyle = "#555"; ctx.font = "24px sans-serif"; ctx.textAlign = "center";
+          ctx.fillStyle = "#555"; ctx.font = "24px 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif"; ctx.textAlign = "center";
           ctx.fillText("종료! 최종 점수 " + score, 195, 195);
           sendScore("mole", score);
         }
@@ -2877,7 +2953,7 @@
         ctx.fillStyle = "#58cc02";
         snake.forEach(function (s) { ctx.fillRect(s.x * cell + 1, s.y * cell + 1, cell - 2, cell - 2); });
         if (over) {
-          ctx.fillStyle = "#555"; ctx.font = "20px sans-serif"; ctx.textAlign = "center";
+          ctx.fillStyle = "#555"; ctx.font = "20px 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif"; ctx.textAlign = "center";
           ctx.fillText("게임 오버! 점수 " + score + " (탭해서 재시작)", 165, 165);
         }
       }
@@ -2957,7 +3033,7 @@
         ctx.fillText("🦖", -(dinoX + dinoW), dinoY + dinoH);
         ctx.restore();
         obstacles.forEach(function (o) { ctx.fillText("🌵", o.x, groundY + 34); });
-        if (over) { ctx.fillStyle = "#555"; ctx.font = "bold 20px sans-serif"; ctx.textAlign = "center"; ctx.fillText("게임 오버! 점수 " + score, canvas.width / 2, 60); }
+        if (over) { ctx.fillStyle = "#555"; ctx.font = "bold 20px 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif"; ctx.textAlign = "center"; ctx.fillText("게임 오버! 점수 " + score, canvas.width / 2, 60); }
         raf = requestAnimationFrame(loop);
       }
       statusEl.textContent = "점수: 0 — 스페이스바로 점프";
@@ -3002,7 +3078,7 @@
         ctx.fillStyle = "#ff4b4b";
         balls.forEach(function (b) { ctx.beginPath(); ctx.arc(b.x, b.y, ballR, 0, Math.PI * 2); ctx.fill(); });
         if (over) {
-          ctx.fillStyle = "#555"; ctx.font = "20px sans-serif"; ctx.textAlign = "center";
+          ctx.fillStyle = "#555"; ctx.font = "20px 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif"; ctx.textAlign = "center";
           ctx.fillText((win ? "클리어! " : "게임 오버! ") + "점수 " + score + " (탭해서 재시작)", 165, 200);
         }
       }
@@ -3946,6 +4022,179 @@
           btn.textContent = originalLabel;
         });
     });
+  })();
+</script>
+<script>
+  // Motion — 화면 전환 9종 / 텍스트 등장 9종 레퍼런스를 기능·위치에 맞게 매핑.
+  // 이 페이지의 탭·패널·모달은 전부 hidden 속성으로 켜고 끄므로, hidden이 풀리는
+  // 순간을 한 곳에서 감지해 알맞은 애니메이션을 재생한다(기존 핸들러는 그대로).
+  (function () {
+    if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    var STAGGER = 45;
+    var PUSH_TARGETS = ["page-header-ads", "page-header-budget", "panel-shopify", "panel-setting", "ads-section-tabs", "panel-budget"];
+
+    function play(el, cls, delay) {
+      if (!el) return;
+      el.classList.remove(cls);
+      void el.offsetWidth;
+      el.style.animationDelay = delay ? delay + "ms" : "";
+      el.classList.add(cls);
+    }
+    function stagger(els, cls) {
+      Array.prototype.forEach.call(els, function (el, i) { play(el, cls || "mo-rise", Math.min(i, 10) * STAGGER); });
+    }
+
+    // 02 모달 등장 + 06 마스크 리빌(제목) + 07 순차 등장(카드)
+    function presentModal(overlay) {
+      play(overlay, "mo-backdrop");
+      play(overlay.querySelector(".modal-box"), "mo-modal");
+      play(overlay.querySelector(".modal-box h2"), "mo-mask", 120);
+      var list = overlay.querySelector(".update-list");
+      if (list) stagger(list.children);
+      var picker = overlay.querySelector("#game-picker:not([hidden])");
+      if (picker) stagger(picker.querySelectorAll(".game-pick-btn"));
+    }
+
+    // 01 타이핑 — 로딩 제목
+    function typewrite(el) {
+      if (!el) return;
+      var full = el.getAttribute("data-full") || el.textContent;
+      el.setAttribute("data-full", full);
+      var chars = Array.from(full), i = 0;
+      clearInterval(el._typer);
+      el.textContent = "";
+      el.classList.add("mo-typing");
+      el._typer = setInterval(function () {
+        i++;
+        el.textContent = chars.slice(0, i).join("");
+        if (i >= chars.length) {
+          clearInterval(el._typer);
+          setTimeout(function () { el.classList.remove("mo-typing"); }, 1200);
+        }
+      }, 70);
+    }
+
+    // 04 카운트 업 — 순위표 점수
+    function countUp(el) {
+      var target = Number(el.textContent);
+      if (!isFinite(target) || target <= 0) return;
+      var start = null;
+      el.textContent = "0";
+      function step(t) {
+        if (start === null) start = t;
+        var p = Math.min(1, (t - start) / 700);
+        el.textContent = String(Math.round(target * (1 - Math.pow(1 - p, 3))));
+        if (p < 1) requestAnimationFrame(step);
+      }
+      requestAnimationFrame(step);
+    }
+
+    // 05 스크램블 — "🎉 신기록!"
+    function scramble(el) {
+      var finalChars = Array.from(el.textContent);
+      var POOL = "가나다라마바사아자차카타파하#%&?!";
+      var frame = 0, TOTAL = 14;
+      clearInterval(el._scr);
+      el._scr = setInterval(function () {
+        frame++;
+        var settled = Math.floor(finalChars.length * frame / TOTAL);
+        el.textContent = finalChars.map(function (ch, i) {
+          if (i < settled || ch === " " || /\p{Extended_Pictographic}/u.test(ch)) return ch;
+          return POOL.charAt(Math.floor(Math.random() * POOL.length));
+        }).join("");
+        if (frame >= TOTAL) { clearInterval(el._scr); el.textContent = finalChars.join(""); }
+      }, 40);
+    }
+
+    function animateLeaderboard(lb) {
+      stagger(lb.querySelectorAll("li, tbody tr, .game-my-rank"));
+      lb.querySelectorAll(".mo-count").forEach(countUp);
+      var rec = lb.querySelector(".game-record");
+      if (rec) scramble(rec);
+    }
+
+    // 03 글자 순차 등장 + 07 하이라이트 — 상단 인사말
+    function letterStagger(root) {
+      if (!root) return;
+      var i = 0;
+      (function walk(node) {
+        Array.prototype.slice.call(node.childNodes).forEach(function (child) {
+          if (child.nodeType === 3) {
+            var frag = document.createDocumentFragment();
+            Array.from(child.textContent).forEach(function (ch) {
+              var s = document.createElement("span");
+              s.className = "mo-ltr";
+              s.textContent = ch;
+              s.style.animationDelay = (i++ * 28) + "ms";
+              frag.appendChild(s);
+            });
+            node.replaceChild(frag, child);
+          } else if (child.nodeType === 1) {
+            walk(child);
+          }
+        });
+      })(root);
+      play(root.querySelector(".greeting-name"), "mo-hl", i * 28 + 120);
+    }
+
+    function onShown(el) {
+      var id = el.id;
+      if (el.classList.contains("modal-overlay")) return presentModal(el);
+      // 01 푸시 — 상단 광고 셋팅 / 예산 조정 / 쇼피파이 편집
+      if (PUSH_TARGETS.indexOf(id) !== -1) {
+        return play(el, document.documentElement.getAttribute("data-push-dir") === "left" ? "mo-push-l" : "mo-push-r");
+      }
+      // 03 페이드 스루 — 광고 생성 / 소재 업로드 / 카피 생성, 요청 기록 패널
+      if (id === "ads-section-create" || id === "tab-upload" || id === "tab-copy" || /-history$/.test(id)) {
+        return play(el, "mo-fade-through");
+      }
+      // 08 탭 전환 — 대량 업로드 / 수동 입력, 쇼피파이 편집 단계
+      if (id === "tab-manual" || id === "tab-bulk" || el.hasAttribute("data-sf-step-content")) return play(el, "mo-tab");
+      // 06 줌 — 게임 선택 → 게임 화면
+      if (id === "game-stage") return play(el, "mo-zoom");
+      if (id === "game-picker") return stagger(el.querySelectorAll(".game-pick-btn"));
+      // 05 카드 확장 — 실패 요청의 '입력값 수정'
+      if (el.classList.contains("edit-retry-form")) return play(el, "mo-expand");
+      // 09 시트 확장 — 펼침 영역
+      if (el.classList.contains("sf-disclosure-body")) return play(el, "mo-sheet");
+      // 07 순차 등장 — 요청 기록 페이지 넘김
+      if (el.classList.contains("record-row") && el.parentNode) {
+        var visible = Array.prototype.filter.call(el.parentNode.children, function (c) { return !c.hidden; });
+        return play(el, "mo-rise", Math.min(visible.indexOf(el), 10) * STAGGER);
+      }
+      if (id === "loading-overlay") return typewrite(el.querySelector(".loading-title"));
+    }
+
+    new MutationObserver(function (records) {
+      records.forEach(function (r) { if (!r.target.hidden) onShown(r.target); });
+    }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["hidden"] });
+
+    var lb = document.getElementById("game-leaderboard");
+    if (lb) new MutationObserver(function () { if (lb.children.length) animateLeaderboard(lb); }).observe(lb, { childList: true });
+
+    var previewRows = document.getElementById("bulk-preview-rows");
+    if (previewRows) {
+      new MutationObserver(function () { stagger(previewRows.querySelectorAll(":scope > .record-row")); })
+        .observe(previewRows, { childList: true });
+    }
+
+    // 09 시트 확장 — '열 순서 보기' 같은 <details>
+    document.querySelectorAll("details").forEach(function (d) {
+      d.addEventListener("toggle", function () {
+        if (!d.open) return;
+        Array.prototype.forEach.call(d.children, function (c) { if (c.tagName !== "SUMMARY") play(c, "mo-sheet"); });
+      });
+    });
+
+    // 첫 로딩: 02 페이드 업(페이지 제목) · 07 순차 등장(기록) · 09 블러 인(결과 배너) · 인사말
+    var header = document.querySelector(".page-header:not([hidden])");
+    if (header) stagger(header.querySelectorAll(".page-header-left > *"));
+    document.querySelectorAll(".record-list").forEach(function (list) {
+      stagger(Array.prototype.filter.call(list.children, function (c) { return c.classList.contains("record-row") && !c.hidden; }));
+    });
+    play(document.getElementById("flash-banner"), "mo-blur");
+    letterStagger(document.querySelector(".greeting-pill"));
+    document.querySelectorAll(".modal-overlay:not([hidden])").forEach(presentModal);
   })();
 </script>
 </body>

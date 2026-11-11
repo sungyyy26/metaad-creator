@@ -73,6 +73,20 @@ GAME_NAMES = {"mole", "snake", "dino", "breakout"}
 # 🎮 아이콘으로 바로 이동).
 UPDATE_ITEMS = [
     {
+        "version": "2026-11-11-font-motion",
+        "icon": "✨",
+        "title": "글꼴 통일 · 화면 전환 효과",
+        "desc": "글꼴을 맑은 고딕으로 통일하고, 탭·팝업·목록이 부드럽게 전환되도록 바꿨어요.",
+        "date": "11월 11일 업데이트",
+    },
+    {
+        "version": "2026-11-10-dup-amazon-link",
+        "icon": "⚠️",
+        "title": "아마존 링크 중복 경고",
+        "desc": "예전에 쓴 어트리뷰션 링크를 다시 입력하면 제출 전에 알려드려요.",
+        "date": "11월 10일 업데이트",
+    },
+    {
         "version": "2026-11-09-games-2",
         "icon": "🏆",
         "title": "게임별 · 통합 순위표",
