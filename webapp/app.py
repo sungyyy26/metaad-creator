@@ -292,7 +292,9 @@ def submit_game_score():
         score = int(request.form.get("score") or 0)
     except ValueError:
         score = 0
-    if game not in GAME_NAMES or score <= 0:
+    # 상한은 콘솔로 말도 안 되는 점수를 넣어 1위를 고정하는 걸 막기 위한 것 — 1회
+    # 최대 1분 30초 기준으로 어떤 게임도 이 근처에 가지 못한다.
+    if game not in GAME_NAMES or score <= 0 or score > 10000:
         return {"ok": False}, 400
     name = greeting_name_for(session.get("user_email")) if LOGIN_ENABLED and session.get("user_email") else "로컬 유저"
     existing = [r for r in _load_json_list(SCORES_DB_PATH) if r.get("game") == game]
@@ -387,7 +389,12 @@ def require_login():
         return
     if request.endpoint in ("login", "login_google", "auth_callback", "static") or request.endpoint is None:
         return
-    if not session.get("user_email"):
+    email = session.get("user_email")
+    if not email:
+        return redirect(url_for("login"))
+    # 계정 관리에서 삭제된 사용자는 쿠키가 남아 있어도 바로 차단한다.
+    if not is_email_allowed(email):
+        session.clear()
         return redirect(url_for("login"))
 
 
@@ -634,103 +641,11 @@ class RowError(Exception):
     pass
 
 
-# 예산 조정 탭: 업로드하는 파일마다 헤더 이름이 다를 수 있어서, 정확한 문구가
-# 아니라 허용된 별칭 집합으로 컬럼을 찾는다. 값(딕셔너리 키)은 코드 내부용,
-# 사람에게 보여줄 땐 BUDGET_FIELD_LABELS를 쓴다.
-BUDGET_COLUMN_ALIASES = {
-    "creative_name": {"소재", "소재명", "광고명", "광고세트", "광고세트명", "광고 세트", "광고 세트명"},
-    "current_budget": {"기존", "기존예산", "기존 예산", "현재", "현재예산", "현재 예산"},
-    "new_budget": {"변경", "변경예산", "변경 예산", "제안", "제안예산", "제안 예산"},
-}
 BUDGET_FIELD_LABELS = {
     "creative_name": "소재명 또는 광고세트명",
     "current_budget": "기존 예산",
     "new_budget": "변경 예산",
 }
-
-
-def find_budget_columns(header_row):
-    """Maps each required field to its 0-indexed column position by matching
-    the header row's cell text against BUDGET_COLUMN_ALIASES, not a fixed
-    column order — different teammates export this spreadsheet with
-    different headers. Raises RowError naming exactly what's missing rather
-    than silently guessing, since a wrong guess would mismatch real columns."""
-    positions = {}
-    for idx, cell in enumerate(header_row):
-        label = (str(cell) if cell is not None else "").strip()
-        for field, aliases in BUDGET_COLUMN_ALIASES.items():
-            if field not in positions and label in aliases:
-                positions[field] = idx
-    missing = [field for field in BUDGET_COLUMN_ALIASES if field not in positions]
-    if missing:
-        raise RowError("헤더에서 다음 컬럼을 찾지 못했습니다: " + ", ".join(BUDGET_FIELD_LABELS[m] for m in missing))
-    return positions
-
-
-def parse_budget_amount(value):
-    """Loosely parses a budget cell — strips currency symbols/commas/won
-    signs and whitespace, since real spreadsheets format numbers
-    inconsistently (e.g. '₩1,000', '1000.0', ' 1,000 ')."""
-    if value is None:
-        return None
-    text = str(value).strip()
-    if not text:
-        return None
-    cleaned = re.sub(r"[^\d.\-]", "", text)
-    if not cleaned or cleaned in ("-", "."):
-        return None
-    try:
-        return int(round(float(cleaned)))
-    except ValueError:
-        return None
-
-
-def read_budget_rows(filename, file_obj):
-    """Reads an uploaded .xlsx/.xlsm/.csv file into a list of
-    {creative_name, current_budget, new_budget} dicts, using find_budget_columns
-    for flexible header matching instead of assuming a fixed column order."""
-    ext = os.path.splitext(filename)[1].lower()
-    if ext in (".xlsx", ".xlsm"):
-        try:
-            import openpyxl
-        except ImportError:
-            raise RowError("엑셀(.xlsx) 파일을 읽으려면 pip install openpyxl 이 필요합니다 (webapp/requirements.txt에 포함되어 있습니다).")
-        try:
-            workbook = openpyxl.load_workbook(file_obj, read_only=True, data_only=True)
-        except Exception as e:  # noqa: BLE001
-            raise RowError(f"엑셀 파일을 열지 못했습니다: {e}")
-        all_rows = list(workbook.active.iter_rows(values_only=True))
-    elif ext == ".csv":
-        text = file_obj.read().decode("utf-8-sig")
-        all_rows = list(csv.reader(io.StringIO(text)))
-    elif ext == ".xls":
-        raise RowError("옛 .xls 형식은 지원하지 않습니다 — 엑셀에서 '다른 이름으로 저장 → .xlsx'로 저장한 뒤 다시 올려주세요.")
-    else:
-        raise RowError(f"지원하지 않는 파일 형식입니다: '{ext or '(확장자 없음)'}' — .xlsx 또는 .csv 파일을 올려주세요.")
-
-    if not all_rows:
-        raise RowError("파일에 내용이 없습니다.")
-    header, data_rows = all_rows[0], all_rows[1:]
-    positions = find_budget_columns(header)
-
-    def cell(row, idx):
-        return row[idx] if idx < len(row) else None
-
-    results = []
-    for row in data_rows:
-        if row is None or all(c in (None, "") for c in row):
-            continue
-        creative_name = (str(cell(row, positions["creative_name"]) or "")).strip()
-        if not creative_name:
-            continue
-        results.append({
-            "creative_name": creative_name,
-            "current_budget": parse_budget_amount(cell(row, positions["current_budget"])),
-            "new_budget": parse_budget_amount(cell(row, positions["new_budget"])),
-        })
-    if not results:
-        raise RowError("헤더 아래에 실제 데이터 행이 없습니다.")
-    return results
 
 
 def parse_bulk_row(cols):

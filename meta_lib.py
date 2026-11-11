@@ -139,19 +139,6 @@ def list_campaigns(token, account_id, cache=None):
         token, f"act_{account_id}/campaigns", fields="id,name", limit=500))
 
 
-def find_matching_campaigns(token, account_ids, keywords, exclusions=None, cache=None):
-    """Campaign names containing every keyword and none of the exclusions."""
-    needles = [k.strip().casefold() for k in keywords if k and k.strip()]
-    blocked = [k.strip().casefold() for k in (exclusions or []) if k and k.strip()]
-    matches = []
-    for account_id in account_ids:
-        for c in list_campaigns(token, account_id, cache=cache):
-            name_lower = c["name"].casefold()
-            if all(k in name_lower for k in needles) and not any(k in name_lower for k in blocked):
-                matches.append({"id": c["id"], "name": c["name"], "account_id": account_id})
-    return matches
-
-
 def find_matching_budget_campaigns(token, account_ids, channel_terms, channel_exclusions,
                                    product_group, campaign_types, cache=None):
     """Match the budget page's structured campaign-name conditions.
@@ -213,44 +200,6 @@ def list_recent_ad_copies(token, account_ids, since, limit_per_account=500):
     return collected
 
 
-def list_campaign_ads(token, campaign_id, cache=None):
-    """Every ad in a campaign, with its ad set's id/name/daily_budget and the
-    ad's own creative name, so a spreadsheet's 소재명 column can be matched
-    against either the ad name or the creative name."""
-    return _cached(cache, f"campaign_ads:{campaign_id}", lambda: _paginate(
-        token, f"{campaign_id}/ads", limit=200,
-        fields="id,name,adset{id,name,daily_budget},creative{name}"))
-
-
-def list_campaign_adsets(token, campaign_id, cache=None):
-    """Every ad set in a campaign for direct budget lookup by ad-set name."""
-    return _cached(cache, f"campaign_adsets:{campaign_id}", lambda: _paginate(
-        token, f"{campaign_id}/adsets", limit=200,
-        fields="id,name,daily_budget"))
-
-
-def list_campaign_active_adsets(token, campaign_id, cache=None):
-    """Ad sets in a campaign, including delivery state for budget analysis."""
-    return _cached(cache, f"campaign_active_adsets:{campaign_id}", lambda: _paginate(
-        token, f"{campaign_id}/adsets", limit=200,
-        fields="id,name,status,effective_status,daily_budget,created_time"))
-
-
-def list_account_active_adsets(token, account_id, campaign_ids, cache=None):
-    """Fetch active ad sets once per account, then retain selected campaigns."""
-    wanted = {str(value) for value in campaign_ids}
-    campaign_key = ",".join(sorted(wanted))
-    rows = _cached(cache, f"active_adsets_account:{account_id}:{campaign_key}", lambda: _paginate(
-        token, f"act_{account_id}/adsets", limit=500,
-        fields="id,name,status,effective_status,daily_budget,created_time,campaign_id",
-        filtering=json.dumps([
-            {"field": "campaign.id", "operator": "IN", "value": sorted(wanted)},
-            {"field": "effective_status", "operator": "IN", "value": ["ACTIVE"]},
-        ]),
-    ))
-    return [row for row in rows if str(row.get("campaign_id")) in wanted]
-
-
 def list_account_active_ads(token, account_id, campaign_ids, cache=None):
     """Fetch ads that belong to active ad sets once per account.
 
@@ -270,37 +219,6 @@ def list_account_active_ads(token, account_id, campaign_ids, cache=None):
         ]),
     ))
     return [row for row in rows if str(row.get("campaign_id")) in wanted]
-
-
-def list_adset_ads(token, adset_id, cache=None):
-    return _cached(cache, f"adset_ads:{adset_id}", lambda: _paginate(
-        token, f"{adset_id}/ads", limit=200,
-        fields="id,name,status,effective_status,created_time"))
-
-
-def get_adset_insights(token, adset_id, since, until):
-    rows = _paginate(
-        token, f"{adset_id}/insights", limit=200,
-        fields="spend,cpm,actions,cost_per_action_type",
-        time_range=json.dumps({"since": since, "until": until}),
-        level="adset",
-    )
-    if not rows:
-        return {"spend": 0.0, "cpm": None, "cpa": None}
-    row = rows[0]
-    spend = float(row.get("spend") or 0)
-    cpm = float(row["cpm"]) if row.get("cpm") not in (None, "") else None
-    checkout_types = (
-        "omni_initiated_checkout", "initiate_checkout",
-        "offsite_conversion.fb_pixel_initiate_checkout",
-    )
-    costs = {item.get("action_type"): item.get("value") for item in row.get("cost_per_action_type") or []}
-    cpa = next((float(costs[action]) for action in checkout_types if costs.get(action) not in (None, "")), None)
-    if cpa is None:
-        actions = {item.get("action_type"): float(item.get("value") or 0) for item in row.get("actions") or []}
-        checkouts = next((actions[action] for action in checkout_types if actions.get(action)), 0)
-        cpa = spend / checkouts if checkouts else None
-    return {"spend": spend, "cpm": cpm, "cpa": cpa}
 
 
 def _insight_metrics(row):
@@ -357,25 +275,6 @@ def get_account_daily_ad_spend(token, account_id, ad_ids, since, until):
             "spend": float(row.get("spend") or 0),
         })
     return grouped
-
-
-def get_adset_daily_ad_spend(token, adset_id, since, until):
-    """Daily Meta spend by ad for operating-day and D.ROAS calculations."""
-    rows = _paginate(
-        token, f"{adset_id}/insights", limit=500,
-        fields="ad_id,ad_name,spend,date_start",
-        time_range=json.dumps({"since": since, "until": until}),
-        time_increment=1,
-        level="ad",
-    )
-    return [
-        {
-            "date": row.get("date_start"),
-            "ad_name": row.get("ad_name", ""),
-            "spend": float(row.get("spend") or 0),
-        }
-        for row in rows if row.get("ad_name") and row.get("date_start")
-    ]
 
 
 def ensure_adset_active(token, adset_id):
