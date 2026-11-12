@@ -73,6 +73,13 @@ GAME_NAMES = {"mole", "snake", "dino", "breakout"}
 # 🎮 아이콘으로 바로 이동).
 UPDATE_ITEMS = [
     {
+        "version": "2026-11-12-creative-preview",
+        "icon": "🎬",
+        "title": "예산 조정 · 소재 미리보기",
+        "desc": "조회 결과의 소재명 옆 썸네일을 누르면 영상·이미지 원본과 성과를 함께 볼 수 있어요.",
+        "date": "11월 12일 업데이트",
+    },
+    {
         "version": "2026-11-11-font-motion",
         "icon": "✨",
         "title": "글꼴 통일 · 화면 전환 효과",
@@ -1682,6 +1689,40 @@ def delete_all_uploads():
     return redirect("/?tab=upload")
 
 
+_NUMERIC_ID = re.compile(r"^\d{1,30}$")
+
+
+@app.route("/budget_creatives", methods=["POST"])
+def budget_creatives():
+    """예산 조정 표의 소재 썸네일 — 조회 직후 행마다의 활성 광고 id를 한 번에 받는다."""
+    token = os.environ.get("META_ACCESS_TOKEN")
+    payload = request.get_json(silent=True) or {}
+    ad_ids = list(dict.fromkeys(
+        str(i) for i in (payload.get("ad_ids") or []) if _NUMERIC_ID.match(str(i))
+    ))[:500]
+    if not token or not ad_ids:
+        return {"ok": False, "error": "조회할 광고가 없습니다."}, 400
+    try:
+        return {"ok": True, "creatives": meta_lib.get_ad_creatives(token, ad_ids)}
+    except meta_lib.MetaApiError as e:
+        return {"ok": False, "error": str(e)}, 502
+
+
+@app.route("/creative_media")
+def creative_media():
+    """소재 미리보기를 열 때 그 광고 하나의 실제 영상/미리보기 주소. 영상 주소는
+    만료되므로 미리 받아두지 않고 열 때마다 받는다."""
+    token = os.environ.get("META_ACCESS_TOKEN")
+    ad_id = (request.args.get("ad_id") or "").strip()
+    video_id = (request.args.get("video_id") or "").strip()
+    if not token or not _NUMERIC_ID.match(ad_id) or (video_id and not _NUMERIC_ID.match(video_id)):
+        return {"ok": False, "error": "잘못된 요청입니다."}, 400
+    try:
+        return {"ok": True, **meta_lib.get_ad_media(token, ad_id, video_id or None)}
+    except meta_lib.MetaApiError as e:
+        return {"ok": False, "error": str(e)}, 502
+
+
 @app.route("/budget_lookup", methods=["POST"])
 def budget_lookup():
     """Builds the full budget recommendation table without changing Meta."""
@@ -1813,6 +1854,8 @@ def budget_lookup():
                     "adset_name": adset_name, "type": "DA" if is_da else "PA",
                     "active_ad_names": active_names,
                     "active_ad_count": len(active_names),
+                    "active_ad_ids": [str(ad["id"]) for ad in active_ads if ad.get("id")],
+                    "account_id": str(account_id),
                     "adset_created_time": adset.get("created_time"),
                     "active_ad_created_times": [ad.get("created_time") for ad in active_ads if ad.get("created_time")],
                     "display_name": (

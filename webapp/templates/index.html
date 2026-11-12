@@ -789,6 +789,58 @@
   .sf-disclosure-body{margin-top:10px;}
   .sf-result-line{font-size:12px;color:var(--sf-ink-dim);border-top:1px solid var(--sf-line);padding-top:8px;}
 
+  /* 소재 미리보기 — 예산 조정 표의 소재명 썸네일 + 미리보기 팝업 */
+  .creative-name-cell{display:flex;align-items:center;gap:10px;min-width:220px;}
+  .creative-thumb{
+    position:relative;flex:none;width:48px;height:48px;padding:0;border-radius:10px;overflow:hidden;
+    border:1px solid var(--border);background:var(--surface-3);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;transition:border-color .12s,transform .12s;
+  }
+  .creative-thumb:hover{border-color:var(--accent);transform:translateY(-1px);}
+  .creative-thumb:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+  .creative-thumb img{width:100%;height:100%;object-fit:cover;display:block;}
+  .creative-thumb.is-loading{cursor:default;animation:creative-pulse 1.2s ease-in-out infinite;}
+  .creative-thumb-empty{font-size:18px;}
+  .creative-thumb-play{
+    position:absolute;left:4px;bottom:4px;width:18px;height:18px;border-radius:50%;
+    background:rgba(0,0,0,.6);color:#fff;font-size:8px;display:flex;align-items:center;justify-content:center;padding-left:1px;
+  }
+  .creative-thumb-more{
+    position:absolute;top:3px;right:3px;padding:1px 5px;border-radius:980px;
+    background:rgba(0,0,0,.6);color:#fff;font-size:10px;font-weight:700;line-height:1.4;
+  }
+  @keyframes creative-pulse{50%{opacity:.45;}}
+  .creative-modal-box{max-width:520px;}
+  .creative-modal-box h2{padding-right:28px;overflow-wrap:anywhere;}
+  .creative-modal-box .hint{margin-bottom:var(--sp-3);overflow-wrap:anywhere;}
+  .creative-chips{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:var(--sp-3);}
+  .creative-chip{
+    flex:none;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    border:1px solid var(--border-strong);background:var(--surface);color:var(--text-muted);
+    border-radius:980px;padding:6px 12px;font-size:var(--fs-xs);font-weight:600;cursor:pointer;
+  }
+  .creative-chip.active{border-color:var(--accent);color:var(--accent);background:var(--accent-soft);}
+  /* 미디어 무대는 테마와 무관하게 어둡게 — 세로 영상 양옆 여백이 의도된 것처럼 보이도록 */
+  .creative-stage{
+    background:#0f1620;border-radius:var(--radius-md);overflow:hidden;min-height:180px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .creative-stage img,.creative-stage video{display:block;max-width:100%;max-height:62vh;object-fit:contain;}
+  .creative-stage iframe{display:block;width:100%;height:min(600px,62vh);border:0;background:#fff;}
+  .creative-note{font-size:var(--fs-xs);color:var(--text-muted);margin:var(--sp-2) 0 0;}
+  .creative-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:var(--sp-3) 0;}
+  .creative-metrics div{background:var(--surface-3);border-radius:var(--radius-sm);padding:8px 10px;display:flex;flex-direction:column;gap:2px;min-width:0;}
+  .creative-metrics span{font-size:var(--fs-2xs);color:var(--text-muted);white-space:nowrap;}
+  .creative-metrics strong{font-size:var(--fs-sm);font-variant-numeric:tabular-nums;}
+  .creative-link{font-size:var(--fs-sm);font-weight:700;color:var(--accent);text-decoration:none;}
+  .creative-link:hover{text-decoration:underline;}
+  @media (max-width:520px){
+    .creative-metrics{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .creative-stage img,.creative-stage video{max-height:48vh;}
+    .creative-stage iframe{height:48vh;}
+  }
+  @media (prefers-reduced-motion: reduce){ .creative-thumb.is-loading{animation:none;} }
+
   /* ---- Motion: 화면 전환 / 텍스트 등장. JS(맨 아래 motion 스크립트)가 요소가
      보일 때 mo-* 클래스를 붙여 재생한다. fill-mode는 backwards만 — 끝난 뒤엔
      원래 스타일(hover transform 등)이 그대로 적용되도록. ---- */
@@ -983,6 +1035,19 @@
       <button type="button" class="secondary" data-close-modal="dup-link-modal-overlay">취소</button>
       <button type="button" class="primary" id="dup-link-continue-btn">그래도 계속하기</button>
     </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="creative-modal-overlay" hidden>
+  <div class="modal-box creative-modal-box">
+    <button type="button" class="modal-close" data-close-modal="creative-modal-overlay" aria-label="닫기">×</button>
+    <h2 id="creative-modal-title">소재 미리보기</h2>
+    <p class="hint" id="creative-modal-sub"></p>
+    <div class="creative-chips" id="creative-chips" hidden></div>
+    <div class="creative-stage" id="creative-stage"></div>
+    <p class="creative-note" id="creative-note" hidden></p>
+    <div class="creative-metrics" id="creative-metrics"></div>
+    <a class="creative-link" id="creative-link" href="#" target="_blank" rel="noopener noreferrer">Meta 광고 관리자에서 열기 ↗</a>
   </div>
 </div>
 
@@ -2280,13 +2345,149 @@
       var operatingDays = Number(row.operating_days) >= 30 ? "30일+" : esc(row.operating_days) + "일";
       return '<tr data-bucket="' + esc(row.bucket) + '">' +
         '<td data-col="bucket">' + esc(row.bucket) + '</td><td data-col="type">' + esc(row.type) + '</td>' +
-        '<td data-col="name"><strong>' + esc(row.display_name) + '</strong><br><span class="record-meta">' + esc(row.campaign_name) + ' · 활성 광고 ' + esc(row.active_ad_count || 0) + '개</span></td>' +
+        '<td data-col="name"><div class="creative-name-cell">' + thumbHtml(row, index) + '<div><strong>' + esc(row.display_name) + '</strong><br><span class="record-meta">' + esc(row.campaign_name) + ' · 활성 광고 ' + esc(row.active_ad_count || 0) + '개</span></div></div></td>' +
         '<td data-col="days">' + operatingDays + '</td><td data-col="droas">' + percent(row.droas_7d) + '</td>' +
         '<td data-col="cpa">' + money(row.cpa_3d) + '</td><td data-col="cpm">' + money(row.cpm_3d) + '</td>' +
         '<td data-col="current">' + money(row.current_budget) + '</td>' +
         '<td data-col="suggested"><input class="budget-edit" type="text" inputmode="decimal" data-budget-index="' + index + '" value="' + esc(money(row.suggested_budget)) + '"></td>' +
         '<td data-col="change"><span class="budget-change ' + change.css + '" data-budget-change-index="' + index + '">' + change.text + '</span></td><td data-col="class">' + flag + '</td><td data-col="note">' + esc(note || "-") + '</td></tr>';
     }
+
+    // --- 소재 미리보기: 조회 후 행마다 썸네일, 누르면 원본(영상/이미지) ---
+    var creativeByAd = {};
+    var creativeState = "idle"; // idle | loading | done | failed
+    function rowAds(row) {
+      return (row.active_ad_ids || []).map(function (id) { return creativeByAd[id]; }).filter(Boolean);
+    }
+    function thumbHtml(row, index) {
+      if (!(row.active_ad_ids || []).length || creativeState === "failed") return "";
+      if (creativeState === "loading" || creativeState === "idle") return '<span class="creative-thumb is-loading" aria-hidden="true"></span>';
+      var ads = rowAds(row);
+      if (!ads.length) return "";
+      var first = ads[0];
+      var img = first.thumb ? '<img src="' + esc(first.thumb) + '" alt="" loading="lazy">' : '<span class="creative-thumb-empty">🖼️</span>';
+      var play = first.kind === "video" ? '<span class="creative-thumb-play" aria-hidden="true">▶</span>' : "";
+      var more = ads.length > 1 ? '<span class="creative-thumb-more">+' + (ads.length - 1) + '</span>' : "";
+      return '<button type="button" class="creative-thumb" data-creative-row="' + index + '" aria-label="' + esc(first.name) + ' 소재 보기" title="소재 보기">' + img + play + more + '</button>';
+    }
+    function refreshThumbs() {
+      tbody.querySelectorAll("tr").forEach(function (tr) {
+        var input = tr.querySelector("[data-budget-index]");
+        var cell = tr.querySelector(".creative-name-cell");
+        if (!input || !cell) return;
+        var index = Number(input.getAttribute("data-budget-index"));
+        var old = cell.querySelector(".creative-thumb");
+        var html = thumbHtml(currentRows[index], index);
+        if (old) old.remove();
+        if (html) cell.insertAdjacentHTML("afterbegin", html);
+      });
+    }
+    function loadCreatives() {
+      var ids = [];
+      currentRows.forEach(function (row) { (row.active_ad_ids || []).forEach(function (id) { ids.push(id); }); });
+      if (!ids.length) { creativeState = "done"; return; }
+      creativeState = "loading";
+      refreshThumbs();
+      fetch("/budget_creatives", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ad_ids: ids }) })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (!data.ok) throw new Error(data.error);
+          creativeByAd = data.creatives || {};
+          creativeState = "done";
+        })
+        .catch(function () { creativeState = "failed"; })
+        .finally(refreshThumbs);
+    }
+
+    var cOverlay = document.getElementById("creative-modal-overlay");
+    var cTitle = document.getElementById("creative-modal-title");
+    var cSub = document.getElementById("creative-modal-sub");
+    var cChips = document.getElementById("creative-chips");
+    var cStage = document.getElementById("creative-stage");
+    var cNote = document.getElementById("creative-note");
+    var cMetrics = document.getElementById("creative-metrics");
+    var cLink = document.getElementById("creative-link");
+    var mediaRequest = 0;
+
+    function setNote(text) { cNote.textContent = text || ""; cNote.hidden = !text; }
+    function stageImage(src) {
+      var img = document.createElement("img");
+      img.src = src; img.alt = "";
+      cStage.replaceChildren(img);
+    }
+    function showCreative(ad) {
+      var req = ++mediaRequest;
+      cTitle.textContent = ad.name || "소재 미리보기";
+      cLink.href = "https://adsmanager.facebook.com/adsmanager/manage/ads?act=" + encodeURIComponent(ad.account_id) +
+        "&selected_ad_ids=" + encodeURIComponent(ad.ad_id);
+      cChips.querySelectorAll(".creative-chip").forEach(function (chip) {
+        chip.classList.toggle("active", chip.getAttribute("data-ad-id") === ad.ad_id);
+      });
+      setNote("");
+      if (ad.kind === "image" && ad.image) { stageImage(ad.image); return; }
+      if (ad.thumb) stageImage(ad.thumb); else cStage.replaceChildren();
+      setNote(ad.kind === "video" ? "영상을 불러오는 중…" : "미리보기를 불러오는 중…");
+      var qs = "ad_id=" + encodeURIComponent(ad.ad_id) + (ad.video_id ? "&video_id=" + encodeURIComponent(ad.video_id) : "");
+      fetch("/creative_media?" + qs)
+        .then(function (r) { return r.json(); })
+        .then(function (m) {
+          if (req !== mediaRequest) return;
+          if (m.ok && m.kind === "video" && m.src) {
+            var v = document.createElement("video");
+            v.src = m.src; v.controls = true; v.playsInline = true; v.autoplay = true; v.muted = true;
+            if (m.poster) v.poster = m.poster;
+            cStage.replaceChildren(v);
+            setNote("");
+          } else if (m.ok && m.kind === "preview" && /^https:\/\/www\.facebook\.com\//.test(m.src)) {
+            var f = document.createElement("iframe");
+            f.src = m.src; f.title = "Meta 광고 미리보기";
+            f.setAttribute("referrerpolicy", "no-referrer");
+            cStage.replaceChildren(f);
+            setNote(ad.kind === "video" ? "영상 원본은 권한상 직접 열 수 없어 Meta 광고 미리보기로 재생합니다." : "Meta 광고 미리보기로 표시합니다.");
+          } else {
+            throw new Error("no media");
+          }
+        })
+        .catch(function () {
+          if (req !== mediaRequest) return;
+          setNote(ad.thumb ? "원본을 불러오지 못해 썸네일만 표시합니다." : "이 소재는 미리보기를 불러올 수 없습니다.");
+        });
+    }
+    function openCreativeModal(row) {
+      var ads = rowAds(row);
+      if (!ads.length) return;
+      cSub.textContent = (row.campaign_name ? row.campaign_name + " · " : "") + (row.adset_name || "");
+      cMetrics.replaceChildren();
+      [["D.ROAS (D-7)", percent(row.droas_7d)], ["CPA (D-3)", money(row.cpa_3d)], ["CPM (D-3)", money(row.cpm_3d)], ["현재 예산", money(row.current_budget)]]
+        .forEach(function (pair) {
+          var item = document.createElement("div");
+          var label = document.createElement("span"); label.textContent = pair[0];
+          var value = document.createElement("strong"); value.textContent = pair[1];
+          item.append(label, value); cMetrics.appendChild(item);
+        });
+      cChips.replaceChildren();
+      if (ads.length > 1) {
+        ads.forEach(function (ad, i) {
+          var chip = document.createElement("button");
+          chip.type = "button"; chip.className = "creative-chip";
+          chip.setAttribute("data-ad-id", ad.ad_id);
+          chip.textContent = (ad.kind === "video" ? "▶ " : "") + (ad.name || "광고 " + (i + 1));
+          chip.addEventListener("click", function () { showCreative(ad); });
+          cChips.appendChild(chip);
+        });
+      }
+      cChips.hidden = ads.length < 2;
+      cOverlay.hidden = false;
+      showCreative(ads[0]);
+    }
+    tbody.addEventListener("click", function (e) {
+      var btn = e.target.closest(".creative-thumb[data-creative-row]");
+      if (btn) openCreativeModal(currentRows[Number(btn.getAttribute("data-creative-row"))]);
+    });
+    // 닫으면 영상 재생을 멈추고 비운다.
+    new MutationObserver(function () {
+      if (cOverlay.hidden) { mediaRequest++; cStage.replaceChildren(); }
+    }).observe(cOverlay, { attributes: true, attributeFilter: ["hidden"] });
 
     function updateSortIndicators() {
       document.querySelectorAll('.budget-table th[data-sort-key]').forEach(function (th) {
@@ -2467,8 +2668,10 @@
           sortState = { key: null, direction: "asc" };
           summary.textContent = data.message || ("캠페인 " + data.campaigns.length + "개 · 활성 광고세트 " + currentRows.length + "개 · 기준 " + data.summary.anchor_date + " PDT · CPA/CPM " + data.summary.cpa_cpm_period + " · D.ROAS " + data.summary.droas_period);
           renderCards(currentSummary);
+          creativeByAd = {}; creativeState = "idle";
           renderBudgetTable();
           applyActions.hidden = !currentRows.length;
+          loadCreatives();
         })
         .catch(function (error) {
           results.hidden = false;

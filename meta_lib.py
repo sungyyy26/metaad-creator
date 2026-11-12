@@ -1,7 +1,9 @@
 """Shared Meta Marketing API helpers used by both the CLI script (duplicate_ad.py)
 and the local web dashboard (webapp/app.py)."""
+import html
 import json
 import os
+import re
 import time
 from datetime import datetime
 
@@ -275,6 +277,83 @@ def get_account_daily_ad_spend(token, account_id, ad_ids, since, until):
             "spend": float(row.get("spend") or 0),
         })
     return grouped
+
+
+_FB_PREVIEW_SRC = re.compile(r'src="(https://www\.facebook\.com/[^"]+)"')
+
+
+def _chunks(seq, size):
+    for i in range(0, len(seq), size):
+        yield seq[i:i + size]
+
+
+def get_ad_creatives(token, ad_ids):
+    """What to show for each ad's creative, keyed by ad id. kind is "video",
+    "image", or "other" (carousel/dynamic etc. — only Meta's ad preview can
+    render those). thumb is a ~480px still for every kind; image is the
+    full-size picture for image ads (image hashes resolved via adimages)."""
+    ads = {}
+    for chunk in _chunks(list(ad_ids), 50):
+        ads.update(api("GET", "", token, ids=",".join(chunk), fields="name,account_id,creative{id}"))
+    creative_ids = sorted({(a.get("creative") or {}).get("id") for a in ads.values()} - {None})
+    creatives = {}
+    for chunk in _chunks(creative_ids, 50):
+        creatives.update(api(
+            "GET", "", token, ids=",".join(chunk),
+            fields="thumbnail_url,image_url,image_hash,video_id,object_story_spec,asset_feed_spec",
+            thumbnail_width=480, thumbnail_height=480,
+        ))
+
+    picks, hashes_by_account = {}, {}
+    for ad_id, ad in ads.items():
+        c = creatives.get((ad.get("creative") or {}).get("id"), {})
+        spec = c.get("object_story_spec") or {}
+        link, photo, video = spec.get("link_data") or {}, spec.get("photo_data") or {}, spec.get("video_data") or {}
+        feed = c.get("asset_feed_spec") or {}
+        video_id = (c.get("video_id") or video.get("video_id")
+                    or next((v["video_id"] for v in feed.get("videos", []) if v.get("video_id")), None))
+        image = c.get("image_url") or link.get("picture") or photo.get("url")
+        image_hash = None
+        if not video_id and not image:
+            image_hash = (c.get("image_hash") or link.get("image_hash") or photo.get("image_hash")
+                          or next((i["hash"] for i in feed.get("images", []) if i.get("hash")), None))
+            if image_hash and ad.get("account_id"):
+                hashes_by_account.setdefault(str(ad["account_id"]), set()).add(image_hash)
+        picks[ad_id] = (ad, c, video_id, image, image_hash)
+
+    hash_urls = {}
+    for account_id, hashes in hashes_by_account.items():
+        rows = api("GET", f"act_{account_id}/adimages", token,
+                   hashes=json.dumps(sorted(hashes)), fields="hash,url").get("data", [])
+        hash_urls.update({r["hash"]: r.get("url") for r in rows if r.get("hash")})
+
+    result = {}
+    for ad_id, (ad, c, video_id, image, image_hash) in picks.items():
+        image = image or hash_urls.get(image_hash)
+        result[ad_id] = {
+            "ad_id": ad_id, "name": ad.get("name", ""), "account_id": str(ad.get("account_id") or ""),
+            "kind": "video" if video_id else "image" if image else "other",
+            "thumb": c.get("thumbnail_url") or image, "image": image, "video_id": video_id,
+        }
+    return result
+
+
+def get_ad_media(token, ad_id, video_id=None):
+    """Full playable content for one ad, fetched on demand because video source
+    URLs expire. Tries the video's own mp4, then Meta's rendered ad preview
+    (covers page-owned videos we can't read directly, carousels, dynamic ads)."""
+    if video_id:
+        try:
+            v = api("GET", str(video_id), token, fields="source,picture")
+            if v.get("source"):
+                return {"kind": "video", "src": v["source"], "poster": v.get("picture")}
+        except MetaApiError:
+            pass
+    previews = api("GET", f"{ad_id}/previews", token, ad_format="MOBILE_FEED_STANDARD").get("data", [])
+    match = _FB_PREVIEW_SRC.search(previews[0].get("body", "")) if previews else None
+    if match:
+        return {"kind": "preview", "src": html.unescape(match.group(1))}
+    return {"kind": "none"}
 
 
 def ensure_adset_active(token, adset_id):
