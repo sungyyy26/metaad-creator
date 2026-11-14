@@ -420,7 +420,7 @@
     --sj-violet:#a98bff; --sj-pink:#ff9ad5; --sj-line:rgba(190,165,255,.22); --sj-card:rgba(255,255,255,.055);
     --el-0:#7ee08f; --el-1:#ff8f6b; --el-2:#ffd66b; --el-3:#dfe3ea; --el-4:#7cc4ff;
     --sj-serif:"Gowun Batang","Nanum Myeongjo","Batang",serif; /* 한자 전용 */
-    --sj-display:"Do Hyeon","NanumSquareRound","Malgun Gothic",sans-serif; --sj-round:"NanumSquareRound","Malgun Gothic",sans-serif;
+    --sj-display:"NanumSquareRound","Malgun Gothic",sans-serif; --sj-round:"NanumSquareRound","Malgun Gothic",sans-serif;
     max-width:580px;color:var(--sj-ink);font-family:var(--sj-round);border:1px solid rgba(243,207,122,.18);
     background:
       radial-gradient(90% 40% at 50% -5%, rgba(169,139,255,.2), transparent 70%),
@@ -643,12 +643,25 @@
   .sj-guardian small{display:block;font-size:12px;color:var(--sj-dim);}
   .sj-guardian b{font-weight:400;font-size:17px;color:var(--sj-pink);}
   .sj-guardian p{margin:2px 0 0;font-size:13px;color:var(--sj-ink);}
-  .sj-rank{list-style:none;margin:0;padding:0;}
-  .sj-rank li{display:grid;grid-template-columns:30px 1fr auto;align-items:center;padding:7px 8px;border-radius:10px;font-size:15px;}
-  .sj-rank li:nth-child(odd){background:rgba(255,255,255,.03);}
-  .sj-rank li.me{background:rgba(243,207,122,.14);color:var(--sj-gold);}
-  .sj-rank .n{color:var(--sj-dim);font-variant-numeric:tabular-nums;}
-  .sj-rank b{font-weight:400;}
+  .sj-rank-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px;}
+  .sj-rank-head h4{margin:0;}
+  .sj-myrank{font-size:13px;color:var(--sj-dim);}
+  .sj-myrank b{color:var(--sj-gold);font-size:15px;}
+  .sj-solo{display:flex;gap:12px;align-items:center;padding:12px 14px;border-radius:12px;background:rgba(243,207,122,.08);border:1px dashed rgba(243,207,122,.35);}
+  .sj-solo>span{font-size:28px;}
+  .sj-solo b{display:block;font-size:15px;color:var(--sj-gold);}
+  .sj-solo p{margin:2px 0 0;font-size:13px;color:var(--sj-dim);line-height:1.6;}
+  .sj-rank{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;}
+  .sj-rank li{display:grid;grid-template-columns:32px minmax(0,1fr) auto;gap:10px;align-items:center;padding:9px 12px;border-radius:12px;font-size:15px;
+    background:rgba(255,255,255,.04);border:1px solid transparent;}
+  .sj-rank li.me{background:rgba(243,207,122,.1);border-color:rgba(243,207,122,.45);}
+  .sj-rank .n{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;
+    color:var(--sj-dim);background:rgba(255,255,255,.07);font-variant-numeric:tabular-nums;}
+  .sj-rank .n.medal{background:none;font-size:20px;}
+  .sj-rank .nm{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .sj-rank .nm em{font-style:normal;font-size:11px;font-weight:800;color:#2a1a05;background:var(--sj-gold);border-radius:99px;padding:1px 7px;margin-left:4px;vertical-align:2px;}
+  .sj-rank b{font-weight:800;font-size:17px;font-variant-numeric:tabular-nums;color:var(--sj-ink);}
+  .sj-rank b small{font-size:12px;font-weight:700;color:var(--sj-dim);margin-left:1px;}
   @media (max-width:520px){
     .sj-recs{grid-template-columns:repeat(2,minmax(0,1fr));}
     .sj-idx{grid-template-columns:104px 1fr 38px;font-size:13px;}
@@ -722,6 +735,8 @@
   .saju-owl-answer .bubble p:last-child{margin:0;}
   .saju-footer{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:16px;flex-wrap:wrap;}
   .saju-disclaimer{font-size:11px;color:var(--sj-faint);margin:0;}
+  .saju-modal-box h2,.saju-headline,.saju-card h3,.sj-sec h4,.saju-owl-title,.saju-empty b,.saju-match-tier,.saju-match-score,
+  .sj-score b,.sj-line,.sj-score em,.sj-sleeve,.saju-today-meta b,.sj-tarot-back,.sj-rec b,.sj-dd b,.sj-guardian b{font-weight:800;}
   @media (prefers-reduced-motion: reduce){
     .saju-modal-box *,.saju-modal-box::before{animation:none!important;}
     .saju-owl-answer .bubble p{opacity:1;}
@@ -1298,7 +1313,7 @@
   @media (max-width:600px){ .owl-pet{right:12px;bottom:12px;width:64px;height:64px;} .owl-pet-body{width:64px;height:64px;} .owl-pet-bubble{bottom:72px;} .owl-pet.below .owl-pet-bubble{top:72px;} }
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Do+Hyeon&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/innks/NanumSquareRound@master/nanumsquareround.min.css">
 </head>
 <body>
@@ -5070,12 +5085,16 @@
       api("/saju/today_board").then(function (b) {
         var box = document.getElementById("sj-board");
         if (!box || !b.ok) return;
-        var html = "<h4>👑 오늘의 운세왕 <small>" + b.total + "명 중" + (b.me ? " 내 순위 " + b.me.rank + "위" : "") + "</small></h4>";
+        var html = '<div class="sj-rank-head"><h4>👑 오늘의 운세왕</h4>' + (b.total > 1 && b.me ? '<span class="sj-myrank">' + b.total + "명 중 <b>" + b.me.rank + "위</b></span>" : "") + "</div>";
+        if (b.total < 2) {
+          box.innerHTML = html + '<div class="sj-solo"><span>🏆</span><div><b>지금은 나 혼자 1등이에요' + (b.me ? " · " + b.me.score + "점" : "") + '</b><p>팀원이 🔮에서 사주를 저장하면 매일 오늘의 운세왕을 함께 겨룰 수 있어요.</p></div></div>';
+          return;
+        }
         if (b.guardian) html += '<div class="sj-guardian"><span>🤝</span><div><small>오늘의 귀인 팀원</small><b>' + esc(b.guardian.name) + "님</b><p>" + esc(b.guardian.line) + "</p></div></div>";
         html += '<ol class="sj-rank">' + b.rows.map(function (row) {
-          return '<li class="' + (row.me ? "me" : "") + '"><span class="n">' + (row.rank === 1 ? "👑" : row.rank) + '</span><span class="nm">' + esc(row.name) + (row.me && row.name !== "나" ? " (나)" : "") + '</span><b>' + row.score + "점</b></li>";
+          var medal = ["🥇", "🥈", "🥉"][row.rank - 1];
+          return '<li class="' + (row.me ? "me" : "") + '"><span class="n' + (medal ? " medal" : "") + '">' + (medal || row.rank) + '</span><span class="nm">' + esc(row.name) + (row.me && row.name !== "나" ? ' <em>나</em>' : "") + '</span><b>' + row.score + "<small>점</small></b></li>";
         }).join("") + "</ol>";
-        if (b.total < 2) html += '<p class="saju-team-count">팀원이 사주를 저장하면 같이 순위를 겨룰 수 있어요!</p>';
         box.innerHTML = html;
       });
     }
