@@ -30,7 +30,26 @@ TEN_GODS = [("비견", "겁재"), ("식신", "상관"), ("편재", "정재"), ("
 TEN_GOD_GROUPS = ["비겁", "식상", "재성", "관성", "인성"]
 
 KST_OFFSET = timedelta(hours=9)
-LMT_CORRECTION = timedelta(minutes=30)
+LMT_CORRECTION = timedelta(minutes=30)  # 출생지를 모를 때(서울 근사)
+# 출생지 경도 -> 진태양시 보정. 한국 표준시는 동경 135° 기준이라
+# (135 - 경도) x 4분만큼 시계를 뒤로 돌린다(서울 약 32분, 부산 약 24분).
+BIRTHPLACES = {
+    "seoul": ("서울", 126.98), "incheon": ("인천", 126.70), "suwon": ("수원·경기 남부", 127.03),
+    "uijeongbu": ("의정부·경기 북부", 127.04), "chuncheon": ("춘천", 127.73), "gangneung": ("강릉·동해", 128.90),
+    "wonju": ("원주", 127.92), "cheongju": ("청주", 127.49), "chungju": ("충주", 127.93),
+    "daejeon": ("대전", 127.38), "sejong": ("세종", 127.29), "cheonan": ("천안·아산", 127.11),
+    "jeonju": ("전주", 127.15), "gunsan": ("군산·익산", 126.74), "gwangju": ("광주", 126.85),
+    "mokpo": ("목포", 126.39), "suncheon": ("순천·여수", 127.49), "daegu": ("대구", 128.60),
+    "pohang": ("포항·경주", 129.34), "andong": ("안동", 128.73), "gumi": ("구미·김천", 128.34),
+    "busan": ("부산", 129.08), "ulsan": ("울산", 129.31), "changwon": ("창원(마산·진해)", 128.57),
+    "gimhae": ("김해·양산", 128.89), "jinju": ("진주·사천", 128.11), "jeju": ("제주", 126.53),
+}
+
+
+def lmt_correction(place):
+    if place in BIRTHPLACES:
+        return timedelta(minutes=round((135 - BIRTHPLACES[place][1]) * 4))
+    return LMT_CORRECTION
 # (시작, 끝) KST 벽시계 — 이 구간의 시각은 실제보다 1시간 빠르게 적혀 있다.
 KOREA_DST = [
     (datetime(1987, 5, 10, 2), datetime(1987, 10, 11, 3)),
@@ -160,7 +179,7 @@ def build_chart(birth):
     month_stem = ((year_stem % 5) * 2 + 2 + month_idx) % 10
     month_branch = (month_idx + 2) % 12
 
-    lmt = local - LMT_CORRECTION
+    lmt = local - lmt_correction(birth.get("place"))
     if time_unknown:
         day_date = solar
     else:
@@ -226,6 +245,9 @@ def build_chart(birth):
         "solar_date": solar.isoformat(),
         "time_unknown": time_unknown,
         "gender": birth.get("gender") or "",
+        "place": BIRTHPLACES.get(birth.get("place"), ("모름(서울 기준)",))[0],
+        "lmt_minutes": int(lmt_correction(birth.get("place")).total_seconds() // 60),
+        "solar_time": None if time_unknown else lmt.strftime("%H:%M"),
         "pillars": pillars,
         "cells": cells,
         "day_master": day_stem,
@@ -276,6 +298,17 @@ def daewoon(chart, today=None):
                         "ten_god": god, "group": TEN_GOD_GROUPS[rel],
                         "current": age <= korean_age < age + 10})
     return {"forward": forward, "start_age": start_age, "periods": periods}
+
+
+def year_luck(chart, year):
+    """그해(입춘 이후 기준) 세운 간지와 내 일간에 대한 십성."""
+    p = pillar((year - 4) % 60)
+    god, rel = ten_god(chart["day_master"], p["stem"])
+    my_branch = chart["pillars"]["day"]["branch"]
+    return {**p, "year": year, "animal": f"{STEM_COLORS[p['stem']]} {ANIMALS[p['branch']]}",
+            "ten_god": god, "group": TEN_GOD_GROUPS[rel],
+            "harmony": is_six_harmony(p["branch"], my_branch) or is_three_harmony(p["branch"], my_branch),
+            "clash": is_clash(p["branch"], my_branch)}
 
 
 # ---------- 오늘의 운세 ----------

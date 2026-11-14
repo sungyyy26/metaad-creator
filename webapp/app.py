@@ -345,9 +345,9 @@ def clear_game_scores():
 # ---------------------------------------------------------------- 🔮 사주
 # 생년월일시는 본인 계정에만 저장되고(로컬 개발에선 "local"), 다른 사람에게는
 # 프로필 id와 표시 이름만 보인다 — 궁합 결과에도 상대의 생일은 담지 않는다.
-SAJU_ASK_DAILY_LIMIT = 3
-SAJU_BIRTH_FIELDS = ("calendar", "year", "month", "day", "leap", "hour", "minute", "time_unknown", "gender")
+SAJU_BIRTH_FIELDS = ("calendar", "year", "month", "day", "leap", "hour", "minute", "time_unknown", "gender", "place")
 _KST = timezone(timedelta(hours=9))
+_SAJU_PLACES = [{"key": k, "label": v[0]} for k, v in saju.BIRTHPLACES.items()]
 
 
 def _saju_owner():
@@ -377,6 +377,7 @@ def _saju_birth(raw):
         "hour": 0 if time_unknown else num("hour", 0), "minute": 0 if time_unknown else num("minute", 0),
         "time_unknown": time_unknown,
         "gender": raw.get("gender") if raw.get("gender") in ("M", "F") else "",
+        "place": raw.get("place") if raw.get("place") in saju.BIRTHPLACES else "",
     }
     if None in (birth["year"], birth["month"], birth["day"]):
         raise saju.SajuInputError("생년월일을 모두 입력해주세요.")
@@ -395,11 +396,10 @@ def _saju_today():
 
 def _saju_payload(profile):
     if not profile:
-        return {"ok": True, "profile": None, "ai": bool(os.environ.get("ANTHROPIC_API_KEY"))}
+        return {"ok": True, "profile": None, "places": _SAJU_PLACES}
     chart = saju.build_chart(profile)
     today = _saju_today()
     fortune = saju.daily_fortune(chart, today, seed=profile["id"])
-    asks_used = profile.get("askCount", 0) if profile.get("askDate") == today.isoformat() else 0
     return {
         "ok": True,
         "profile": {k: profile.get(k) for k in SAJU_BIRTH_FIELDS},
@@ -409,8 +409,8 @@ def _saju_payload(profile):
         "today_reading": saju_text.daily_reading(chart, fortune),
         "daewoon": saju.daewoon(chart, today),
         "daewoon_themes": saju_text.DAEWOON_THEME,
-        "ai": bool(os.environ.get("ANTHROPIC_API_KEY")),
-        "asks_left": max(0, SAJU_ASK_DAILY_LIMIT - asks_used),
+        "places": _SAJU_PLACES,
+        "ask_topics": [{"key": k, "label": v[0]} for k, v in saju_text.ASK_TOPICS.items()],
     }
 
 
@@ -466,70 +466,23 @@ def saju_match():
             "me_animal": a["day_animal"], "other_animal": b["day_animal"]}
 
 
-SAJU_OWL_SYSTEM = (
-    "너는 Meta Ad Desk 대시보드에 사는 '부엉 도사'야. 광고 마케터 팀원들에게 재미로 사주를 봐주는 "
-    "친근한 부엉이 도사이고, 말투는 다정한 해요체에 가끔 '부엉~'을 섞어. 주어진 명식 정보만 근거로 "
-    "이야기하고, 건강·금전·인간관계에 대해 단정하거나 겁주는 말은 하지 마. 의료·법률·투자 결정은 "
-    "전문가와 상의하라고 부드럽게 안내해. 답은 마크다운 없이 4~7문장, 400자 안쪽으로 해줘."
-)
-
-
-def _saju_summary(chart, fortune, dw):
-    names = {"hour": "시주", "day": "일주", "month": "월주", "year": "연주"}
-    pillars = ", ".join(f"{names[c['pos']]} {c['hangul']}({c['hanja']})" for c in chart["cells"])
-    counts = ", ".join(f"{saju.ELEMENTS[i]} {n}" for i, n in enumerate(chart["element_counts"]))
-    cur = next((p for p in (dw or {}).get("periods", []) if p["current"]), None)
-    lines = [
-        f"명식: {pillars}" + (" (태어난 시간 모름)" if chart["time_unknown"] else ""),
-        f"일간: {saju.STEMS[chart['day_master']]}{saju.ELEMENTS[chart['day_master'] // 2]}, 일주 동물: {chart['day_animal']}",
-        f"오행 개수: {counts}, 강약: {chart['strength']}, 가장 강한 십성 무리: {chart['dominant_group']}",
-        f"도움이 되는 오행: {saju.ELEMENTS[chart['lucky_element']]}",
-        f"오늘({fortune['date']}) 일진: {fortune['pillar']['hangul']}, 나에게 {fortune['ten_god']}",
-    ]
-    if cur:
-        lines.append(f"현재 대운: {cur['hangul']} ({cur['age']}세~, {cur['ten_god']})")
-    return "\n".join(lines)
-
-
 @app.route("/saju/ask", methods=["POST"])
 def saju_ask():
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        return {"ok": False, "error": "부엉 도사가 아직 출근 전이에요 (API 키 미설정)."}, 503
+    """🦉 부엉 도사 — 외부 API 없이 saju_text의 규칙으로 답한다."""
     profile = _saju_profile(_saju_owner())
     if not profile:
         return {"ok": False, "error": "먼저 생년월일을 저장해주세요."}, 400
-    today = _saju_today().isoformat()
-    used = profile.get("askCount", 0) if profile.get("askDate") == today else 0
-    if used >= SAJU_ASK_DAILY_LIMIT:
-        return {"ok": False, "error": f"부엉 도사 상담은 하루 {SAJU_ASK_DAILY_LIMIT}번까지예요. 내일 또 와요!"}, 429
-    question = ((request.get_json(silent=True) or {}).get("question") or "").strip()[:200]
+    body = request.get_json(silent=True) or {}
+    question = (body.get("question") or "").strip()[:200]
+    today = _saju_today()
     chart = saju.build_chart(profile)
-    fortune = saju.daily_fortune(chart, _saju_today(), seed=profile["id"])
-    prompt = _saju_summary(chart, fortune, saju.daewoon(chart, _saju_today()))
-    prompt += "\n\n" + (f"질문: {question}" if question else "이 사주를 재미있게 종합 풀이해줘.")
-    try:
-        import anthropic  # 버튼을 누를 때만 필요하므로 지연 import
-        client = anthropic.Anthropic()
-        resp = client.beta.messages.create(
-            model="claude-opus-5-5",
-            max_tokens=2000,
-            betas=["server-side-fallback-2026-07-01"],
-            fallbacks="default",
-            output_config={"effort": "medium"},
-            system=SAJU_OWL_SYSTEM,
-            messages=[{"role": "user", "content": prompt}],
-        )
-    except Exception as e:  # noqa: BLE001
-        app.logger.warning("saju ask failed: %s", e)
-        return {"ok": False, "error": "부엉 도사가 잠깐 자리를 비웠어요. 잠시 후 다시 물어봐주세요."}, 502
-    if resp.stop_reason == "refusal":
-        return {"ok": False, "error": "그 질문엔 부엉 도사가 답하기 어려워요. 다른 걸 물어봐주세요!"}, 400
-    answer = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text").strip()
-    if not answer:
-        return {"ok": False, "error": "부엉 도사가 말을 잇지 못했어요. 다시 물어봐주세요."}, 502
-    profile.update(askDate=today, askCount=used + 1)
-    _upsert(SAJU_DB_PATH, profile)
-    return {"ok": True, "answer": answer, "asks_left": SAJU_ASK_DAILY_LIMIT - used - 1}
+    fortune = saju.daily_fortune(chart, today, seed=profile["id"])
+    year = today.year if today >= date(today.year, 2, 4) else today.year - 1
+    result = saju_text.answer_question(
+        chart, fortune, saju.daewoon(chart, today),
+        saju.year_luck(chart, year), saju.year_luck(chart, year + 1),
+        question=question, topic=body.get("topic"))
+    return {"ok": True, **result}
 
 
 @app.route("/mark_update_seen", methods=["POST"])

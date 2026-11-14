@@ -421,7 +421,7 @@
   .saju-form{display:flex;flex-direction:column;gap:14px;}
   .saju-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
   .saju-row.two{grid-template-columns:repeat(2,minmax(0,1fr));}
-  .saju-form label.saju-label{display:block;font-family:var(--font-heading);font-weight:700;font-size:var(--fs-xs);color:var(--text-muted);margin-bottom:6px;}
+  .saju-label{display:block;font-family:var(--font-heading);font-weight:700;font-size:var(--fs-xs);color:var(--text-muted);margin-bottom:6px;}
   .saju-seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;padding:4px;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:var(--radius-sm);}
   .saju-seg label{display:flex;align-items:center;justify-content:center;min-height:32px;border-radius:6px;color:var(--text-muted);font-weight:700;font-size:var(--fs-sm);cursor:pointer;}
   .saju-seg input{position:absolute;opacity:0;pointer-events:none;}
@@ -483,6 +483,9 @@
   .saju-period b{font-size:18px;font-family:var(--font-heading);}
   .saju-period span{font-size:11px;color:var(--text-muted);font-variant-numeric:tabular-nums;}
   .saju-owl{margin-top:16px;border-top:1px dashed var(--border-strong);padding-top:14px;}
+  .saju-topic-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+  .saju-topic-chips button{font:inherit;font-size:var(--fs-xs);font-weight:700;padding:6px 12px;border-radius:99px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--text-muted);cursor:pointer;}
+  .saju-topic-chips button:hover{border-color:var(--accent-2);color:var(--accent-2);}
   .saju-owl textarea{min-height:56px;resize:vertical;margin-bottom:8px;}
   .saju-owl-answer{display:flex;gap:10px;align-items:flex-start;margin-top:12px;}
   .saju-owl-answer .owl{flex:none;font-size:26px;}
@@ -1198,6 +1201,10 @@
         </div>
       </div>
       <div>
+        <label class="saju-label" for="saju-place">태어난 곳 <span style="font-weight:600;color:var(--text-faint);">(경도에 따라 실제 태양시를 보정해요)</span></label>
+        <select id="saju-place"><option value="">모름 · 해외 (서울 기준)</option></select>
+      </div>
+      <div>
         <span class="saju-label">성별 <span style="font-weight:600;color:var(--text-faint);">(대운 방향 계산에만 써요)</span></span>
         <div class="saju-seg" role="radiogroup" aria-label="성별">
           <label><input type="radio" name="gender" value="F">여성</label>
@@ -1229,9 +1236,10 @@
       </div>
       <div data-saju-pane="daewoon" hidden></div>
 
-      <div class="saju-owl" id="saju-owl" hidden>
-        <label class="saju-label" for="saju-question">🦉 부엉 도사에게 더 물어보기 <span id="saju-asks-left" style="font-weight:600;color:var(--text-faint);"></span></label>
-        <textarea id="saju-question" maxlength="200" placeholder="비워두면 종합 풀이를 해줘요. 예) 올해 새 프로젝트 시작해도 될까요?"></textarea>
+      <div class="saju-owl" id="saju-owl">
+        <label class="saju-label" for="saju-question">🦉 부엉 도사에게 더 물어보기</label>
+        <div class="saju-topic-chips" id="saju-topic-chips"></div>
+        <textarea id="saju-question" maxlength="200" placeholder="주제를 누르거나 직접 물어보세요. 예) 내년에 이직해도 될까요?"></textarea>
         <button type="button" class="saju-primary" id="saju-ask-btn">부엉 도사에게 물어보기</button>
         <div id="saju-owl-answer"></div>
       </div>
@@ -4623,7 +4631,8 @@
         html += "<span>" + EL_EMOJI[i] + " " + EL[i] + '</span><span class="saju-el-bar"><span style="--el:var(--el-' + i + ');width:' + (n / max * 100) + '%"></span></span><span class="saju-el-n">' + n + "</span>";
       });
       html += "</div>";
-      html += '<div class="saju-tags"><span class="saju-tag purple">' + esc(c.day_animal) + '</span><span class="saju-tag">' + esc(c.year_animal) + '띠</span><span class="saju-tag">' + esc(c.strength) + '</span><span class="saju-tag">행운 오행 ' + esc(r.lucky.element) + "</span></div>";
+      html += '<div class="saju-tags"><span class="saju-tag purple">' + esc(c.day_animal) + '</span><span class="saju-tag">' + esc(c.year_animal) + '띠</span><span class="saju-tag">' + esc(c.strength) + '</span><span class="saju-tag">행운 오행 ' + esc(r.lucky.element) + "</span></div>" +
+        (c.solar_time ? '<p class="saju-privacy" style="margin:-4px 0 10px;">📍 ' + esc(c.place) + " 기준 실제 태양시 " + esc(c.solar_time) + " (" + c.lmt_minutes + "분 보정)</p>" : "");
       html += '<div class="saju-card"><h3>' + esc(r.day_master.title) + "</h3><p>" + esc(r.day_master.body) + '</p><p class="saju-sub">👍 ' + esc(r.day_master.plus) + "<br>💡 " + esc(r.day_master.minus) + "</p></div>";
       html += '<div class="saju-card"><h3>⚖️ 기운의 세기</h3><p>' + esc(r.strength) + "</p>" + r.element_tips.map(function (t) { return '<p class="saju-sub">' + esc(t) + "</p>"; }).join("") + "</div>";
       html += '<div class="saju-card"><h3>💼 일</h3><p>' + esc(r.work) + '</p></div><div class="saju-card"><h3>💰 재물</h3><p>' + esc(r.money) + '</p></div><div class="saju-card"><h3>💕 연애</h3><p>' + esc(r.love) + "</p></div>";
@@ -4697,15 +4706,21 @@
     function renderAll() {
       renderChart(); renderToday(); renderDaewoon(); loadTeam();
       document.getElementById("saju-match-result").innerHTML = "";
-      var owl = document.getElementById("saju-owl");
-      owl.hidden = !data.ai;
       document.getElementById("saju-owl-answer").innerHTML = "";
-      setAsks(data.asks_left);
+      var chips = document.getElementById("saju-topic-chips");
+      chips.innerHTML = "";
+      (data.ask_topics || []).forEach(function (t) {
+        var b = document.createElement("button");
+        b.type = "button"; b.textContent = t.label;
+        b.addEventListener("click", function () { ask({ topic: t.key, question: "" }, t.label); });
+        chips.appendChild(b);
+      });
       show("result");
     }
-    function setAsks(n) {
-      document.getElementById("saju-asks-left").textContent = "(오늘 " + n + "번 남음)";
-      document.getElementById("saju-ask-btn").disabled = n <= 0;
+    function fillPlaces(places) {
+      var sel = document.getElementById("saju-place");
+      if (sel.options.length > 1 || !places) return;
+      places.forEach(function (p) { var o = document.createElement("option"); o.value = p.key; o.textContent = p.label; sel.appendChild(o); });
     }
 
     function fillForm(p) {
@@ -4717,6 +4732,7 @@
       document.getElementById("saju-time-unknown").checked = !!(p && p.time_unknown);
       document.getElementById("saju-time").value = p && !p.time_unknown ? String(p.hour).padStart(2, "0") + ":" + String(p.minute).padStart(2, "0") : "12:00";
       form.querySelector('input[name="gender"][value="' + ((p && p.gender) || "") + '"]').checked = true;
+      document.getElementById("saju-place").value = (p && p.place) || "";
       syncForm();
       errEl.hidden = true;
       document.getElementById("saju-cancel-edit").hidden = !p;
@@ -4736,6 +4752,7 @@
         time_unknown: document.getElementById("saju-time-unknown").checked,
         hour: time[0], minute: time[1],
         gender: form.querySelector('input[name="gender"]:checked').value,
+        place: document.getElementById("saju-place").value,
       };
       var btn = document.getElementById("saju-save-btn");
       btn.disabled = true; errEl.hidden = true;
@@ -4758,15 +4775,19 @@
     }
     result.querySelectorAll("[data-saju-tab]").forEach(function (b) { b.addEventListener("click", function () { selectTab(b.dataset.sajuTab); }); });
 
-    document.getElementById("saju-ask-btn").addEventListener("click", function () {
-      var btn = this, out = document.getElementById("saju-owl-answer");
+    function ask(body, label) {
+      var btn = document.getElementById("saju-ask-btn"), out = document.getElementById("saju-owl-answer");
       btn.disabled = true;
       out.innerHTML = '<div class="saju-owl-answer"><span class="owl">🦉</span><p>음... 부엉 도사가 명식을 들여다보는 중이에요...</p></div>';
-      api("/saju/ask", { question: document.getElementById("saju-question").value }).then(function (res) {
-        if (!res.ok) { out.innerHTML = '<p class="saju-error">' + esc(res.error || "다시 시도해주세요.") + "</p>"; btn.disabled = false; return; }
-        out.innerHTML = '<div class="saju-owl-answer"><span class="owl">🦉</span><p>' + esc(res.answer) + "</p></div>";
-        setAsks(res.asks_left);
+      api("/saju/ask", body).then(function (res) {
+        btn.disabled = false;
+        if (!res.ok) { out.innerHTML = '<p class="saju-error">' + esc(res.error || "다시 시도해주세요.") + "</p>"; return; }
+        out.innerHTML = '<div class="saju-owl-answer"><span class="owl">🦉</span><p><b>[' + esc(label || res.topic_label) + "]</b>\n" + esc(res.answer) + "</p></div>";
       }).catch(function () { out.innerHTML = '<p class="saju-error">네트워크 오류예요.</p>'; btn.disabled = false; });
+    }
+    document.getElementById("saju-ask-btn").addEventListener("click", function () {
+      var q = document.getElementById("saju-question").value.trim();
+      ask({ question: q }, q ? null : "종합 풀이");
     });
 
     function open() {
@@ -4774,6 +4795,7 @@
       if (data) return;
       show("loading");
       api("/saju/me").then(function (res) {
+        fillPlaces(res && res.places);
         if (res && res.profile) { data = res; renderAll(); }
         else { fillForm(null); show("form"); }
       }).catch(function () { fillForm(null); show("form"); });
