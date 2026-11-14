@@ -419,7 +419,8 @@
     --sj-ink:#f1ecff; --sj-dim:#b9aedb; --sj-faint:#8f84b8; --sj-gold:#f3cf7a; --sj-gold-2:#e2ac4c;
     --sj-violet:#a98bff; --sj-pink:#ff9ad5; --sj-line:rgba(190,165,255,.22); --sj-card:rgba(255,255,255,.055);
     --el-0:#7ee08f; --el-1:#ff8f6b; --el-2:#ffd66b; --el-3:#dfe3ea; --el-4:#7cc4ff;
-    --sj-serif:"Gowun Batang","Nanum Myeongjo","Batang",serif; --sj-round:"Gowun Dodum","Malgun Gothic",sans-serif;
+    --sj-serif:"Gowun Batang","Nanum Myeongjo","Batang",serif; /* 한자 전용 */
+    --sj-display:"Jua","NanumSquareRound","Malgun Gothic",sans-serif; --sj-round:"NanumSquareRound","Malgun Gothic",sans-serif;
     max-width:580px;color:var(--sj-ink);font-family:var(--sj-round);border:1px solid rgba(243,207,122,.18);
     background:
       radial-gradient(90% 40% at 50% -5%, rgba(169,139,255,.2), transparent 70%),
@@ -440,7 +441,7 @@
   @keyframes sj-twinkle{from{opacity:.3}to{opacity:.65}}
   .saju-modal-box .modal-close{color:var(--sj-dim);}
   .saju-modal-box .modal-close:hover{background:rgba(255,255,255,.08);color:var(--sj-ink);}
-  .saju-modal-box h2{font-family:var(--sj-serif);font-size:26px;font-weight:700;text-align:center;margin:0;letter-spacing:.02em;
+  .saju-modal-box h2{font-family:var(--sj-display);font-size:26px;font-weight:400;text-align:center;margin:0;letter-spacing:.02em;
     background:linear-gradient(90deg,#fff3cf,#f3cf7a 40%,#d8c4ff 80%);-webkit-background-clip:text;background-clip:text;color:transparent;}
   .saju-sub-title{text-align:center;color:var(--sj-dim);font-size:13px;margin:4px 0 0;}
 
@@ -484,7 +485,7 @@
   .saju-modal-box.is-result .sj-bubble::before{left:-6px;top:50%;transform:translateY(-50%) rotate(-45deg);}
   .saju-team-count{font-size:12px;color:var(--sj-dim);margin:0 0 8px;}
   .saju-empty{text-align:center;padding:22px 16px;border:1px dashed var(--sj-line);border-radius:16px;background:rgba(255,255,255,.03);font-size:14px;}
-  .saju-empty b{display:block;font-family:var(--sj-serif);font-size:16px;color:var(--sj-ink);margin-bottom:6px;}
+  .saju-empty b{display:block;font-family:var(--sj-display);font-size:16px;color:var(--sj-ink);margin-bottom:6px;}
   .saju-empty p{margin:0 0 14px;color:var(--sj-dim);font-size:13px;line-height:1.7;}
   .saju-empty-icon{width:48px;height:48px;margin:0 auto 10px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(169,139,255,.15);color:var(--sj-violet);}
   .saju-empty-icon svg{width:26px;height:26px;opacity:1;}
@@ -555,7 +556,7 @@
   .saju-tabs button:focus-visible{box-shadow:inset 0 0 0 1px rgba(243,207,122,.7);}
   [data-saju-pane]:not([hidden]){animation:sj-fade .4s ease;}
   @keyframes sj-fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-  .saju-headline{font-family:var(--sj-serif);font-weight:700;font-size:18px;text-align:center;margin:0 0 14px;text-wrap:balance;color:var(--sj-ink);}
+  .saju-headline{font-family:var(--sj-display);font-weight:400;font-size:18px;text-align:center;margin:0 0 14px;text-wrap:balance;color:var(--sj-ink);}
   .saju-headline em{font-style:normal;color:var(--sj-gold);}
   .saju-pillars{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:16px;perspective:800px;}
   .saju-pillar{display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 4px;border-radius:14px;
@@ -581,7 +582,7 @@
   @keyframes sj-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
   .saju-el-n{font-variant-numeric:tabular-nums;color:var(--sj-dim);font-size:12px;}
   .saju-card{background:var(--sj-card);border:1px solid var(--sj-line);border-radius:16px;padding:14px 16px;margin-bottom:10px;font-size:14px;line-height:1.75;color:var(--sj-ink);}
-  .saju-card h3{font-family:var(--sj-serif);font-size:15px;font-weight:700;margin:0 0 6px;color:var(--sj-gold);}
+  .saju-card h3{font-family:var(--sj-display);font-size:15px;font-weight:400;margin:0 0 6px;color:var(--sj-gold);}
   .saju-card p{margin:0;}
   .saju-card .saju-sub{color:var(--sj-dim);font-size:13px;margin-top:6px;}
   .saju-grid-2{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px;}
@@ -596,8 +597,8 @@
   .sj-tarot-inner{position:relative;display:grid;transition:transform .8s cubic-bezier(.3,.7,.2,1);transform-style:preserve-3d;}
   .sj-tarot.open .sj-tarot-inner{transform:rotateY(180deg);}
   .sj-tarot-face{grid-area:1/1;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:18px;}
-  .sj-tarot-back{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:190px;cursor:pointer;
-    border:1px solid rgba(243,207,122,.45);color:var(--sj-gold);font-family:var(--sj-serif);font-size:15px;
+  .sj-tarot-back{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:140px;cursor:pointer;
+    border:1px solid rgba(243,207,122,.45);color:var(--sj-gold);font-family:var(--sj-display);font-size:15px;
     background:repeating-linear-gradient(45deg,rgba(243,207,122,.06) 0 10px,transparent 10px 20px),
       radial-gradient(circle at 50% 45%,rgba(169,139,255,.5),rgba(29,21,70,.95) 65%);
     box-shadow:inset 0 0 0 6px rgba(13,10,34,.6),inset 0 0 0 7px rgba(243,207,122,.35);}
@@ -609,7 +610,7 @@
   .saju-today-head{display:flex;align-items:center;gap:14px;margin-bottom:10px;}
   .saju-today-day{font-family:var(--sj-serif);font-size:34px;font-weight:700;color:var(--sj-gold);text-shadow:0 0 8px rgba(243,207,122,.3);}
   .saju-today-meta{font-size:13px;color:var(--sj-dim);}
-  .saju-today-meta b{display:block;color:var(--sj-ink);font-size:15px;font-family:var(--sj-serif);}
+  .saju-today-meta b{display:block;color:var(--sj-ink);font-size:15px;font-family:var(--sj-display);}
   .saju-scores{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px;}
   .saju-score{background:rgba(255,255,255,.04);border:1px solid var(--sj-line);border-radius:12px;padding:10px 12px;font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:6px;}
   .saju-stars{color:var(--sj-gold);letter-spacing:1px;white-space:nowrap;}
@@ -620,9 +621,9 @@
   .saju-match-hero{position:relative;text-align:center;padding:18px 12px 6px;}
   .saju-match-pair{display:flex;align-items:center;justify-content:center;gap:10px;font-size:13px;color:var(--sj-dim);margin-bottom:6px;}
   .saju-match-pair b{color:var(--sj-ink);}
-  .saju-match-score{font-family:var(--sj-serif);font-size:56px;font-weight:700;line-height:1;color:var(--sj-pink);text-shadow:0 0 10px rgba(255,154,213,.35);font-variant-numeric:tabular-nums;}
+  .saju-match-score{font-family:var(--sj-display);font-size:56px;font-weight:400;line-height:1;color:var(--sj-pink);text-shadow:0 0 10px rgba(255,154,213,.35);font-variant-numeric:tabular-nums;}
   .saju-match-score small{font-size:18px;color:var(--sj-dim);text-shadow:none;}
-  .saju-match-tier{font-family:var(--sj-serif);font-size:17px;margin:6px 0 12px;color:var(--sj-ink);}
+  .saju-match-tier{font-family:var(--sj-display);font-size:17px;margin:6px 0 12px;color:var(--sj-ink);}
   .sj-heart{position:absolute;left:50%;top:40%;font-size:18px;pointer-events:none;animation:sj-heart 1.4s ease-out forwards;}
   @keyframes sj-heart{from{transform:translate(-50%,0) scale(.4);opacity:1}to{transform:translate(calc(-50% + var(--dx)),-90px) scale(1.2);opacity:0}}
   .saju-notes{margin:6px 0 0;padding-left:18px;}
@@ -643,7 +644,7 @@
 
   /* 부엉 도사에게 묻기 */
   .saju-owl{margin-top:18px;padding:16px;border-radius:18px;background:linear-gradient(180deg,rgba(169,139,255,.12),rgba(169,139,255,.03));border:1px solid var(--sj-line);}
-  .saju-owl-title{font-family:var(--sj-serif);font-size:16px;font-weight:700;color:var(--sj-gold);margin:0 0 10px;}
+  .saju-owl-title{font-family:var(--sj-display);font-size:16px;font-weight:400;color:var(--sj-gold);margin:0 0 10px;}
   .saju-topic-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
   .saju-topic-chips button{font-family:var(--sj-round);font-size:12px;font-weight:700;padding:7px 12px;border-radius:99px;border:1px solid var(--sj-line);
     background:rgba(255,255,255,.05);color:var(--sj-dim);cursor:pointer;transition:all .18s;}
@@ -1197,7 +1198,7 @@
   }
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Jua&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/innks/NanumSquareRound@master/nanumsquareround.min.css">
 </head>
 <body>
@@ -1460,7 +1461,7 @@
       <label class="saju-check saju-visible"><input type="checkbox" id="saju-visible" checked>팀원 궁합 목록에 나를 보여줄게요 <span class="muted">(이름만 보이고 생일은 안 보여요)</span></label>
       <p class="saju-privacy">🔒 생년월일시는 내 계정에만 저장되고 다른 사람에게 보이지 않아요. 궁합에는 이름과 결과만 쓰이고, 언제든 삭제할 수 있어요.</p>
       <p class="saju-error" id="saju-form-error" hidden></p>
-      <button type="submit" class="saju-primary" id="saju-save-btn">✨ 구슬에 비춰보기</button>
+      <button type="submit" class="saju-primary" id="saju-save-btn">✨ 저장하고 구슬에 비춰보기</button>
       <button type="button" class="saju-ghost" id="saju-cancel-edit" hidden>← 결과로 돌아가기</button>
     </form>
 
@@ -5115,7 +5116,7 @@
         setTimeout(function () {
           btn.disabled = false; gaze(false);
           if (!res.ok) { errEl.textContent = res.error || "저장하지 못했어요. 다시 시도해주세요."; errEl.hidden = false; say("앗, 구슬이 흐려졌어요. 입력을 확인해줘요!"); return; }
-          data = res; selectTab("chart"); renderAll();
+          data = res; selectTab("chart"); renderAll(); say("💾 저장 완료! " + data.chart.day_animal + "의 기운이 보여요. 다음부터는 열자마자 바로 보여드릴게요.");
         }, 900);
       }).catch(function () { btn.disabled = false; gaze(false); errEl.textContent = "네트워크 오류예요. 다시 시도해주세요."; errEl.hidden = false; });
     });
