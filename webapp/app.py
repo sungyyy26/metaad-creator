@@ -358,7 +358,7 @@ def clear_game_scores():
 # ---------------------------------------------------------------- 🔮 사주
 # 생년월일시는 본인 계정에만 저장되고(로컬 개발에선 "local"), 다른 사람에게는
 # 프로필 id와 표시 이름만 보인다 — 궁합 결과에도 상대의 생일은 담지 않는다.
-SAJU_BIRTH_FIELDS = ("calendar", "year", "month", "day", "leap", "hour", "minute", "time_unknown", "gender", "place")
+SAJU_BIRTH_FIELDS = ("calendar", "year", "month", "day", "leap", "hour", "minute", "time_unknown", "gender", "place", "visible")
 _KST = timezone(timedelta(hours=9))
 _SAJU_PLACES = [{"key": k, "label": v[0], "region": v[2]} for k, v in saju.BIRTHPLACES.items()]
 
@@ -391,6 +391,8 @@ def _saju_birth(raw):
         "time_unknown": time_unknown,
         "gender": raw.get("gender") if raw.get("gender") in ("M", "F") else "",
         "place": raw.get("place") if raw.get("place") in saju.BIRTHPLACES else "",
+        # 팀원 궁합 목록에 나를 보여줄지 — 기본은 공개(끄면 목록·링크 모두에서 빠진다)
+        "visible": raw.get("visible", True) is not False,
     }
     if None in (birth["year"], birth["month"], birth["day"]):
         raise saju.SajuInputError("생년월일을 모두 입력해주세요.")
@@ -461,7 +463,7 @@ def saju_delete():
 def saju_team():
     owner = _saju_owner()
     rows = [{"id": p["id"], "name": p.get("name") or "팀원"}
-            for p in _load_json_list(SAJU_DB_PATH) if p.get("email") != owner]
+            for p in _load_json_list(SAJU_DB_PATH) if p.get("email") != owner and p.get("visible", True)]
     rows.sort(key=lambda r: r["name"])
     return {"ok": True, "rows": rows}
 
@@ -489,7 +491,7 @@ def _saju_pair():
     me = _saju_profile(_saju_owner())
     pid = request.args.get("id") or (request.get_json(silent=True) or {}).get("id")
     other = next((p for p in _load_json_list(SAJU_DB_PATH) if p["id"] == pid), None)
-    if not me or not other or other.get("email") == me.get("email"):
+    if not me or not other or other.get("email") == me.get("email") or not other.get("visible", True):
         return me, None
     return me, other
 
