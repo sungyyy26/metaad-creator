@@ -360,7 +360,7 @@ def clear_game_scores():
 # 프로필 id와 표시 이름만 보인다 — 궁합 결과에도 상대의 생일은 담지 않는다.
 SAJU_BIRTH_FIELDS = ("calendar", "year", "month", "day", "leap", "hour", "minute", "time_unknown", "gender", "place")
 _KST = timezone(timedelta(hours=9))
-_SAJU_PLACES = [{"key": k, "label": v[0]} for k, v in saju.BIRTHPLACES.items()]
+_SAJU_PLACES = [{"key": k, "label": v[0], "region": v[2]} for k, v in saju.BIRTHPLACES.items()]
 
 
 def _saju_owner():

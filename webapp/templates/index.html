@@ -38,7 +38,7 @@
     --fs-2xs:11px; --fs-xs:12px; --fs-sm:13px; --fs-base:15px; --fs-md:16px; --fs-lg:19px; --fs-xl:28px;
     /* Spacing scale — sibling gaps and section rhythm use these, not one-off values. */
     --sp-1:4px; --sp-2:8px; --sp-3:12px; --sp-4:16px; --sp-5:24px; --sp-6:32px; --sp-7:40px; --sp-8:56px;
-    --font-ui:"Malgun Gothic","맑은 고딕","Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+    --font-ui:"NanumSquareRound","Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;
     --font-heading:var(--font-ui);
     --font-mono:var(--font-ui);
   }
@@ -414,18 +414,17 @@
 
   /* 🔮 사주 — 밤하늘 테마. 모달 안은 라이트/다크와 상관없이 늘 같은 '점집' 세계를
      칠한다(배경·글자색을 모두 명시). 오행 색(--el-*)은 이 블록 안에서만 쓰는 의미색. */
-  #saju-modal-overlay{z-index:300;background:rgba(8,5,26,.68);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);}
+  #saju-modal-overlay{z-index:300;background:rgba(8,5,26,.72);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);}
   .saju-modal-box{
     --sj-ink:#f1ecff; --sj-dim:#b9aedb; --sj-faint:#8f84b8; --sj-gold:#f3cf7a; --sj-gold-2:#e2ac4c;
     --sj-violet:#a98bff; --sj-pink:#ff9ad5; --sj-line:rgba(190,165,255,.22); --sj-card:rgba(255,255,255,.055);
     --el-0:#7ee08f; --el-1:#ff8f6b; --el-2:#ffd66b; --el-3:#dfe3ea; --el-4:#7cc4ff;
     --sj-serif:"Gowun Batang","Nanum Myeongjo","Batang",serif; --sj-round:"Gowun Dodum","Malgun Gothic",sans-serif;
-    max-width:580px;color:var(--sj-ink);font-family:var(--sj-round);border:1px solid rgba(243,207,122,.28);
+    max-width:580px;color:var(--sj-ink);font-family:var(--sj-round);border:1px solid rgba(243,207,122,.18);
     background:
-      radial-gradient(120% 60% at 50% -10%, rgba(169,139,255,.45), transparent 60%),
-      radial-gradient(80% 50% at 100% 100%, rgba(255,154,213,.16), transparent 60%),
-      linear-gradient(180deg,#1d1546 0%,#130e30 55%,#0d0a22 100%);
-    box-shadow:0 30px 80px -20px rgba(80,40,200,.55), inset 0 1px 0 rgba(255,255,255,.08);
+      radial-gradient(90% 40% at 50% -5%, rgba(169,139,255,.2), transparent 70%),
+      linear-gradient(180deg,#1b1640 0%,#141032 55%,#0f0c26 100%);
+    box-shadow:0 24px 60px -24px rgba(0,0,0,.6), inset 0 1px 0 rgba(255,255,255,.06);
     color-scheme:dark;isolation:isolate;
   }
   .saju-modal-box::before{ /* 반짝이는 별 */
@@ -438,7 +437,7 @@
       radial-gradient(1.4px 1.4px at 72% 64%,#fff,transparent),radial-gradient(1px 1px at 36% 50%,#d9cbff,transparent);
     background-size:100% 100%;background-attachment:local;animation:sj-twinkle 4s ease-in-out infinite alternate;
   }
-  @keyframes sj-twinkle{from{opacity:.45}to{opacity:.95}}
+  @keyframes sj-twinkle{from{opacity:.3}to{opacity:.65}}
   .saju-modal-box .modal-close{color:var(--sj-dim);}
   .saju-modal-box .modal-close:hover{background:rgba(255,255,255,.08);color:var(--sj-ink);}
   .saju-modal-box h2{font-family:var(--sj-serif);font-size:26px;font-weight:700;text-align:center;margin:0;letter-spacing:.02em;
@@ -460,7 +459,7 @@
   @keyframes sj-wave-l{0%,100%{transform:rotate(0)}50%{transform:rotate(-7deg)}}
   @keyframes sj-wave-r{0%,100%{transform:rotate(0)}50%{transform:rotate(7deg)}}
   .sj-aura{transform-box:fill-box;transform-origin:center;animation:sj-pulse 2.6s ease-in-out infinite;}
-  @keyframes sj-pulse{0%,100%{transform:scale(.9);opacity:.55}50%{transform:scale(1.12);opacity:.95}}
+  @keyframes sj-pulse{0%,100%{transform:scale(.9);opacity:.3}50%{transform:scale(1.05);opacity:.6}}
   .sj-swirl{transform-box:fill-box;transform-origin:center;animation:sj-spin 6s linear infinite;}
   @keyframes sj-spin{to{transform:rotate(360deg)}}
   .sj-spark{transform-box:fill-box;transform-origin:center;animation:sj-spark 2.4s ease-in-out infinite;}
@@ -469,7 +468,7 @@
   .sj-stage.gazing .sj-aura{animation-duration:.8s}
   .sj-stage.gazing .sj-swirl{animation-duration:1.2s}
   .sj-stage.gazing .sj-wing-l,.sj-stage.gazing .sj-wing-r{animation-duration:.7s}
-  .sj-stage.gazing .sj-ball{filter:brightness(1.35) drop-shadow(0 0 10px #c9b2ff);}
+  .sj-stage.gazing .sj-ball{filter:brightness(1.2) drop-shadow(0 0 5px #c9b2ff);}
   .sj-ball{transition:filter .4s;}
   .sj-bubble{
     position:relative;max-width:100%;margin-top:4px;padding:8px 14px;border-radius:14px;font-size:13px;line-height:1.5;text-align:center;
@@ -484,6 +483,7 @@
   .saju-form{display:flex;flex-direction:column;gap:14px;}
   .saju-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
   .saju-row.two{grid-template-columns:minmax(0,1fr) auto;align-items:center;}
+  .saju-row.two-sel{grid-template-columns:minmax(0,1fr) minmax(0,1.3fr);}
   .saju-label{display:block;font-family:var(--sj-round);font-weight:700;font-size:12px;letter-spacing:.04em;color:var(--sj-gold);margin-bottom:7px;}
   .saju-label .muted{font-weight:400;color:var(--sj-faint);letter-spacing:0;}
   .saju-modal-box input[type=number],.saju-modal-box input[type=time],.saju-modal-box select,.saju-modal-box textarea{
@@ -493,13 +493,13 @@
   .saju-modal-box select option{background:#1d1546;color:var(--sj-ink);}
   .saju-modal-box input::placeholder,.saju-modal-box textarea::placeholder{color:var(--sj-faint);}
   .saju-modal-box input:focus,.saju-modal-box select:focus,.saju-modal-box textarea:focus{
-    outline:none;border-color:var(--sj-violet);background:rgba(169,139,255,.1);box-shadow:0 0 0 4px rgba(169,139,255,.18),0 0 18px rgba(169,139,255,.25);}
+    outline:none;border-color:var(--sj-violet);background:rgba(169,139,255,.08);box-shadow:0 0 0 3px rgba(169,139,255,.18);}
   .saju-modal-box input:disabled{opacity:.4;}
   .saju-seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;padding:4px;background:rgba(255,255,255,.05);border:1px solid var(--sj-line);border-radius:14px;}
   .saju-seg label{position:relative;display:flex;align-items:center;justify-content:center;min-height:36px;border-radius:10px;color:var(--sj-dim);font-weight:700;font-size:14px;cursor:pointer;transition:color .2s,background .25s,box-shadow .25s;}
   .saju-seg label:hover{color:var(--sj-ink);}
   .saju-seg input{position:absolute;opacity:0;pointer-events:none;}
-  .saju-seg label:has(input:checked){color:#1b1238;background:linear-gradient(135deg,#d9c8ff,#a98bff);box-shadow:0 0 16px rgba(169,139,255,.55);}
+  .saju-seg label:has(input:checked){color:#1b1238;background:linear-gradient(135deg,#d9c8ff,#a98bff);box-shadow:0 2px 8px rgba(169,139,255,.3);}
   .saju-seg label:has(input:focus-visible){outline:2px solid var(--sj-gold);outline-offset:2px;}
   .saju-check{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--sj-dim);cursor:pointer;white-space:nowrap;}
   .saju-check input{width:16px;height:16px;accent-color:var(--sj-violet);}
@@ -507,13 +507,13 @@
   .saju-primary{
     position:relative;overflow:hidden;padding:12px 22px;border-radius:999px;border:0;cursor:pointer;
     font-family:var(--sj-round);font-weight:700;font-size:15px;color:#2a1a05;
-    background:linear-gradient(135deg,#fff0bf,#f3cf7a 45%,#e2ac4c);box-shadow:0 6px 20px -6px rgba(243,207,122,.6);
+    background:linear-gradient(135deg,#fff0bf,#f3cf7a 45%,#e2ac4c);box-shadow:0 4px 12px -6px rgba(243,207,122,.45);
     transition:transform .15s,box-shadow .2s;
   }
   .saju-primary::after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;transform:skewX(-20deg);
     background:linear-gradient(90deg,transparent,rgba(255,255,255,.7),transparent);animation:sj-shine 3.2s ease-in-out infinite;}
   @keyframes sj-shine{0%,60%{left:-60%}100%{left:130%}}
-  .saju-primary:hover{transform:translateY(-1px);box-shadow:0 10px 26px -6px rgba(243,207,122,.75);}
+  .saju-primary:hover{transform:translateY(-1px);box-shadow:0 6px 16px -6px rgba(243,207,122,.55);}
   .saju-primary:active{transform:translateY(1px) scale(.98);}
   .saju-primary:disabled{opacity:.55;cursor:wait;transform:none;}
   .saju-primary:focus-visible{outline:2px solid #fff;outline-offset:3px;}
@@ -530,7 +530,7 @@
   .saju-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:4px;margin:4px 0 18px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid var(--sj-line);}
   .saju-tabs button{font-family:var(--sj-round);font-weight:700;font-size:13px;color:var(--sj-dim);background:none;border:0;padding:9px 2px;border-radius:10px;cursor:pointer;white-space:nowrap;transition:color .2s,background .25s;}
   .saju-tabs button:hover{color:var(--sj-ink);}
-  .saju-tabs button.active{color:var(--sj-ink);background:linear-gradient(135deg,rgba(169,139,255,.45),rgba(255,154,213,.25));box-shadow:inset 0 0 0 1px rgba(255,255,255,.18),0 0 14px rgba(169,139,255,.35);}
+  .saju-tabs button.active{color:var(--sj-ink);background:linear-gradient(135deg,rgba(169,139,255,.45),rgba(255,154,213,.25));box-shadow:inset 0 0 0 1px rgba(255,255,255,.18);}
   .saju-tabs button:focus-visible{outline:2px solid var(--sj-gold);outline-offset:1px;}
   [data-saju-pane]:not([hidden]){animation:sj-fade .4s ease;}
   @keyframes sj-fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
@@ -543,20 +543,20 @@
   .saju-pillar:nth-child(2){animation-delay:.12s}.saju-pillar:nth-child(3){animation-delay:.24s}.saju-pillar:nth-child(4){animation-delay:.36s}
   .saju-pillar:hover{transform:translateY(-3px);box-shadow:0 10px 24px -10px rgba(169,139,255,.6);}
   @keyframes sj-flip{from{transform:rotateY(90deg);opacity:0}to{transform:none;opacity:1}}
-  .saju-pillar.me{border-color:rgba(243,207,122,.6);box-shadow:0 0 18px rgba(243,207,122,.18);}
+  .saju-pillar.me{border-color:rgba(243,207,122,.6);box-shadow:0 0 8px rgba(243,207,122,.12);}
   .saju-pillar-pos{font-size:11px;font-weight:700;color:var(--sj-faint);letter-spacing:.08em;}
   .saju-pillar.me .saju-pillar-pos{color:var(--sj-gold);}
   .saju-god{font-size:11px;color:var(--sj-dim);font-weight:700;white-space:nowrap;}
   .saju-char{width:48px;height:50px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;
     font-family:var(--sj-serif);font-size:26px;font-weight:700;color:var(--el);
     background:radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--el) 26%, transparent), color-mix(in srgb, var(--el) 8%, transparent));
-    border:1px solid color-mix(in srgb, var(--el) 45%, transparent);text-shadow:0 0 12px color-mix(in srgb, var(--el) 60%, transparent);cursor:help;}
+    border:1px solid color-mix(in srgb, var(--el) 45%, transparent);text-shadow:0 0 6px color-mix(in srgb, var(--el) 35%, transparent);cursor:help;}
   .saju-char small{font-family:var(--sj-round);font-size:10px;font-weight:700;margin-top:3px;text-shadow:none;}
   .saju-pillar.unknown .saju-char{--el:var(--sj-faint);}
   .saju-elements{display:grid;grid-template-columns:auto 1fr auto;gap:8px 12px;align-items:center;font-size:13px;margin-bottom:16px;}
   .saju-el-bar{height:9px;border-radius:99px;background:rgba(255,255,255,.07);overflow:hidden;}
   .saju-el-bar span{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,color-mix(in srgb, var(--el) 55%, transparent),var(--el));
-    box-shadow:0 0 10px var(--el);transform-origin:left;animation:sj-grow 1s cubic-bezier(.2,.8,.2,1) both .4s;}
+    transform-origin:left;animation:sj-grow 1s cubic-bezier(.2,.8,.2,1) both .4s;}
   @keyframes sj-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
   .saju-el-n{font-variant-numeric:tabular-nums;color:var(--sj-dim);font-size:12px;}
   .saju-card{background:var(--sj-card);border:1px solid var(--sj-line);border-radius:16px;padding:14px 16px;margin-bottom:10px;font-size:14px;line-height:1.75;color:var(--sj-ink);}
@@ -586,12 +586,12 @@
   .sj-tarot-back small{font-family:var(--sj-round);font-size:12px;color:var(--sj-dim);}
   .sj-tarot-front{transform:rotateY(180deg);padding:16px;background:var(--sj-card);border:1px solid var(--sj-line);}
   .saju-today-head{display:flex;align-items:center;gap:14px;margin-bottom:10px;}
-  .saju-today-day{font-family:var(--sj-serif);font-size:34px;font-weight:700;color:var(--sj-gold);text-shadow:0 0 18px rgba(243,207,122,.5);}
+  .saju-today-day{font-family:var(--sj-serif);font-size:34px;font-weight:700;color:var(--sj-gold);text-shadow:0 0 8px rgba(243,207,122,.3);}
   .saju-today-meta{font-size:13px;color:var(--sj-dim);}
   .saju-today-meta b{display:block;color:var(--sj-ink);font-size:15px;font-family:var(--sj-serif);}
   .saju-scores{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px;}
   .saju-score{background:rgba(255,255,255,.04);border:1px solid var(--sj-line);border-radius:12px;padding:10px 12px;font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:6px;}
-  .saju-stars{color:var(--sj-gold);letter-spacing:1px;white-space:nowrap;text-shadow:0 0 8px rgba(243,207,122,.6);}
+  .saju-stars{color:var(--sj-gold);letter-spacing:1px;white-space:nowrap;}
   .saju-stars .off{color:rgba(255,255,255,.15);text-shadow:none;}
 
   /* 궁합 */
@@ -599,7 +599,7 @@
   .saju-match-hero{position:relative;text-align:center;padding:18px 12px 6px;}
   .saju-match-pair{display:flex;align-items:center;justify-content:center;gap:10px;font-size:13px;color:var(--sj-dim);margin-bottom:6px;}
   .saju-match-pair b{color:var(--sj-ink);}
-  .saju-match-score{font-family:var(--sj-serif);font-size:56px;font-weight:700;line-height:1;color:var(--sj-pink);text-shadow:0 0 24px rgba(255,154,213,.55);font-variant-numeric:tabular-nums;}
+  .saju-match-score{font-family:var(--sj-serif);font-size:56px;font-weight:700;line-height:1;color:var(--sj-pink);text-shadow:0 0 10px rgba(255,154,213,.35);font-variant-numeric:tabular-nums;}
   .saju-match-score small{font-size:18px;color:var(--sj-dim);text-shadow:none;}
   .saju-match-tier{font-family:var(--sj-serif);font-size:17px;margin:6px 0 12px;color:var(--sj-ink);}
   .sj-heart{position:absolute;left:50%;top:40%;font-size:18px;pointer-events:none;animation:sj-heart 1.4s ease-out forwards;}
@@ -614,7 +614,7 @@
   .saju-period{flex:none;width:66px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 2px;border-radius:14px;
     background:rgba(255,255,255,.04);border:1px solid var(--sj-line);cursor:pointer;font:inherit;color:var(--sj-ink);transition:transform .2s,background .2s,border-color .2s;}
   .saju-period:hover{transform:translateY(-2px);}
-  .saju-period.current{border-color:var(--sj-gold);box-shadow:0 0 16px rgba(243,207,122,.3);}
+  .saju-period.current{border-color:var(--sj-gold);box-shadow:0 0 8px rgba(243,207,122,.2);}
   .saju-period.selected{background:rgba(169,139,255,.2);}
   .saju-period b{font-family:var(--sj-serif);font-size:20px;}
   .saju-period span{font-size:11px;color:var(--sj-dim);font-variant-numeric:tabular-nums;}
@@ -1174,6 +1174,7 @@
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/innks/NanumSquareRound@master/nanumsquareround.min.css">
 </head>
 <body>
 <div class="bg-orbs" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -1418,8 +1419,11 @@
         </div>
       </div>
       <div>
-        <label class="saju-label" for="saju-place">태어난 곳 <span class="muted">· 경도에 맞춰 실제 태양시로 보정해요</span></label>
-        <select id="saju-place"><option value="">모름 · 해외 (서울 기준)</option></select>
+        <label class="saju-label" for="saju-region">태어난 곳 <span class="muted">· 경도에 맞춰 실제 태양시로 보정해요</span></label>
+        <div class="saju-row two-sel">
+          <select id="saju-region" aria-label="시·도"><option value="">모름 · 해외 (서울 기준)</option></select>
+          <select id="saju-place" aria-label="시·군" disabled><option value="">시·군 선택</option></select>
+        </div>
       </div>
       <div>
         <span class="saju-label">성별 <span class="muted">· 대운 방향 계산에만 써요</span></span>
@@ -5010,11 +5014,28 @@
       say(data.chart.day_animal + "의 기운이 보여요! 탭을 눌러 더 살펴봐요.");
       show("result");
     }
+    var PLACES = [];
     function fillPlaces(places) {
-      var sel = document.getElementById("saju-place");
-      if (sel.options.length > 1 || !places) return;
-      places.forEach(function (p) { var o = document.createElement("option"); o.value = p.key; o.textContent = p.label; sel.appendChild(o); });
+      var reg = document.getElementById("saju-region");
+      if (PLACES.length || !places) return;
+      PLACES = places;
+      var seen = {};
+      places.forEach(function (p) {
+        if (seen[p.region]) return;
+        seen[p.region] = 1;
+        var o = document.createElement("option"); o.value = p.region; o.textContent = p.region; reg.appendChild(o);
+      });
     }
+    function fillCities(region, key) {
+      var sel = document.getElementById("saju-place");
+      var list = PLACES.filter(function (p) { return p.region === region; });
+      sel.innerHTML = "";
+      if (!list.length) { sel.innerHTML = '<option value="">시·군 선택</option>'; sel.disabled = true; return; }
+      list.forEach(function (p) { var o = document.createElement("option"); o.value = p.key; o.textContent = p.label; sel.appendChild(o); });
+      sel.disabled = false;
+      sel.value = key && list.some(function (p) { return p.key === key; }) ? key : list[0].key;
+    }
+    document.getElementById("saju-region").addEventListener("change", function () { fillCities(this.value); });
     function fillForm(p) {
       form.querySelector('input[name="calendar"][value="' + ((p && p.calendar) || "solar") + '"]').checked = true;
       document.getElementById("saju-year").value = p ? p.year : "";
@@ -5024,7 +5045,10 @@
       document.getElementById("saju-time-unknown").checked = !!(p && p.time_unknown);
       document.getElementById("saju-time").value = p && !p.time_unknown ? String(p.hour).padStart(2, "0") + ":" + String(p.minute).padStart(2, "0") : "12:00";
       form.querySelector('input[name="gender"][value="' + ((p && p.gender) || "") + '"]').checked = true;
-      document.getElementById("saju-place").value = (p && p.place) || "";
+      var placeKey = (p && p.place) || "";
+      var hit = PLACES.filter(function (x) { return x.key === placeKey; })[0];
+      document.getElementById("saju-region").value = hit ? hit.region : "";
+      fillCities(hit ? hit.region : "", placeKey);
       syncForm();
       errEl.hidden = true;
       document.getElementById("saju-cancel-edit").hidden = !p;
@@ -5045,7 +5069,7 @@
         time_unknown: document.getElementById("saju-time-unknown").checked,
         hour: time[0], minute: time[1],
         gender: form.querySelector('input[name="gender"]:checked').value,
-        place: document.getElementById("saju-place").value,
+        place: document.getElementById("saju-region").value ? document.getElementById("saju-place").value : "",
       };
       var btn = document.getElementById("saju-save-btn");
       btn.disabled = true; errEl.hidden = true; gaze(true); say("구슬에 여덟 글자를 비추는 중… 🔮");
