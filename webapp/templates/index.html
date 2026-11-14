@@ -420,7 +420,7 @@
     --sj-violet:#a98bff; --sj-pink:#ff9ad5; --sj-line:rgba(190,165,255,.22); --sj-card:rgba(255,255,255,.055);
     --el-0:#7ee08f; --el-1:#ff8f6b; --el-2:#ffd66b; --el-3:#dfe3ea; --el-4:#7cc4ff;
     --sj-serif:"Gowun Batang","Nanum Myeongjo","Batang",serif; /* 한자 전용 */
-    --sj-display:"Jua","NanumSquareRound","Malgun Gothic",sans-serif; --sj-round:"NanumSquareRound","Malgun Gothic",sans-serif;
+    --sj-display:"Poor Story","NanumSquareRound","Malgun Gothic",sans-serif; --sj-round:"Poor Story","NanumSquareRound","Malgun Gothic",sans-serif;
     max-width:580px;color:var(--sj-ink);font-family:var(--sj-round);border:1px solid rgba(243,207,122,.18);
     background:
       radial-gradient(90% 40% at 50% -5%, rgba(169,139,255,.2), transparent 70%),
@@ -477,7 +477,7 @@
     animation:sj-pop .35s cubic-bezier(.2,.9,.3,1.3);
   }
   /* 결과 화면: 부엉이를 작게 줄이고 말풍선을 옆에 둬서 본문이 위로 올라오게 */
-  .saju-modal-box.is-result h2{font-size:21px;}
+  .saju-modal-box.is-result h2{font-size:25px;}
   .saju-modal-box.is-result .saju-sub-title{display:none;}
   .saju-modal-box.is-result .sj-stage{flex-direction:row;justify-content:center;gap:10px;margin:2px 0 12px;}
   .saju-modal-box.is-result .sj-owl{width:104px;height:78px;flex:none;}
@@ -556,7 +556,7 @@
   .saju-tabs button:focus-visible{box-shadow:inset 0 0 0 1px rgba(243,207,122,.7);}
   [data-saju-pane]:not([hidden]){animation:sj-fade .4s ease;}
   @keyframes sj-fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-  .saju-headline{font-family:var(--sj-display);font-weight:400;font-size:18px;text-align:center;margin:0 0 14px;text-wrap:balance;color:var(--sj-ink);}
+  .saju-headline{font-family:var(--sj-display);font-weight:400;font-size:21px;text-align:center;margin:0 0 14px;text-wrap:balance;color:var(--sj-ink);}
   .saju-headline em{font-style:normal;color:var(--sj-gold);}
   .saju-pillars{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:16px;perspective:800px;}
   .saju-pillar{display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 4px;border-radius:14px;
@@ -581,8 +581,8 @@
     transform-origin:left;animation:sj-grow 1s cubic-bezier(.2,.8,.2,1) both .4s;}
   @keyframes sj-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
   .saju-el-n{font-variant-numeric:tabular-nums;color:var(--sj-dim);font-size:12px;}
-  .saju-card{background:var(--sj-card);border:1px solid var(--sj-line);border-radius:16px;padding:14px 16px;margin-bottom:10px;font-size:14px;line-height:1.75;color:var(--sj-ink);}
-  .saju-card h3{font-family:var(--sj-display);font-size:15px;font-weight:400;margin:0 0 6px;color:var(--sj-gold);}
+  .saju-card{background:var(--sj-card);border:1px solid var(--sj-line);border-radius:16px;padding:14px 16px;margin-bottom:10px;font-size:15.5px;line-height:1.75;color:var(--sj-ink);}
+  .saju-card h3{font-family:var(--sj-display);font-size:17px;font-weight:400;margin:0 0 6px;color:var(--sj-gold);}
   .saju-card p{margin:0;}
   .saju-card .saju-sub{color:var(--sj-dim);font-size:13px;margin-top:6px;}
   .saju-grid-2{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px;}
@@ -1198,7 +1198,7 @@
   }
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Jua&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Poor+Story&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/innks/NanumSquareRound@master/nanumsquareround.min.css">
 </head>
 <body>
