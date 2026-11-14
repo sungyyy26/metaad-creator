@@ -77,6 +77,13 @@ GAME_NAMES = {"mole", "snake", "dino", "breakout"}
 # 🎮 아이콘으로 바로 이동).
 UPDATE_ITEMS = [
     {
+        "version": "2026-11-14-owl-pet",
+        "icon": "🦉",
+        "title": "부엉이 도우미",
+        "desc": "화면 오른쪽 아래 부엉이를 끌어서 옮기고, 누르면 사용 팁과 오늘 운세 바로가기를 알려줘요.",
+        "date": "11월 14일 업데이트",
+    },
+    {
         "version": "2026-11-14-saju-today",
         "icon": "☕",
         "title": "컵홀더 운세 · 오늘의 운세왕",

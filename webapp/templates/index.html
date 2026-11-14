@@ -420,7 +420,7 @@
     --sj-violet:#a98bff; --sj-pink:#ff9ad5; --sj-line:rgba(190,165,255,.22); --sj-card:rgba(255,255,255,.055);
     --el-0:#7ee08f; --el-1:#ff8f6b; --el-2:#ffd66b; --el-3:#dfe3ea; --el-4:#7cc4ff;
     --sj-serif:"Gowun Batang","Nanum Myeongjo","Batang",serif; /* 한자 전용 */
-    --sj-display:"Yeon Sung","NanumSquareRound","Malgun Gothic",sans-serif; --sj-round:"Yeon Sung","NanumSquareRound","Malgun Gothic",sans-serif;
+    --sj-display:"Do Hyeon","NanumSquareRound","Malgun Gothic",sans-serif; --sj-round:"Do Hyeon","NanumSquareRound","Malgun Gothic",sans-serif;
     max-width:580px;color:var(--sj-ink);font-family:var(--sj-round);border:1px solid rgba(243,207,122,.18);
     background:
       radial-gradient(90% 40% at 50% -5%, rgba(169,139,255,.2), transparent 70%),
@@ -1259,9 +1259,38 @@
     /* 넓은 화면: 아이콘 묶음을 화면 끝이 아니라 본문 오른쪽 끝·상단 토글 줄에 맞춘다 */
     .header-bar{top:calc(var(--sp-8) + 1px);right:max(20px, calc((100% - 1180px) / 2 + 22px));}
   }
+
+  /* 🦉 메인 화면 부엉이 도우미 — 끌어서 옮기고, 누르면 안내 말풍선 */
+  .owl-pet{position:fixed;right:24px;bottom:24px;z-index:40;width:84px;height:84px;touch-action:none;user-select:none;-webkit-user-select:none;}
+  .owl-pet[hidden]{display:none;}
+  .owl-pet-body{width:84px;height:84px;cursor:grab;filter:drop-shadow(0 8px 14px rgba(40,30,90,.28));animation:owl-bob 3.2s ease-in-out infinite;}
+  .owl-pet-body:focus{outline:none;}
+  .owl-pet-body:focus-visible{outline:2px solid var(--accent);outline-offset:4px;border-radius:50%;}
+  .owl-pet.dragging .owl-pet-body{cursor:grabbing;animation:none;transform:scale(1.08) rotate(-6deg);}
+  @keyframes owl-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+  .owl-pet .sj-eyes{transform-box:fill-box;transform-origin:center;animation:sj-blink 5s infinite;}
+  .owl-pet-dot{position:absolute;top:4px;right:6px;width:14px;height:14px;border-radius:50%;background:#ff5a7a;border:2px solid var(--surface);animation:owl-ping 1.6s ease-in-out infinite;}
+  @keyframes owl-ping{0%,100%{transform:scale(1)}50%{transform:scale(1.25)}}
+  .owl-pet-bubble{position:absolute;bottom:92px;right:0;width:270px;max-width:calc(100vw - 32px);padding:14px 14px 12px;border-radius:16px 16px 4px 16px;
+    background:var(--surface-opaque);color:var(--text);border:1px solid var(--border-strong);box-shadow:var(--shadow);font-size:var(--fs-sm);line-height:1.6;
+    animation:sj-pop .3s cubic-bezier(.2,.9,.3,1.3);}
+  .owl-pet.flip .owl-pet-bubble{right:auto;left:0;border-radius:16px 16px 16px 4px;}
+  .owl-pet.below .owl-pet-bubble{bottom:auto;top:92px;}
+  .owl-pet-bubble[hidden]{display:none;}
+  .owl-pet-bubble b{color:var(--accent);}
+  .owl-pet-bubble p{margin:0 0 10px;}
+  .owl-pet-actions{display:flex;flex-wrap:wrap;gap:6px;}
+  .owl-pet-actions button{font:inherit;font-size:var(--fs-xs);font-weight:700;padding:6px 11px;border-radius:99px;border:1px solid var(--border-strong);background:var(--surface-3);color:var(--text);cursor:pointer;}
+  .owl-pet-actions button:hover{border-color:var(--accent);color:var(--accent);}
+  .owl-pet-actions button.primary{background:var(--accent-2);border-color:var(--accent-2);color:#fff;}
+  .owl-pet-x{position:absolute;top:6px;right:8px;border:0;background:none;color:var(--text-faint);cursor:pointer;font-size:14px;}
+  .owl-pet-call{position:fixed;right:16px;bottom:16px;z-index:40;width:40px;height:40px;border-radius:50%;border:1px solid var(--glass-border);background:var(--surface);box-shadow:var(--shadow);cursor:pointer;font-size:20px;}
+  .owl-pet-call[hidden]{display:none;}
+  @media (prefers-reduced-motion: reduce){ .owl-pet-body,.owl-pet-dot{animation:none;} }
+  @media (max-width:600px){ .owl-pet{right:12px;bottom:12px;width:64px;height:64px;} .owl-pet-body{width:64px;height:64px;} .owl-pet-bubble{bottom:72px;} .owl-pet.below .owl-pet-bubble{top:72px;} }
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Yeon+Sung&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Do+Hyeon&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/innks/NanumSquareRound@master/nanumsquareround.min.css">
 </head>
 <body>
@@ -5297,6 +5326,125 @@
       params.delete("saju_with");
       history.replaceState(null, "", location.pathname + (params.toString() ? "?" + params : "") + location.hash);
       open();
+    }
+  })();
+</script>
+
+<div class="owl-pet" id="owl-pet" hidden>
+  <div class="owl-pet-bubble" id="owl-pet-bubble" hidden role="dialog" aria-label="부엉이 도우미"></div>
+  <span class="owl-pet-dot" id="owl-pet-dot" hidden></span>
+  <svg class="owl-pet-body" id="owl-pet-body" viewBox="40 0 120 130" role="button" tabindex="0" aria-label="부엉이 도우미 — 누르면 안내, 끌면 이동">
+    <defs>
+      <linearGradient id="opHat" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6a4cc4"/><stop offset="1" stop-color="#2d1f6b"/></linearGradient>
+      <linearGradient id="opBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9a7556"/><stop offset="1" stop-color="#6b4b35"/></linearGradient>
+    </defs>
+    <ellipse cx="100" cy="84" rx="37" ry="39" fill="url(#opBody)"/>
+    <ellipse cx="100" cy="96" rx="22" ry="24" fill="#ecd9b8"/>
+    <path d="M66 78q-16 22 4 42q6-4 10-12q-8-14-6-30z" fill="#5c3f2c"/><path d="M134 78q16 22-4 42q-6-4-10-12q8-14 6-30z" fill="#5c3f2c"/>
+    <circle cx="86" cy="72" r="15" fill="#f6e9d0"/><circle cx="114" cy="72" r="15" fill="#f6e9d0"/>
+    <g class="sj-eyes"><circle cx="86" cy="72" r="9.5" fill="#f3b13c"/><circle cx="114" cy="72" r="9.5" fill="#f3b13c"/>
+      <circle cx="86" cy="73" r="5.5" fill="#1b1238"/><circle cx="114" cy="73" r="5.5" fill="#1b1238"/>
+      <circle cx="88" cy="71" r="1.8" fill="#fff"/><circle cx="116" cy="71" r="1.8" fill="#fff"/></g>
+    <path d="M96 81h8l-4 8z" fill="#e8962e"/>
+    <path d="M70 50Q96 -8 122 2q-12 10-2 20q6 12 12 28z" fill="url(#opHat)"/>
+    <ellipse cx="100" cy="51" rx="42" ry="7.5" fill="#2d1f6b"/>
+    <path d="M98 22l1.6 3.4 3.6.4-2.7 2.4.8 3.6-3.3-1.9-3.3 1.9.8-3.6-2.7-2.4 3.6-.4z" fill="#f3cf7a"/>
+    <path d="M84 120q16 8 32 0" stroke="#e8962e" stroke-width="4" stroke-linecap="round" fill="none"/>
+  </svg>
+</div>
+<button type="button" class="owl-pet-call" id="owl-pet-call" hidden aria-label="부엉이 도우미 다시 부르기" title="부엉이 다시 부르기">🦉</button>
+<script>
+  // 🦉 메인 화면 부엉이 — 끌어서 옮기기(위치 기억), 누르면 안내 말풍선. 하루 한 번 '오늘 운세' 안내.
+  (function () {
+    var pet = document.getElementById("owl-pet"), body = document.getElementById("owl-pet-body");
+    var bubble = document.getElementById("owl-pet-bubble"), dot = document.getElementById("owl-pet-dot");
+    var call = document.getElementById("owl-pet-call");
+    if (!pet) return;
+    var KEY = "owl-pet", st = { x: null, y: null, hidden: false, nudged: "" };
+    try { st = Object.assign(st, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch (e) {}
+    function save() { try { localStorage.setItem(KEY, JSON.stringify(st)); } catch (e) {} }
+    var today = new Date().toISOString().slice(0, 10);
+    function sajuOpenedToday() { try { return localStorage.getItem("sj-cup-" + today) === "1"; } catch (e) { return false; } }
+
+    var TIPS = [
+      "<b>대량 업로드</b>는 스프레드시트 행을 그대로 붙여넣으면 돼요. 먼저 <b>행 미리보기</b>로 확인!",
+      "<b>예산 조정</b> 탭에서 소재명 옆 썸네일을 누르면 영상·이미지와 성과를 같이 볼 수 있어요.",
+      "아마존 링크가 예전에 쓴 것과 같으면 제가 경고 팝업으로 알려드려요.",
+      "<b>쇼피파이 편집</b>은 조건 검색 → 수정사항 선택 → 최종 확인 순서예요.",
+      "막히는 게 있으면 오른쪽 위 <b>💡 개선 요청</b>으로 알려주세요. 바로 전달돼요!",
+      "로딩이 길어지면 기다리는 동안 🎮 미니게임이나 🔮 사주를 볼 수 있어요.",
+      "오른쪽 위 <b>?</b> 아이콘에 대량 업로드 열 순서 가이드가 있어요.",
+    ];
+    var tipIdx = Math.floor(Math.random() * TIPS.length);
+
+    function place() {
+      if (st.x == null) { pet.style.left = ""; pet.style.top = ""; pet.style.right = ""; pet.style.bottom = ""; }
+      else {
+        var w = pet.offsetWidth || 84, h = pet.offsetHeight || 84;
+        var x = Math.min(Math.max(8, st.x), innerWidth - w - 8), y = Math.min(Math.max(8, st.y), innerHeight - h - 8);
+        pet.style.left = x + "px"; pet.style.top = y + "px"; pet.style.right = "auto"; pet.style.bottom = "auto";
+      }
+      var r = pet.getBoundingClientRect();
+      pet.classList.toggle("below", r.top < 220);
+      if (!bubble.hidden) {   // 말풍선이 화면 밖으로 나가지 않게 가로 위치를 맞춘다
+        var bw = bubble.offsetWidth;
+        var rel = Math.min(Math.max(8 - r.left, r.width - bw), innerWidth - 8 - bw - r.left);
+        bubble.style.left = rel + "px"; bubble.style.right = "auto";
+      }
+    }
+    function show(html, actions) {
+      bubble.innerHTML = '<button type="button" class="owl-pet-x" aria-label="말풍선 닫기">×</button><p>' + html + '</p><div class="owl-pet-actions"></div>';
+      var box = bubble.querySelector(".owl-pet-actions");
+      (actions || []).forEach(function (a) {
+        var b = document.createElement("button");
+        b.type = "button"; b.textContent = a[0]; if (a[2]) b.className = "primary";
+        b.addEventListener("click", function (e) { e.stopPropagation(); a[1](); });
+        box.appendChild(b);
+      });
+      bubble.querySelector(".owl-pet-x").addEventListener("click", function (e) { e.stopPropagation(); bubble.hidden = true; });
+      bubble.hidden = false; dot.hidden = true; place();
+    }
+    function click(id) { var el = document.getElementById(id); if (el) el.click(); bubble.hidden = true; }
+    function menu() {
+      var fortune = sajuOpenedToday() ? ["🔮 운세 다시 보기", function () { click("saju-btn"); }] : ["☕ 오늘 운세 보러 가기", function () { click("saju-btn"); }, true];
+      show(TIPS[tipIdx], [fortune, ["💡 다른 팁", function () { tipIdx = (tipIdx + 1) % TIPS.length; menu(); }],
+        ["🎮 게임", function () { click("game-btn"); }], ["🙈 숨기기", function () { st.hidden = true; save(); sync(); }]]);
+    }
+    function sync() { pet.hidden = st.hidden; call.hidden = !st.hidden; bubble.hidden = true; if (!st.hidden) place(); }
+
+    // 끌기 — 조금이라도 움직이면 드래그, 아니면 클릭
+    var drag = null;
+    body.addEventListener("pointerdown", function (e) {
+      var r = pet.getBoundingClientRect();
+      drag = { dx: e.clientX - r.left, dy: e.clientY - r.top, sx: e.clientX, sy: e.clientY, moved: false };
+      body.setPointerCapture(e.pointerId);
+    });
+    body.addEventListener("pointermove", function (e) {
+      if (!drag) return;
+      if (!drag.moved && Math.abs(e.clientX - drag.sx) + Math.abs(e.clientY - drag.sy) < 6) return;
+      drag.moved = true; pet.classList.add("dragging"); bubble.hidden = true;
+      st.x = e.clientX - drag.dx; st.y = e.clientY - drag.dy; place();
+    });
+    body.addEventListener("pointerup", function () {
+      if (!drag) return;
+      var moved = drag.moved; drag = null; pet.classList.remove("dragging");
+      if (moved) save(); else if (bubble.hidden) menu(); else bubble.hidden = true;
+    });
+    body.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); bubble.hidden ? menu() : (bubble.hidden = true); } });
+    call.addEventListener("click", function () { st.hidden = false; save(); sync(); menu(); });
+    addEventListener("resize", function () { if (!pet.hidden) place(); });
+    sync();
+
+    // 하루 한 번: 오늘 운세 안 봤으면 먼저 말을 건다(업데이트 팝업이 떠 있으면 닫힌 뒤에)
+    if (!st.hidden && st.nudged !== today && !sajuOpenedToday()) {
+      dot.hidden = false;
+      setTimeout(function () {
+        var up = document.getElementById("update-modal-overlay");
+        if (up && !up.hidden) return;
+        st.nudged = today; save();
+        show("좋은 아침이에요! 부엉~ 오늘 <b>컵홀더 운세</b> 아직 안 봤죠? 오늘의 점수랑 점심 메뉴까지 알려드릴게요 ☕",
+          [["☕ 오늘 운세 보러 가기", function () { click("saju-btn"); }, true], ["나중에", function () { bubble.hidden = true; }]]);
+      }, 2500);
     }
   })();
 </script>
