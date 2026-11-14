@@ -420,7 +420,7 @@
     --sj-violet:#a98bff; --sj-pink:#ff9ad5; --sj-line:rgba(190,165,255,.22); --sj-card:rgba(255,255,255,.055);
     --el-0:#7ee08f; --el-1:#ff8f6b; --el-2:#ffd66b; --el-3:#dfe3ea; --el-4:#7cc4ff;
     --sj-serif:"Gowun Batang","Nanum Myeongjo","Batang",serif; /* 한자 전용 */
-    --sj-display:"Poor Story","NanumSquareRound","Malgun Gothic",sans-serif; --sj-round:"Poor Story","NanumSquareRound","Malgun Gothic",sans-serif;
+    --sj-display:"Yeon Sung","NanumSquareRound","Malgun Gothic",sans-serif; --sj-round:"Yeon Sung","NanumSquareRound","Malgun Gothic",sans-serif;
     max-width:580px;color:var(--sj-ink);font-family:var(--sj-round);border:1px solid rgba(243,207,122,.18);
     background:
       radial-gradient(90% 40% at 50% -5%, rgba(169,139,255,.2), transparent 70%),
@@ -592,6 +592,69 @@
   .saju-tag.gold{background:rgba(243,207,122,.14);color:var(--sj-gold);border-color:rgba(243,207,122,.35);}
   .saju-note{font-size:12px;color:var(--sj-faint);text-align:center;margin:-2px 0 12px;}
 
+
+  /* ☕ 오늘의 운세 — 바나프레소 컵홀더처럼 내려야 보이는 라벨 */
+  .sj-cup{position:relative;overflow:hidden;border-radius:18px;margin-bottom:14px;}
+  .sj-label{position:relative;padding:16px 18px 14px;border-radius:18px;color:#3b2a1a;font-family:var(--sj-display);
+    background:radial-gradient(circle at 85% 15%,#fff9ea,#f6e7c8 70%);box-shadow:inset 0 0 0 2px #fff7e2,inset 0 0 0 4px rgba(122,84,40,.25);}
+  .sj-label.jackpot{background:radial-gradient(circle at 85% 15%,#fff6c9,#ffd76a 75%);}
+  .sj-label-top{display:flex;justify-content:space-between;align-items:center;font-size:13px;color:#7a5a37;}
+  .sj-stamp{display:inline-flex;align-items:center;justify-content:center;min-width:46px;height:46px;padding:0 6px;border-radius:50%;border:2.5px solid #c8402f;color:#c8402f;
+    font-family:var(--sj-serif);font-weight:700;font-size:15px;transform:rotate(-12deg);opacity:.9;}
+  .sj-score{display:flex;align-items:baseline;gap:6px;margin:2px 0 4px;}
+  .sj-score b{font-size:64px;line-height:1;color:#2a1a0a;font-variant-numeric:tabular-nums;}
+  .sj-score small{font-size:18px;color:#8a6a47;}
+  .sj-score em{font-style:normal;margin-left:auto;font-size:20px;color:#c8402f;}
+  .sj-line{margin:0 0 6px;font-size:20px;line-height:1.45;color:#3b2a1a;}
+  .sj-tags{margin:0;font-size:14px;color:#9a6b2f;}
+  .sj-sleeve{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;border:0;cursor:pointer;
+    font-family:var(--sj-display);font-size:20px;color:#fff7e6;border-radius:18px;
+    background:repeating-linear-gradient(90deg,rgba(0,0,0,.06) 0 3px,transparent 3px 9px),linear-gradient(180deg,#b9875a,#8f5f37);
+    transition:transform .9s cubic-bezier(.5,0,.2,1);box-shadow:inset 0 -6px 0 rgba(0,0,0,.12);}
+  .sj-sleeve span{font-size:34px;animation:sj-float 2.4s ease-in-out infinite;}
+  .sj-sleeve small{font-size:13px;opacity:.85;}
+  .sj-sleeve:hover{filter:brightness(1.06);}
+  .sj-sleeve:focus-visible{outline:2px solid var(--sj-gold);outline-offset:-4px;}
+  .sj-cup.open .sj-sleeve{transform:translateY(102%);pointer-events:none;}
+  .sj-sec{background:var(--sj-card);border:1px solid var(--sj-line);border-radius:16px;padding:14px 16px;margin-bottom:10px;}
+  .sj-sec h4{font-family:var(--sj-display);font-weight:400;font-size:18px;color:var(--sj-gold);margin:0 0 10px;display:flex;align-items:baseline;gap:8px;}
+  .sj-sec h4 small{font-size:13px;color:var(--sj-dim);}
+  .sj-idx{display:grid;grid-template-columns:120px 1fr 42px;grid-template-areas:"l b v" "c c c";gap:2px 10px;align-items:center;padding:6px 0;border-bottom:1px dashed var(--sj-line);font-size:14px;}
+  .sj-idx:last-child{border-bottom:0;}
+  .sj-idx-l{grid-area:l;white-space:nowrap;}
+  .sj-idx-bar{grid-area:b;height:8px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;}
+  .sj-idx-bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#a98bff,#7cc4ff);transform-origin:left;animation:sj-grow .9s cubic-bezier(.2,.8,.2,1) both .2s;}
+  .sj-idx.warn .sj-idx-bar i{background:linear-gradient(90deg,#ffb36b,#ff7a7a);}
+  .sj-idx b{grid-area:v;text-align:right;font-weight:400;color:var(--sj-ink);font-variant-numeric:tabular-nums;}
+  .sj-idx-c{grid-area:c;font-size:12.5px;color:var(--sj-dim);}
+  .sj-recs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:10px;}
+  .sj-rec{display:flex;flex-direction:column;align-items:center;text-align:center;gap:2px;padding:12px 6px;border-radius:14px;background:var(--sj-card);border:1px solid var(--sj-line);transition:transform .2s;}
+  .sj-rec:hover{transform:translateY(-3px) rotate(-1deg);}
+  .sj-rec span{font-size:24px;}
+  .sj-rec small{font-size:12px;color:var(--sj-dim);}
+  .sj-rec b{font-weight:400;font-size:15px;color:var(--sj-ink);}
+  .sj-dd{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:10px;}
+  .sj-dd div{padding:12px 14px;border-radius:14px;background:rgba(126,224,143,.08);border:1px solid rgba(126,224,143,.3);}
+  .sj-dd div+div{background:rgba(255,143,107,.08);border-color:rgba(255,143,107,.3);}
+  .sj-dd small{display:block;font-size:12px;color:var(--sj-dim);margin-bottom:2px;}
+  .sj-dd b{font-weight:400;font-size:15px;}
+  .sj-guardian{display:flex;gap:10px;align-items:center;padding:10px 12px;margin-bottom:10px;border-radius:12px;background:rgba(255,154,213,.1);border:1px solid rgba(255,154,213,.3);}
+  .sj-guardian>span{font-size:26px;}
+  .sj-guardian small{display:block;font-size:12px;color:var(--sj-dim);}
+  .sj-guardian b{font-weight:400;font-size:17px;color:var(--sj-pink);}
+  .sj-guardian p{margin:2px 0 0;font-size:13px;color:var(--sj-ink);}
+  .sj-rank{list-style:none;margin:0;padding:0;}
+  .sj-rank li{display:grid;grid-template-columns:30px 1fr auto;align-items:center;padding:7px 8px;border-radius:10px;font-size:15px;}
+  .sj-rank li:nth-child(odd){background:rgba(255,255,255,.03);}
+  .sj-rank li.me{background:rgba(243,207,122,.14);color:var(--sj-gold);}
+  .sj-rank .n{color:var(--sj-dim);font-variant-numeric:tabular-nums;}
+  .sj-rank b{font-weight:400;}
+  @media (max-width:520px){
+    .sj-recs{grid-template-columns:repeat(2,minmax(0,1fr));}
+    .sj-idx{grid-template-columns:104px 1fr 38px;font-size:13px;}
+    .sj-score b{font-size:54px;}
+    .sj-line{font-size:18px;}
+  }
   /* 오늘의 운세 — 타로처럼 뒤집는 카드 */
   .sj-tarot{perspective:1000px;margin-bottom:12px;}
   .sj-tarot-inner{position:relative;display:grid;transition:transform .8s cubic-bezier(.3,.7,.2,1);transform-style:preserve-3d;}
@@ -1198,7 +1261,7 @@
   }
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Poor+Story&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Yeon+Sung&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/innks/NanumSquareRound@master/nanumsquareround.min.css">
 </head>
 <body>
@@ -1468,7 +1531,7 @@
     <div id="saju-result" hidden>
       <div class="saju-tabs" role="tablist">
         <button type="button" class="active" data-saju-tab="chart" role="tab"><svg class="sj-ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 3a4.5 4.5 0 0 0 0 9a4.5 4.5 0 0 1 0 9"/><circle cx="12" cy="7.5" r=".8" fill="currentColor"/><circle cx="12" cy="16.5" r=".8" fill="currentColor"/></svg><span>내 사주</span></button>
-        <button type="button" data-saju-tab="today" role="tab"><svg class="sj-ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg><span>오늘의 운세</span></button>
+        <button type="button" data-saju-tab="today" role="tab" id="sj-today-tab"><svg class="sj-ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></svg><span>오늘의 운세</span></button>
         <button type="button" data-saju-tab="match" role="tab"><svg class="sj-ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8.5" cy="8" r="3"/><path d="M3 19.5a5.5 5.5 0 0 1 11 0"/><circle cx="16.5" cy="9" r="2.4"/><path d="M15 14.4a4.6 4.6 0 0 1 6 4.6"/></svg><span>팀원 궁합</span></button>
         <button type="button" data-saju-tab="daewoon" role="tab"><svg class="sj-ti" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 16c2.5 0 2.5-3 5-3s2.5 3 5 3 2.5-5 5-5 2 1.5 3 1.5"/><path d="M3 20.5h18"/><path d="M17 4.5l1 2 2 .3-1.5 1.4.4 2-1.9-1-1.9 1 .4-2L14 6.8l2-.3z"/></svg><span>대운</span></button>
       </div>
@@ -4905,6 +4968,8 @@
         html += '<span title="' + EL_MEAN[i] + '">' + EL_EMOJI[i] + " " + EL[i] + '</span><span class="saju-el-bar"><span style="--el:var(--el-' + i + ');width:' + (n / max * 100) + "%;animation-delay:" + (0.4 + i * 0.08) + 's"></span></span><span class="saju-el-n">' + n + "</span>";
       });
       html += "</div>";
+      var PERSONA = ["🌳 든든한 팀장형", "🌿 협업 요정형", "☀️ 발표 장인형", "🕯️ 디테일 장인형", "🏔️ 멘탈 갑 운영형", "🌾 온보딩 천사형", "⚔️ 문제 해결사형", "💎 퀄리티 장인형", "🌊 전략 기획형", "🌧️ 인사이트 리서처형"];
+      html += '<p class="saju-note" style="font-size:15px;color:var(--sj-ink);">나의 직장인 캐릭터: <b style="color:var(--sj-gold);font-weight:400;">' + PERSONA[c.day_master] + "</b></p>";
       html += '<div class="saju-tags"><span class="saju-tag gold">' + esc(c.year_animal) + '띠</span><span class="saju-tag">' + esc(c.strength) + '</span><span class="saju-tag gold">행운 오행 ' + esc(r.lucky.element) + "</span></div>";
       html += '<div class="saju-card"><h3>' + esc(r.day_master.title) + "</h3><p>" + esc(r.day_master.body) + '</p><p class="saju-sub">👍 ' + esc(r.day_master.plus) + "<br>💡 " + esc(r.day_master.minus) + "</p></div>";
       html += '<div class="saju-card"><h3>⚖️ 기운의 세기</h3><p>' + esc(r.strength) + "</p>" + r.element_tips.map(function (t) { return '<p class="saju-sub">' + esc(t) + "</p>"; }).join("") + "</div>";
@@ -4914,23 +4979,68 @@
     }
 
     function renderToday() {
-      var t = data.today, r = data.today_reading;
-      var LABELS = { work: "💼 업무", money: "💰 금전", love: "💕 연애", health: "🍵 건강" };
+      var t = data.today, r = data.today_reading, k = data.card;
       var d = new Date(t.date + "T00:00:00");
-      var front = '<div class="saju-today-head"><span class="saju-today-day">' + esc(t.pillar.hanja) + '</span><div class="saju-today-meta"><b>' + (d.getMonth() + 1) + "월 " + d.getDate() + "일 · " + esc(t.pillar.hangul) + "일</b>나에게 " + esc(t.ten_god) + "의 날 · 종합 " + stars(t.overall) + "</div></div>" +
-        '<p style="margin:0 0 6px;">' + esc(r.message) + "</p>" + r.extras.map(function (x) { return '<p class="saju-sub" style="margin:0 0 4px;color:var(--sj-dim);font-size:13px;">' + esc(x) + "</p>"; }).join("");
-      var html = '<div class="sj-tarot" id="sj-tarot"><div class="sj-tarot-inner">' +
-        '<div class="sj-tarot-face sj-tarot-back" role="button" tabindex="0" aria-label="오늘의 운세 카드 뒤집기"><span class="sym">🔮</span>오늘의 운세 카드<small>눌러서 뒤집어 보세요</small></div>' +
-        '<div class="sj-tarot-face sj-tarot-front">' + front + "</div></div></div>";
-      html += '<div class="saju-scores">';
-      ["work", "money", "love", "health"].forEach(function (k) { html += '<div class="saju-score"><span>' + LABELS[k] + "</span>" + stars(t.scores[k]) + "</div>"; });
-      html += '</div><div class="saju-tags"><span class="saju-tag gold">🎨 행운의 색 ' + esc(r.lucky_color) + '</span><span class="saju-tag">🎁 ' + esc(r.lucky_item) + "</span></div>";
+      var openKey = "sj-cup-" + t.date, opened = false;
+      try { opened = localStorage.getItem(openKey) === "1"; } catch (e) {}
+      var html = '<div class="sj-cup' + (opened ? " open" : "") + '" id="sj-cup">' +
+        '<div class="sj-label' + (k.jackpot ? " jackpot" : "") + '">' +
+          '<div class="sj-label-top"><span>' + (d.getMonth() + 1) + "월 " + d.getDate() + "일 · " + esc(t.pillar.hangul) + "일 (" + esc(t.pillar.hanja) + ')</span><span class="sj-stamp">' + esc(k.stamp) + "</span></div>" +
+          '<div class="sj-score"><b id="sj-score100">' + (opened ? k.score : 0) + "</b><small>/100</small><em>" + esc(k.grade) + "</em></div>" +
+          '<p class="sj-line">“' + esc(k.line) + '”</p>' +
+          '<p class="sj-tags">' + k.hashtags.map(esc).join(" ") + "</p>" +
+        "</div>" +
+        '<button type="button" class="sj-sleeve" id="sj-sleeve" aria-label="컵홀더 내리고 오늘의 운세 보기"><span>☕</span>컵홀더 살짝 내리기<small>오늘의 운세 점수가 숨어 있어요</small></button>' +
+      "</div>";
+      html += '<div class="sj-sec"><h4>💼 오늘의 직장인 지수</h4>' + k.office.map(function (o) {
+        return '<div class="sj-idx' + (o.warn && o.value >= 60 ? " warn" : "") + '"><span class="sj-idx-l">' + o.emoji + " " + esc(o.label) + '</span><span class="sj-idx-bar"><i style="width:' + o.value + '%"></i></span><b>' + o.value + '%</b><span class="sj-idx-c">' + esc(o.comment) + "</span></div>";
+      }).join("") + "</div>";
+      html += '<div class="sj-recs">' +
+        '<div class="sj-rec"><span>☕</span><small>오늘의 음료</small><b>' + esc(k.drink) + "</b></div>" +
+        '<div class="sj-rec"><span>🍱</span><small>점심 추천</small><b>' + esc(k.lunch) + "</b></div>" +
+        '<div class="sj-rec"><span>⏰</span><small>행운의 시간</small><b>' + esc(k.time) + "</b></div>" +
+        '<div class="sj-rec"><span>🍀</span><small>행운템 · 숫자</small><b>' + esc(k.item) + " · " + k.number + "</b></div></div>";
+      html += '<div class="sj-dd"><div><small>✅ 오늘 하면 좋은 일</small><b>' + esc(k.do) + '</b></div><div><small>🙅 오늘 피할 일</small><b>' + esc(k.dont) + "</b></div></div>";
+      html += '<div class="saju-card"><h3>🦉 도사 한마디</h3><p>' + esc(r.message) + "</p>" + r.extras.map(function (x) { return '<p class="saju-sub">' + esc(x) + "</p>"; }).join("") + "</div>";
+      html += '<div class="sj-sec" id="sj-board"><h4>👑 오늘의 운세왕</h4><p class="saju-loading-text">팀원들 컵홀더 확인 중…</p></div>';
+      html += '<div class="saju-share"><button type="button" class="saju-outline" id="sj-share-today">📋 오늘 운세 자랑하기</button></div><p class="saju-share-status" id="sj-today-status"></p>';
       var pane = result.querySelector('[data-saju-pane="today"]');
       pane.innerHTML = html;
-      var tarot = pane.querySelector("#sj-tarot"), back = pane.querySelector(".sj-tarot-back");
-      function flip() { tarot.classList.add("open"); say(t.overall >= 4 ? "오오, 오늘 기운 아주 좋은데요? ✨" : t.overall >= 3 ? "무난하게 흘러가는 날이에요. 부엉~" : "살짝 조심하면 괜찮은 날이에요. 도사가 지켜볼게요!"); }
-      back.addEventListener("click", flip);
-      back.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flip(); } });
+      var cup = pane.querySelector("#sj-cup");
+      function reveal() {
+        if (cup.classList.contains("open")) return;
+        cup.classList.add("open");
+        try { localStorage.setItem(openKey, "1"); } catch (e) {}
+        countUp(document.getElementById("sj-score100"), k.score);
+        if (k.jackpot) { say("🎰 100점 잭팟!!! 오늘의 운세왕이에요! 커피 한 잔 쏘실 거죠? ☕"); burst(cup, ["🎉", "☕", "✨", "💯"], 16); }
+        else say(k.score >= 90 ? "와, " + k.score + "점! 오늘 기운 엄청 좋아요 ✨" : k.score >= 64 ? k.score + "점, 꽤 괜찮은 하루예요. 부엉~" : k.score + "점… 그래도 도사가 지켜볼게요!");
+      }
+      pane.querySelector("#sj-sleeve").addEventListener("click", reveal);
+      document.getElementById("sj-share-today").addEventListener("click", function () {
+        copyText("☕ 부엉 도사 오늘의 운세 " + k.score + "점(" + k.grade + ")\n“" + k.line + "”\n" + k.hashtags.join(" ") + "\n오늘의 음료: " + k.drink + " · 점심: " + k.lunch, document.getElementById("sj-today-status"));
+      });
+      loadBoard();
+    }
+    function burst(host, chars, n) {
+      for (var i = 0; i < n; i++) {
+        var h = document.createElement("span");
+        h.className = "sj-heart"; h.textContent = chars[i % chars.length];
+        h.style.setProperty("--dx", (Math.random() * 260 - 130) + "px"); h.style.animationDelay = (i * 0.05) + "s";
+        host.appendChild(h);
+      }
+    }
+    function loadBoard() {
+      api("/saju/today_board").then(function (b) {
+        var box = document.getElementById("sj-board");
+        if (!box || !b.ok) return;
+        var html = "<h4>👑 오늘의 운세왕 <small>" + b.total + "명 중" + (b.me ? " 내 순위 " + b.me.rank + "위" : "") + "</small></h4>";
+        if (b.guardian) html += '<div class="sj-guardian"><span>🤝</span><div><small>오늘의 귀인 팀원</small><b>' + esc(b.guardian.name) + "님</b><p>" + esc(b.guardian.line) + "</p></div></div>";
+        html += '<ol class="sj-rank">' + b.rows.map(function (row) {
+          return '<li class="' + (row.me ? "me" : "") + '"><span class="n">' + (row.rank === 1 ? "👑" : row.rank) + '</span><span class="nm">' + esc(row.name) + (row.me && row.name !== "나" ? " (나)" : "") + '</span><b>' + row.score + "점</b></li>";
+        }).join("") + "</ol>";
+        if (b.total < 2) html += '<p class="saju-team-count">팀원이 사주를 저장하면 같이 순위를 겨룰 수 있어요!</p>';
+        box.innerHTML = html;
+      });
     }
 
     function renderDaewoon() {
@@ -5172,7 +5282,7 @@
       api("/saju/me").then(function (res) {
         gaze(false);
         fillPlaces(res && res.places);
-        if (res && res.profile) { data = res; renderAll(); }
+        if (res && res.profile) { data = res; renderAll(); selectTab("today"); say("오늘의 컵홀더를 내려볼까요? ☕"); }
         else { fillForm(null); show("form"); }
       }).catch(function () { gaze(false); fillForm(null); show("form"); });
     }

@@ -33,6 +33,7 @@ import copy_generator  # noqa: E402
 import budget_optimizer  # noqa: E402
 import meta_lib  # noqa: E402
 import saju  # noqa: E402
+import saju_daily  # noqa: E402
 import saju_text  # noqa: E402
 import shopify_lib  # noqa: E402
 
@@ -75,6 +76,14 @@ GAME_NAMES = {"mole", "snake", "dino", "breakout"}
 # target은 선택 — 카드를 누르면 그 id를 가진 요소를 대신 클릭해준다(예: 헤더의
 # 🎮 아이콘으로 바로 이동).
 UPDATE_ITEMS = [
+    {
+        "version": "2026-11-14-saju-today",
+        "icon": "☕",
+        "title": "컵홀더 운세 · 오늘의 운세왕",
+        "desc": "사주 '오늘의 운세'에서 컵홀더를 내려 100점 만점 점수, 직장인 지수, 추천 음료·점심, 팀 운세 순위를 확인해보세요.",
+        "date": "11월 14일 업데이트",
+        "target": "saju-btn",
+    },
     {
         "version": "2026-11-14-saju-2",
         "icon": "🦉",
@@ -422,6 +431,7 @@ def _saju_payload(profile):
         "reading": saju_text.chart_reading(chart),
         "today": fortune,
         "today_reading": saju_text.daily_reading(chart, fortune),
+        "card": saju_daily.today_card(chart, fortune, profile["id"]),
         "daewoon": saju.daewoon(chart, today),
         "daewoon_themes": saju_text.DAEWOON_THEME,
         "places": _SAJU_PLACES,
@@ -457,6 +467,37 @@ def saju_delete():
     if profile:
         _remove(SAJU_DB_PATH, profile["id"])
     return {"ok": True}
+
+
+@app.route("/saju/today_board")
+def saju_today_board():
+    """☕ 오늘의 운세왕 — 공개한 팀원들의 오늘 점수 순위(이름·점수만) + 오늘의 귀인 팀원."""
+    owner = _saju_owner()
+    today = _saju_today()
+    rows, others, me_chart = [], [], None
+    for p in _load_json_list(SAJU_DB_PATH):
+        mine = p.get("email") == owner
+        if not mine and not p.get("visible", True):
+            continue
+        try:
+            chart = saju.build_chart(p)
+        except saju.SajuInputError:
+            continue
+        fortune = saju.daily_fortune(chart, today, seed=p["id"])
+        rows.append({"name": p.get("name") or "팀원", "score": saju_daily.score100(fortune, p["id"]), "me": mine})
+        if mine:
+            me_chart = chart
+        else:
+            others.append((p["id"], p.get("name") or "팀원", chart))
+    rows.sort(key=lambda r: -r["score"])
+    for i, r in enumerate(rows):
+        r["rank"] = i + 1
+    mine = next((r for r in rows if r["me"]), None)
+    guardian = None
+    if me_chart and others:
+        guardian = saju_daily.guardian(me_chart, today.isoformat(), [
+            (pid, name, c, saju.compatibility(me_chart, c)["score"]) for pid, name, c in others])
+    return {"ok": True, "rows": rows[:10], "me": mine, "total": len(rows), "guardian": guardian}
 
 
 @app.route("/saju/team")
