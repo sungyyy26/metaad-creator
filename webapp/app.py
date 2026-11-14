@@ -21,7 +21,7 @@ import sys
 import threading
 import time
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import requests
@@ -32,6 +32,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import copy_generator  # noqa: E402
 import budget_optimizer  # noqa: E402
 import meta_lib  # noqa: E402
+import saju  # noqa: E402
+import saju_text  # noqa: E402
 import shopify_lib  # noqa: E402
 
 load_dotenv()  # reads .env in the repo root (or nearest parent) if present;
@@ -64,6 +66,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL")
 DB_PATH = "requests" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "requests.json")
 UPLOADS_DB_PATH = "uploads" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "uploads.json")
 SCORES_DB_PATH = "game_scores" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "game_scores.json")
+SAJU_DB_PATH = "saju_profiles" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "saju_profiles.json")
 GAME_NAMES = {"mole", "snake", "dino", "breakout"}
 # 새 기능을 배포할 때마다 맨 앞에 새 항목을 추가한다(오래된 건 지워도 됨) — 목록의
 # 첫 항목 version이 전체 팝업의 기준이 된다. 관리자(ADMIN_EMAIL)를 제외한 나머지
@@ -72,6 +75,14 @@ GAME_NAMES = {"mole", "snake", "dino", "breakout"}
 # target은 선택 — 카드를 누르면 그 id를 가진 요소를 대신 클릭해준다(예: 헤더의
 # 🎮 아이콘으로 바로 이동).
 UPDATE_ITEMS = [
+    {
+        "version": "2026-11-14-saju",
+        "icon": "🔮",
+        "title": "부엉 도사의 사주",
+        "desc": "오른쪽 위 🔮에서 내 사주·오늘의 운세·팀원 궁합·대운을 재미로 볼 수 있어요.",
+        "date": "11월 14일 업데이트",
+        "target": "saju-btn",
+    },
     {
         "version": "2026-11-12-creative-preview",
         "icon": "🎬",
@@ -119,7 +130,7 @@ UPDATE_POPUP_TITLE = (
 ALLOWED_USERS_PATH = "allowed_users" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "allowed_users.json")
 ACCESS_REQUESTS_PATH = "access_requests" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "access_requests.json")
 FEEDBACK_PATH = "feedback" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "feedback.json")
-_VALID_TABLES = {"requests", "uploads", "allowed_users", "access_requests", "feedback", "game_scores"}
+_VALID_TABLES = {"requests", "uploads", "allowed_users", "access_requests", "feedback", "game_scores", "saju_profiles"}
 LOCK = threading.Lock()
 BUDGET_CACHE_LOCK = threading.Lock()
 BUDGET_META_CACHE = {}
@@ -329,6 +340,196 @@ def clear_game_scores():
         return denied
     _save_json_list(SCORES_DB_PATH, [])
     return {"ok": True}
+
+
+# ---------------------------------------------------------------- 🔮 사주
+# 생년월일시는 본인 계정에만 저장되고(로컬 개발에선 "local"), 다른 사람에게는
+# 프로필 id와 표시 이름만 보인다 — 궁합 결과에도 상대의 생일은 담지 않는다.
+SAJU_ASK_DAILY_LIMIT = 3
+SAJU_BIRTH_FIELDS = ("calendar", "year", "month", "day", "leap", "hour", "minute", "time_unknown", "gender")
+_KST = timezone(timedelta(hours=9))
+
+
+def _saju_owner():
+    if not LOGIN_ENABLED:
+        return "local"
+    return (session.get("user_email") or "").strip().lower()
+
+
+def _saju_profile(owner):
+    return next((p for p in _load_json_list(SAJU_DB_PATH) if p.get("email") == owner), None)
+
+
+def _saju_birth(raw):
+    def num(key, default=None):
+        val = raw.get(key)
+        if val in (None, ""):
+            return default
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            raise saju.SajuInputError("날짜와 시간은 숫자로 입력해주세요.")
+    time_unknown = bool(raw.get("time_unknown"))
+    birth = {
+        "calendar": "lunar" if raw.get("calendar") == "lunar" else "solar",
+        "year": num("year"), "month": num("month"), "day": num("day"),
+        "leap": bool(raw.get("leap")) and raw.get("calendar") == "lunar",
+        "hour": 0 if time_unknown else num("hour", 0), "minute": 0 if time_unknown else num("minute", 0),
+        "time_unknown": time_unknown,
+        "gender": raw.get("gender") if raw.get("gender") in ("M", "F") else "",
+    }
+    if None in (birth["year"], birth["month"], birth["day"]):
+        raise saju.SajuInputError("생년월일을 모두 입력해주세요.")
+    if not (0 <= birth["hour"] <= 23 and 0 <= birth["minute"] <= 59):
+        raise saju.SajuInputError("태어난 시간을 다시 확인해주세요.")
+    return birth
+
+
+def _public_chart(chart):
+    return {k: v for k, v in chart.items() if not k.startswith("_")}
+
+
+def _saju_today():
+    return datetime.now(_KST).date()
+
+
+def _saju_payload(profile):
+    if not profile:
+        return {"ok": True, "profile": None, "ai": bool(os.environ.get("ANTHROPIC_API_KEY"))}
+    chart = saju.build_chart(profile)
+    today = _saju_today()
+    fortune = saju.daily_fortune(chart, today, seed=profile["id"])
+    asks_used = profile.get("askCount", 0) if profile.get("askDate") == today.isoformat() else 0
+    return {
+        "ok": True,
+        "profile": {k: profile.get(k) for k in SAJU_BIRTH_FIELDS},
+        "chart": _public_chart(chart),
+        "reading": saju_text.chart_reading(chart),
+        "today": fortune,
+        "today_reading": saju_text.daily_reading(chart, fortune),
+        "daewoon": saju.daewoon(chart, today),
+        "daewoon_themes": saju_text.DAEWOON_THEME,
+        "ai": bool(os.environ.get("ANTHROPIC_API_KEY")),
+        "asks_left": max(0, SAJU_ASK_DAILY_LIMIT - asks_used),
+    }
+
+
+@app.route("/saju/me", methods=["GET", "POST"])
+def saju_me():
+    owner = _saju_owner()
+    if not owner:
+        return {"ok": False}, 401
+    profile = _saju_profile(owner)
+    if request.method == "GET":
+        return _saju_payload(profile)
+    try:
+        birth = _saju_birth(request.get_json(silent=True) or {})
+        saju.build_chart(birth)
+    except saju.SajuInputError as e:
+        return {"ok": False, "error": str(e)}, 400
+    name = greeting_name_for(session.get("user_email")) if LOGIN_ENABLED else "나"
+    entry = dict(profile or {"id": str(uuid.uuid4()), "email": owner})
+    entry.update(birth, name=name, updatedAt=datetime.now(_KST).isoformat(timespec="seconds"))
+    _upsert(SAJU_DB_PATH, entry)
+    return _saju_payload(entry)
+
+
+@app.route("/saju/me/delete", methods=["POST"])
+def saju_delete():
+    profile = _saju_profile(_saju_owner())
+    if profile:
+        _remove(SAJU_DB_PATH, profile["id"])
+    return {"ok": True}
+
+
+@app.route("/saju/team")
+def saju_team():
+    owner = _saju_owner()
+    rows = [{"id": p["id"], "name": p.get("name") or "팀원"}
+            for p in _load_json_list(SAJU_DB_PATH) if p.get("email") != owner]
+    rows.sort(key=lambda r: r["name"])
+    return {"ok": True, "rows": rows}
+
+
+@app.route("/saju/match")
+def saju_match():
+    me = _saju_profile(_saju_owner())
+    other = next((p for p in _load_json_list(SAJU_DB_PATH) if p["id"] == request.args.get("id")), None)
+    if not me or not other or other is me or other.get("email") == me.get("email"):
+        return {"ok": False, "error": "궁합을 볼 팀원을 다시 골라주세요."}, 400
+    a, b = saju.build_chart(me), saju.build_chart(other)
+    result = saju.compatibility(a, b)
+    tier, comment = saju_text.match_tier(result["score"])
+    return {"ok": True, "name": other.get("name") or "팀원", "score": result["score"],
+            "tier": tier, "comment": comment,
+            "notes": [saju_text.MATCH_NOTES[n] for n in result["notes"]],
+            "me_animal": a["day_animal"], "other_animal": b["day_animal"]}
+
+
+SAJU_OWL_SYSTEM = (
+    "너는 Meta Ad Desk 대시보드에 사는 '부엉 도사'야. 광고 마케터 팀원들에게 재미로 사주를 봐주는 "
+    "친근한 부엉이 도사이고, 말투는 다정한 해요체에 가끔 '부엉~'을 섞어. 주어진 명식 정보만 근거로 "
+    "이야기하고, 건강·금전·인간관계에 대해 단정하거나 겁주는 말은 하지 마. 의료·법률·투자 결정은 "
+    "전문가와 상의하라고 부드럽게 안내해. 답은 마크다운 없이 4~7문장, 400자 안쪽으로 해줘."
+)
+
+
+def _saju_summary(chart, fortune, dw):
+    names = {"hour": "시주", "day": "일주", "month": "월주", "year": "연주"}
+    pillars = ", ".join(f"{names[c['pos']]} {c['hangul']}({c['hanja']})" for c in chart["cells"])
+    counts = ", ".join(f"{saju.ELEMENTS[i]} {n}" for i, n in enumerate(chart["element_counts"]))
+    cur = next((p for p in (dw or {}).get("periods", []) if p["current"]), None)
+    lines = [
+        f"명식: {pillars}" + (" (태어난 시간 모름)" if chart["time_unknown"] else ""),
+        f"일간: {saju.STEMS[chart['day_master']]}{saju.ELEMENTS[chart['day_master'] // 2]}, 일주 동물: {chart['day_animal']}",
+        f"오행 개수: {counts}, 강약: {chart['strength']}, 가장 강한 십성 무리: {chart['dominant_group']}",
+        f"도움이 되는 오행: {saju.ELEMENTS[chart['lucky_element']]}",
+        f"오늘({fortune['date']}) 일진: {fortune['pillar']['hangul']}, 나에게 {fortune['ten_god']}",
+    ]
+    if cur:
+        lines.append(f"현재 대운: {cur['hangul']} ({cur['age']}세~, {cur['ten_god']})")
+    return "\n".join(lines)
+
+
+@app.route("/saju/ask", methods=["POST"])
+def saju_ask():
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        return {"ok": False, "error": "부엉 도사가 아직 출근 전이에요 (API 키 미설정)."}, 503
+    profile = _saju_profile(_saju_owner())
+    if not profile:
+        return {"ok": False, "error": "먼저 생년월일을 저장해주세요."}, 400
+    today = _saju_today().isoformat()
+    used = profile.get("askCount", 0) if profile.get("askDate") == today else 0
+    if used >= SAJU_ASK_DAILY_LIMIT:
+        return {"ok": False, "error": f"부엉 도사 상담은 하루 {SAJU_ASK_DAILY_LIMIT}번까지예요. 내일 또 와요!"}, 429
+    question = ((request.get_json(silent=True) or {}).get("question") or "").strip()[:200]
+    chart = saju.build_chart(profile)
+    fortune = saju.daily_fortune(chart, _saju_today(), seed=profile["id"])
+    prompt = _saju_summary(chart, fortune, saju.daewoon(chart, _saju_today()))
+    prompt += "\n\n" + (f"질문: {question}" if question else "이 사주를 재미있게 종합 풀이해줘.")
+    try:
+        import anthropic  # 버튼을 누를 때만 필요하므로 지연 import
+        client = anthropic.Anthropic()
+        resp = client.beta.messages.create(
+            model="claude-opus-5-5",
+            max_tokens=2000,
+            betas=["server-side-fallback-2026-07-01"],
+            fallbacks="default",
+            output_config={"effort": "medium"},
+            system=SAJU_OWL_SYSTEM,
+            messages=[{"role": "user", "content": prompt}],
+        )
+    except Exception as e:  # noqa: BLE001
+        app.logger.warning("saju ask failed: %s", e)
+        return {"ok": False, "error": "부엉 도사가 잠깐 자리를 비웠어요. 잠시 후 다시 물어봐주세요."}, 502
+    if resp.stop_reason == "refusal":
+        return {"ok": False, "error": "그 질문엔 부엉 도사가 답하기 어려워요. 다른 걸 물어봐주세요!"}, 400
+    answer = "".join(b.text for b in resp.content if getattr(b, "type", "") == "text").strip()
+    if not answer:
+        return {"ok": False, "error": "부엉 도사가 말을 잇지 못했어요. 다시 물어봐주세요."}, 502
+    profile.update(askDate=today, askCount=used + 1)
+    _upsert(SAJU_DB_PATH, profile)
+    return {"ok": True, "answer": answer, "asks_left": SAJU_ASK_DAILY_LIMIT - used - 1}
 
 
 @app.route("/mark_update_seen", methods=["POST"])

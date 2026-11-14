@@ -6,3 +6,5 @@ tzdata
 gunicorn
 psycopg2-binary
 Authlib
+korean-lunar-calendar
+anthropic
