@@ -412,93 +412,249 @@
   }
   .loading-game-btn:hover{border-color:var(--accent);}
 
-  /* 🔮 사주 — 오행 색은 이 블록 안에서만 쓰는 의미색(목·화·토·금·수) */
-  :root{--el-0:#2f9e44;--el-1:#e8590c;--el-2:#b7860b;--el-3:#7a828c;--el-4:#1c7ed6;}
-  @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){--el-0:#69db7c;--el-1:#ff8a5c;--el-2:#ffd43b;--el-3:#ced4da;--el-4:#74c0fc;} }
-  :root[data-theme="dark"]{--el-0:#69db7c;--el-1:#ff8a5c;--el-2:#ffd43b;--el-3:#ced4da;--el-4:#74c0fc;}
-  #saju-modal-overlay{z-index:300;}
-  .saju-modal-box{max-width:560px;}
+  /* 🔮 사주 — 밤하늘 테마. 모달 안은 라이트/다크와 상관없이 늘 같은 '점집' 세계를
+     칠한다(배경·글자색을 모두 명시). 오행 색(--el-*)은 이 블록 안에서만 쓰는 의미색. */
+  #saju-modal-overlay{z-index:300;background:rgba(8,5,26,.68);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);}
+  .saju-modal-box{
+    --sj-ink:#f1ecff; --sj-dim:#b9aedb; --sj-faint:#8f84b8; --sj-gold:#f3cf7a; --sj-gold-2:#e2ac4c;
+    --sj-violet:#a98bff; --sj-pink:#ff9ad5; --sj-line:rgba(190,165,255,.22); --sj-card:rgba(255,255,255,.055);
+    --el-0:#7ee08f; --el-1:#ff8f6b; --el-2:#ffd66b; --el-3:#dfe3ea; --el-4:#7cc4ff;
+    --sj-serif:"Gowun Batang","Nanum Myeongjo","Batang",serif; --sj-round:"Gowun Dodum","Malgun Gothic",sans-serif;
+    max-width:580px;color:var(--sj-ink);font-family:var(--sj-round);border:1px solid rgba(243,207,122,.28);
+    background:
+      radial-gradient(120% 60% at 50% -10%, rgba(169,139,255,.45), transparent 60%),
+      radial-gradient(80% 50% at 100% 100%, rgba(255,154,213,.16), transparent 60%),
+      linear-gradient(180deg,#1d1546 0%,#130e30 55%,#0d0a22 100%);
+    box-shadow:0 30px 80px -20px rgba(80,40,200,.55), inset 0 1px 0 rgba(255,255,255,.08);
+    color-scheme:dark;isolation:isolate;
+  }
+  .saju-modal-box::before{ /* 반짝이는 별 */
+    content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;border-radius:inherit;opacity:.8;
+    background-image:
+      radial-gradient(1.2px 1.2px at 12% 18%,#fff,transparent),radial-gradient(1px 1px at 28% 72%,#fff,transparent),
+      radial-gradient(1.5px 1.5px at 44% 34%,#ffe9b0,transparent),radial-gradient(1px 1px at 63% 12%,#fff,transparent),
+      radial-gradient(1.3px 1.3px at 81% 46%,#d9cbff,transparent),radial-gradient(1px 1px at 92% 82%,#fff,transparent),
+      radial-gradient(1.2px 1.2px at 8% 88%,#ffe9b0,transparent),radial-gradient(1px 1px at 55% 92%,#fff,transparent),
+      radial-gradient(1.4px 1.4px at 72% 64%,#fff,transparent),radial-gradient(1px 1px at 36% 50%,#d9cbff,transparent);
+    background-size:100% 100%;background-attachment:local;animation:sj-twinkle 4s ease-in-out infinite alternate;
+  }
+  @keyframes sj-twinkle{from{opacity:.45}to{opacity:.95}}
+  .saju-modal-box .modal-close{color:var(--sj-dim);}
+  .saju-modal-box .modal-close:hover{background:rgba(255,255,255,.08);color:var(--sj-ink);}
+  .saju-modal-box h2{font-family:var(--sj-serif);font-size:26px;font-weight:700;text-align:center;margin:0;letter-spacing:.02em;
+    background:linear-gradient(90deg,#fff3cf,#f3cf7a 40%,#d8c4ff 80%);-webkit-background-clip:text;background-clip:text;color:transparent;}
+  .saju-sub-title{text-align:center;color:var(--sj-dim);font-size:13px;margin:4px 0 0;}
+
+  /* 부엉 도사 + 수정구슬 */
+  .sj-stage{position:relative;display:flex;flex-direction:column;align-items:center;margin:6px 0 10px;}
+  .sj-owl{width:190px;height:142px;cursor:pointer;overflow:visible;-webkit-tap-highlight-color:transparent;}
+  .sj-owl:focus-visible{outline:2px solid var(--sj-gold);outline-offset:4px;border-radius:12px;}
+  .sj-owl-float{animation:sj-float 3.6s ease-in-out infinite;transform-origin:100px 80px;}
+  @keyframes sj-float{0%,100%{transform:translateY(0) rotate(-1.5deg)}50%{transform:translateY(-5px) rotate(1.5deg)}}
+  .sj-eyes{transform-box:fill-box;transform-origin:center;animation:sj-blink 5s infinite;}
+  @keyframes sj-blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.1)}}
+  .sj-pupils{animation:sj-look 7s ease-in-out infinite;}
+  @keyframes sj-look{0%,40%,100%{transform:translate(0,2px)}50%,70%{transform:translate(2px,3px)}80%{transform:translate(-2px,3px)}}
+  .sj-wing-l{transform-origin:72px 84px;animation:sj-wave-l 2.8s ease-in-out infinite;}
+  .sj-wing-r{transform-origin:128px 84px;animation:sj-wave-r 2.8s ease-in-out infinite;}
+  @keyframes sj-wave-l{0%,100%{transform:rotate(0)}50%{transform:rotate(-7deg)}}
+  @keyframes sj-wave-r{0%,100%{transform:rotate(0)}50%{transform:rotate(7deg)}}
+  .sj-aura{transform-box:fill-box;transform-origin:center;animation:sj-pulse 2.6s ease-in-out infinite;}
+  @keyframes sj-pulse{0%,100%{transform:scale(.9);opacity:.55}50%{transform:scale(1.12);opacity:.95}}
+  .sj-swirl{transform-box:fill-box;transform-origin:center;animation:sj-spin 6s linear infinite;}
+  @keyframes sj-spin{to{transform:rotate(360deg)}}
+  .sj-spark{transform-box:fill-box;transform-origin:center;animation:sj-spark 2.4s ease-in-out infinite;}
+  .sj-spark:nth-of-type(2){animation-delay:.6s}.sj-spark:nth-of-type(3){animation-delay:1.2s}.sj-spark:nth-of-type(4){animation-delay:1.8s}
+  @keyframes sj-spark{0%,100%{transform:scale(.3);opacity:0}50%{transform:scale(1);opacity:1}}
+  .sj-stage.gazing .sj-aura{animation-duration:.8s}
+  .sj-stage.gazing .sj-swirl{animation-duration:1.2s}
+  .sj-stage.gazing .sj-wing-l,.sj-stage.gazing .sj-wing-r{animation-duration:.7s}
+  .sj-stage.gazing .sj-ball{filter:brightness(1.35) drop-shadow(0 0 10px #c9b2ff);}
+  .sj-ball{transition:filter .4s;}
+  .sj-bubble{
+    position:relative;max-width:100%;margin-top:4px;padding:8px 14px;border-radius:14px;font-size:13px;line-height:1.5;text-align:center;
+    background:rgba(255,255,255,.08);border:1px solid var(--sj-line);color:var(--sj-ink);
+    animation:sj-pop .35s cubic-bezier(.2,.9,.3,1.3);
+  }
+  .sj-bubble::before{content:"";position:absolute;left:50%;top:-6px;width:10px;height:10px;transform:translateX(-50%) rotate(45deg);
+    background:inherit;border-left:1px solid var(--sj-line);border-top:1px solid var(--sj-line);backdrop-filter:none;}
+  @keyframes sj-pop{from{transform:scale(.85);opacity:0}to{transform:scale(1);opacity:1}}
+
+  /* 입력 폼 */
   .saju-form{display:flex;flex-direction:column;gap:14px;}
   .saju-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;}
-  .saju-row.two{grid-template-columns:repeat(2,minmax(0,1fr));}
-  .saju-label{display:block;font-family:var(--font-heading);font-weight:700;font-size:var(--fs-xs);color:var(--text-muted);margin-bottom:6px;}
-  .saju-seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;padding:4px;background:var(--surface-2);border:1px solid var(--border-strong);border-radius:var(--radius-sm);}
-  .saju-seg label{display:flex;align-items:center;justify-content:center;min-height:32px;border-radius:6px;color:var(--text-muted);font-weight:700;font-size:var(--fs-sm);cursor:pointer;}
-  .saju-seg input{position:absolute;opacity:0;pointer-events:none;}
-  .saju-seg label:has(input:checked){background:var(--accent);color:var(--accent-contrast);}
-  .saju-seg label:has(input:focus-visible){outline:2px solid var(--accent);outline-offset:2px;}
-  .saju-check{display:inline-flex;align-items:center;gap:6px;font-size:var(--fs-sm);color:var(--text-muted);cursor:pointer;}
-  .saju-check input{width:auto;}
-  .saju-privacy{font-size:var(--fs-xs);color:var(--text-faint);margin:0;line-height:1.5;}
-  .saju-primary{
-    padding:11px 18px;border-radius:980px;border:0;background:var(--accent);color:var(--accent-contrast);
-    font-family:var(--font-heading);font-weight:700;font-size:var(--fs-sm);cursor:pointer;
+  .saju-row.two{grid-template-columns:minmax(0,1fr) auto;align-items:center;}
+  .saju-label{display:block;font-family:var(--sj-round);font-weight:700;font-size:12px;letter-spacing:.04em;color:var(--sj-gold);margin-bottom:7px;}
+  .saju-label .muted{font-weight:400;color:var(--sj-faint);letter-spacing:0;}
+  .saju-modal-box input[type=number],.saju-modal-box input[type=time],.saju-modal-box select,.saju-modal-box textarea{
+    width:100%;font-family:var(--sj-round);font-size:15px;color:var(--sj-ink);background:rgba(255,255,255,.06);
+    border:1px solid var(--sj-line);border-radius:12px;padding:10px 14px;transition:border-color .15s,box-shadow .15s,background .15s;
   }
-  .saju-primary:hover{background:var(--accent-hover);}
-  .saju-primary:disabled{opacity:.6;cursor:wait;}
-  .saju-ghost{background:transparent;border:0;color:var(--text-muted);font-weight:700;font-size:var(--fs-xs);cursor:pointer;padding:6px 4px;}
-  .saju-ghost:hover{color:var(--text);}
-  .saju-ghost.danger:hover{color:var(--status-error-fg,#ff4b4b);}
-  .saju-error{color:var(--status-error-fg,#ff4b4b);font-size:var(--fs-sm);margin:0;}
-  .saju-tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin:4px 0 16px;overflow-x:auto;scrollbar-width:none;}
-  .saju-tabs button{flex:none;font-family:var(--font-heading);font-weight:700;font-size:var(--fs-sm);color:var(--text-muted);background:none;border:0;border-bottom:2px solid transparent;padding:8px 2px 11px;margin-right:16px;cursor:pointer;white-space:nowrap;}
-  .saju-tabs button.active{color:var(--text);border-bottom-color:var(--accent-2);}
-  .saju-headline{font-family:var(--font-heading);font-weight:800;font-size:var(--fs-base);margin:0 0 12px;text-wrap:balance;}
-  .saju-pillars{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-bottom:14px;}
-  .saju-pillar{display:flex;flex-direction:column;align-items:center;gap:4px;background:var(--surface-3);border:1px solid var(--border);border-radius:var(--radius-md);padding:8px 4px;}
-  .saju-pillar.me{border-color:var(--accent-2);}
-  .saju-pillar-pos{font-size:var(--fs-2xs,11px);font-weight:700;color:var(--text-faint);letter-spacing:.04em;}
-  .saju-god{font-size:11px;color:var(--text-muted);font-weight:600;white-space:nowrap;}
-  .saju-char{width:46px;height:46px;border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;
-    font-size:24px;font-weight:700;color:var(--el);background:color-mix(in srgb, var(--el) 14%, transparent);border:1px solid color-mix(in srgb, var(--el) 35%, transparent);}
-  .saju-char small{font-size:10px;font-weight:700;margin-top:2px;}
-  .saju-pillar.unknown .saju-char{--el:var(--text-faint);}
-  .saju-elements{display:grid;grid-template-columns:auto 1fr auto;gap:6px 10px;align-items:center;font-size:var(--fs-sm);margin-bottom:14px;}
-  .saju-el-bar{height:8px;border-radius:99px;background:var(--surface-3);overflow:hidden;}
-  .saju-el-bar span{display:block;height:100%;background:var(--el);border-radius:99px;transition:width .6s ease;}
-  .saju-el-n{font-family:var(--font-mono);font-variant-numeric:tabular-nums;color:var(--text-muted);font-size:var(--fs-xs);}
-  .saju-card{background:var(--surface-3);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:10px;font-size:var(--fs-sm);line-height:1.65;}
-  .saju-card h3{font-family:var(--font-heading);font-size:var(--fs-sm);font-weight:800;margin:0 0 4px;}
+  .saju-modal-box select option{background:#1d1546;color:var(--sj-ink);}
+  .saju-modal-box input::placeholder,.saju-modal-box textarea::placeholder{color:var(--sj-faint);}
+  .saju-modal-box input:focus,.saju-modal-box select:focus,.saju-modal-box textarea:focus{
+    outline:none;border-color:var(--sj-violet);background:rgba(169,139,255,.1);box-shadow:0 0 0 4px rgba(169,139,255,.18),0 0 18px rgba(169,139,255,.25);}
+  .saju-modal-box input:disabled{opacity:.4;}
+  .saju-seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;padding:4px;background:rgba(255,255,255,.05);border:1px solid var(--sj-line);border-radius:14px;}
+  .saju-seg label{position:relative;display:flex;align-items:center;justify-content:center;min-height:36px;border-radius:10px;color:var(--sj-dim);font-weight:700;font-size:14px;cursor:pointer;transition:color .2s,background .25s,box-shadow .25s;}
+  .saju-seg label:hover{color:var(--sj-ink);}
+  .saju-seg input{position:absolute;opacity:0;pointer-events:none;}
+  .saju-seg label:has(input:checked){color:#1b1238;background:linear-gradient(135deg,#d9c8ff,#a98bff);box-shadow:0 0 16px rgba(169,139,255,.55);}
+  .saju-seg label:has(input:focus-visible){outline:2px solid var(--sj-gold);outline-offset:2px;}
+  .saju-check{display:inline-flex;align-items:center;gap:7px;font-size:13px;color:var(--sj-dim);cursor:pointer;white-space:nowrap;}
+  .saju-check input{width:16px;height:16px;accent-color:var(--sj-violet);}
+  .saju-privacy{font-size:12px;color:var(--sj-faint);margin:0;line-height:1.6;}
+  .saju-primary{
+    position:relative;overflow:hidden;padding:12px 22px;border-radius:999px;border:0;cursor:pointer;
+    font-family:var(--sj-round);font-weight:700;font-size:15px;color:#2a1a05;
+    background:linear-gradient(135deg,#fff0bf,#f3cf7a 45%,#e2ac4c);box-shadow:0 6px 20px -6px rgba(243,207,122,.6);
+    transition:transform .15s,box-shadow .2s;
+  }
+  .saju-primary::after{content:"";position:absolute;top:0;left:-60%;width:40%;height:100%;transform:skewX(-20deg);
+    background:linear-gradient(90deg,transparent,rgba(255,255,255,.7),transparent);animation:sj-shine 3.2s ease-in-out infinite;}
+  @keyframes sj-shine{0%,60%{left:-60%}100%{left:130%}}
+  .saju-primary:hover{transform:translateY(-1px);box-shadow:0 10px 26px -6px rgba(243,207,122,.75);}
+  .saju-primary:active{transform:translateY(1px) scale(.98);}
+  .saju-primary:disabled{opacity:.55;cursor:wait;transform:none;}
+  .saju-primary:focus-visible{outline:2px solid #fff;outline-offset:3px;}
+  .saju-ghost{background:transparent;border:0;color:var(--sj-dim);font-family:var(--sj-round);font-weight:700;font-size:12px;cursor:pointer;padding:6px 6px;border-radius:8px;}
+  .saju-ghost:hover{color:var(--sj-ink);background:rgba(255,255,255,.06);}
+  .saju-ghost.danger:hover{color:#ff8a8a;}
+  .saju-outline{padding:9px 16px;border-radius:999px;border:1px solid var(--sj-line);background:rgba(255,255,255,.05);color:var(--sj-ink);
+    font-family:var(--sj-round);font-weight:700;font-size:13px;cursor:pointer;transition:border-color .15s,background .15s;}
+  .saju-outline:hover{border-color:var(--sj-violet);background:rgba(169,139,255,.12);}
+  .saju-error{color:#ff9a9a;font-size:13px;margin:0;}
+  .saju-loading-text{text-align:center;color:var(--sj-dim);font-size:14px;margin:8px 0 14px;}
+
+  /* 결과 탭 */
+  .saju-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:4px;margin:4px 0 18px;border-radius:14px;background:rgba(255,255,255,.05);border:1px solid var(--sj-line);}
+  .saju-tabs button{font-family:var(--sj-round);font-weight:700;font-size:13px;color:var(--sj-dim);background:none;border:0;padding:9px 2px;border-radius:10px;cursor:pointer;white-space:nowrap;transition:color .2s,background .25s;}
+  .saju-tabs button:hover{color:var(--sj-ink);}
+  .saju-tabs button.active{color:var(--sj-ink);background:linear-gradient(135deg,rgba(169,139,255,.45),rgba(255,154,213,.25));box-shadow:inset 0 0 0 1px rgba(255,255,255,.18),0 0 14px rgba(169,139,255,.35);}
+  .saju-tabs button:focus-visible{outline:2px solid var(--sj-gold);outline-offset:1px;}
+  [data-saju-pane]:not([hidden]){animation:sj-fade .4s ease;}
+  @keyframes sj-fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .saju-headline{font-family:var(--sj-serif);font-weight:700;font-size:18px;text-align:center;margin:0 0 14px;text-wrap:balance;color:var(--sj-ink);}
+  .saju-headline em{font-style:normal;color:var(--sj-gold);}
+  .saju-pillars{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-bottom:16px;perspective:800px;}
+  .saju-pillar{display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 4px;border-radius:14px;
+    background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.02));border:1px solid var(--sj-line);
+    animation:sj-flip .7s cubic-bezier(.2,.8,.2,1) both;transition:transform .2s,box-shadow .2s;}
+  .saju-pillar:nth-child(2){animation-delay:.12s}.saju-pillar:nth-child(3){animation-delay:.24s}.saju-pillar:nth-child(4){animation-delay:.36s}
+  .saju-pillar:hover{transform:translateY(-3px);box-shadow:0 10px 24px -10px rgba(169,139,255,.6);}
+  @keyframes sj-flip{from{transform:rotateY(90deg);opacity:0}to{transform:none;opacity:1}}
+  .saju-pillar.me{border-color:rgba(243,207,122,.6);box-shadow:0 0 18px rgba(243,207,122,.18);}
+  .saju-pillar-pos{font-size:11px;font-weight:700;color:var(--sj-faint);letter-spacing:.08em;}
+  .saju-pillar.me .saju-pillar-pos{color:var(--sj-gold);}
+  .saju-god{font-size:11px;color:var(--sj-dim);font-weight:700;white-space:nowrap;}
+  .saju-char{width:48px;height:50px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;
+    font-family:var(--sj-serif);font-size:26px;font-weight:700;color:var(--el);
+    background:radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--el) 26%, transparent), color-mix(in srgb, var(--el) 8%, transparent));
+    border:1px solid color-mix(in srgb, var(--el) 45%, transparent);text-shadow:0 0 12px color-mix(in srgb, var(--el) 60%, transparent);cursor:help;}
+  .saju-char small{font-family:var(--sj-round);font-size:10px;font-weight:700;margin-top:3px;text-shadow:none;}
+  .saju-pillar.unknown .saju-char{--el:var(--sj-faint);}
+  .saju-elements{display:grid;grid-template-columns:auto 1fr auto;gap:8px 12px;align-items:center;font-size:13px;margin-bottom:16px;}
+  .saju-el-bar{height:9px;border-radius:99px;background:rgba(255,255,255,.07);overflow:hidden;}
+  .saju-el-bar span{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,color-mix(in srgb, var(--el) 55%, transparent),var(--el));
+    box-shadow:0 0 10px var(--el);transform-origin:left;animation:sj-grow 1s cubic-bezier(.2,.8,.2,1) both .4s;}
+  @keyframes sj-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+  .saju-el-n{font-variant-numeric:tabular-nums;color:var(--sj-dim);font-size:12px;}
+  .saju-card{background:var(--sj-card);border:1px solid var(--sj-line);border-radius:16px;padding:14px 16px;margin-bottom:10px;font-size:14px;line-height:1.75;color:var(--sj-ink);}
+  .saju-card h3{font-family:var(--sj-serif);font-size:15px;font-weight:700;margin:0 0 6px;color:var(--sj-gold);}
   .saju-card p{margin:0;}
-  .saju-card .saju-sub{color:var(--text-muted);font-size:var(--fs-xs);margin-top:4px;}
-  .saju-tags{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px;}
-  .saju-tag{font-size:var(--fs-xs);font-weight:700;padding:4px 10px;border-radius:99px;background:var(--accent-soft);color:var(--accent);}
-  .saju-tag.purple{background:color-mix(in srgb, var(--accent-2) 18%, transparent);color:var(--accent-2);}
+  .saju-card .saju-sub{color:var(--sj-dim);font-size:13px;margin-top:6px;}
+  .saju-grid-2{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:10px;}
+  .saju-grid-2 .saju-card{margin:0;font-size:13px;line-height:1.65;}
+  .saju-tags{display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin:0 0 10px;}
+  .saju-tag{font-size:12px;font-weight:700;padding:5px 12px;border-radius:99px;background:rgba(169,139,255,.16);color:#dccfff;border:1px solid rgba(169,139,255,.3);}
+  .saju-tag.gold{background:rgba(243,207,122,.14);color:var(--sj-gold);border-color:rgba(243,207,122,.35);}
+  .saju-note{font-size:12px;color:var(--sj-faint);text-align:center;margin:-2px 0 12px;}
+
+  /* 오늘의 운세 — 타로처럼 뒤집는 카드 */
+  .sj-tarot{perspective:1000px;margin-bottom:12px;}
+  .sj-tarot-inner{position:relative;display:grid;transition:transform .8s cubic-bezier(.3,.7,.2,1);transform-style:preserve-3d;}
+  .sj-tarot.open .sj-tarot-inner{transform:rotateY(180deg);}
+  .sj-tarot-face{grid-area:1/1;backface-visibility:hidden;-webkit-backface-visibility:hidden;border-radius:18px;}
+  .sj-tarot-back{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:190px;cursor:pointer;
+    border:1px solid rgba(243,207,122,.45);color:var(--sj-gold);font-family:var(--sj-serif);font-size:15px;
+    background:repeating-linear-gradient(45deg,rgba(243,207,122,.06) 0 10px,transparent 10px 20px),
+      radial-gradient(circle at 50% 45%,rgba(169,139,255,.5),rgba(29,21,70,.95) 65%);
+    box-shadow:inset 0 0 0 6px rgba(13,10,34,.6),inset 0 0 0 7px rgba(243,207,122,.35);}
+  .sj-tarot-back:hover{filter:brightness(1.12);}
+  .sj-tarot-back:focus-visible{outline:2px solid var(--sj-gold);outline-offset:3px;}
+  .sj-tarot-back .sym{font-size:42px;animation:sj-float 3s ease-in-out infinite;}
+  .sj-tarot-back small{font-family:var(--sj-round);font-size:12px;color:var(--sj-dim);}
+  .sj-tarot-front{transform:rotateY(180deg);padding:16px;background:var(--sj-card);border:1px solid var(--sj-line);}
+  .saju-today-head{display:flex;align-items:center;gap:14px;margin-bottom:10px;}
+  .saju-today-day{font-family:var(--sj-serif);font-size:34px;font-weight:700;color:var(--sj-gold);text-shadow:0 0 18px rgba(243,207,122,.5);}
+  .saju-today-meta{font-size:13px;color:var(--sj-dim);}
+  .saju-today-meta b{display:block;color:var(--sj-ink);font-size:15px;font-family:var(--sj-serif);}
   .saju-scores{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:10px;}
-  .saju-score{background:var(--surface-3);border:1px solid var(--border);border-radius:var(--radius-md);padding:10px 12px;font-size:var(--fs-sm);font-weight:700;display:flex;justify-content:space-between;gap:6px;}
-  .saju-stars{color:var(--accent-3);letter-spacing:1px;white-space:nowrap;}
-  .saju-stars .off{color:var(--border-strong);}
-  .saju-today-head{display:flex;align-items:center;gap:12px;margin-bottom:12px;}
-  .saju-today-day{font-size:28px;font-weight:800;color:var(--accent-2);font-family:var(--font-heading);}
-  .saju-match-pick{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-bottom:12px;}
-  .saju-match-score{font-family:var(--font-heading);font-size:44px;font-weight:800;color:var(--accent-2);line-height:1;font-variant-numeric:tabular-nums;}
-  .saju-match-score small{font-size:16px;color:var(--text-muted);}
-  .saju-match-head{display:flex;align-items:center;gap:16px;margin-bottom:10px;}
+  .saju-score{background:rgba(255,255,255,.04);border:1px solid var(--sj-line);border-radius:12px;padding:10px 12px;font-size:13px;font-weight:700;display:flex;justify-content:space-between;align-items:center;gap:6px;}
+  .saju-stars{color:var(--sj-gold);letter-spacing:1px;white-space:nowrap;text-shadow:0 0 8px rgba(243,207,122,.6);}
+  .saju-stars .off{color:rgba(255,255,255,.15);text-shadow:none;}
+
+  /* 궁합 */
+  .saju-match-pick{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;margin-bottom:14px;}
+  .saju-match-hero{position:relative;text-align:center;padding:18px 12px 6px;}
+  .saju-match-pair{display:flex;align-items:center;justify-content:center;gap:10px;font-size:13px;color:var(--sj-dim);margin-bottom:6px;}
+  .saju-match-pair b{color:var(--sj-ink);}
+  .saju-match-score{font-family:var(--sj-serif);font-size:56px;font-weight:700;line-height:1;color:var(--sj-pink);text-shadow:0 0 24px rgba(255,154,213,.55);font-variant-numeric:tabular-nums;}
+  .saju-match-score small{font-size:18px;color:var(--sj-dim);text-shadow:none;}
+  .saju-match-tier{font-family:var(--sj-serif);font-size:17px;margin:6px 0 12px;color:var(--sj-ink);}
+  .sj-heart{position:absolute;left:50%;top:40%;font-size:18px;pointer-events:none;animation:sj-heart 1.4s ease-out forwards;}
+  @keyframes sj-heart{from{transform:translate(-50%,0) scale(.4);opacity:1}to{transform:translate(calc(-50% + var(--dx)),-90px) scale(1.2);opacity:0}}
   .saju-notes{margin:6px 0 0;padding-left:18px;}
-  .saju-notes li{margin-bottom:3px;}
-  .saju-timeline{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:12px;}
-  .saju-period{flex:none;width:64px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 2px;border-radius:var(--radius-md);background:var(--surface-3);border:1px solid var(--border);cursor:pointer;font:inherit;color:var(--text);}
-  .saju-period.current{border-color:var(--accent-2);box-shadow:0 0 0 2px color-mix(in srgb, var(--accent-2) 25%, transparent);}
-  .saju-period.selected{background:color-mix(in srgb, var(--accent-2) 12%, var(--surface-3));}
-  .saju-period b{font-size:18px;font-family:var(--font-heading);}
-  .saju-period span{font-size:11px;color:var(--text-muted);font-variant-numeric:tabular-nums;}
-  .saju-owl{margin-top:16px;border-top:1px dashed var(--border-strong);padding-top:14px;}
-  .saju-topic-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
-  .saju-topic-chips button{font:inherit;font-size:var(--fs-xs);font-weight:700;padding:6px 12px;border-radius:99px;border:1px solid var(--border-strong);background:var(--surface-2);color:var(--text-muted);cursor:pointer;}
-  .saju-topic-chips button:hover{border-color:var(--accent-2);color:var(--accent-2);}
-  .saju-owl textarea{min-height:56px;resize:vertical;margin-bottom:8px;}
-  .saju-owl-answer{display:flex;gap:10px;align-items:flex-start;margin-top:12px;}
-  .saju-owl-answer .owl{flex:none;font-size:26px;}
-  .saju-owl-answer p{margin:0;background:var(--accent-soft);color:var(--text);border-radius:4px 14px 14px 14px;padding:10px 14px;font-size:var(--fs-sm);line-height:1.7;white-space:pre-wrap;}
-  .saju-footer{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:14px;flex-wrap:wrap;}
-  .saju-disclaimer{font-size:11px;color:var(--text-faint);margin:0;}
+  .saju-notes li{margin-bottom:4px;}
+  .saju-share{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-top:12px;}
+  .saju-share-status{text-align:center;font-size:12px;color:var(--sj-dim);margin:8px 0 0;min-height:1em;}
+
+  /* 대운 */
+  .saju-timeline{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 10px;margin-bottom:10px;scrollbar-width:thin;scrollbar-color:rgba(169,139,255,.4) transparent;}
+  .saju-period{flex:none;width:66px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:10px 2px;border-radius:14px;
+    background:rgba(255,255,255,.04);border:1px solid var(--sj-line);cursor:pointer;font:inherit;color:var(--sj-ink);transition:transform .2s,background .2s,border-color .2s;}
+  .saju-period:hover{transform:translateY(-2px);}
+  .saju-period.current{border-color:var(--sj-gold);box-shadow:0 0 16px rgba(243,207,122,.3);}
+  .saju-period.selected{background:rgba(169,139,255,.2);}
+  .saju-period b{font-family:var(--sj-serif);font-size:20px;}
+  .saju-period span{font-size:11px;color:var(--sj-dim);font-variant-numeric:tabular-nums;}
+  .saju-period .now{font-size:10px;color:#2a1a05;background:var(--sj-gold);border-radius:99px;padding:1px 6px;font-weight:700;}
+
+  /* 부엉 도사에게 묻기 */
+  .saju-owl{margin-top:18px;padding:16px;border-radius:18px;background:linear-gradient(180deg,rgba(169,139,255,.12),rgba(169,139,255,.03));border:1px solid var(--sj-line);}
+  .saju-owl-title{font-family:var(--sj-serif);font-size:16px;font-weight:700;color:var(--sj-gold);margin:0 0 10px;}
+  .saju-topic-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px;}
+  .saju-topic-chips button{font-family:var(--sj-round);font-size:12px;font-weight:700;padding:7px 12px;border-radius:99px;border:1px solid var(--sj-line);
+    background:rgba(255,255,255,.05);color:var(--sj-dim);cursor:pointer;transition:all .18s;}
+  .saju-topic-chips button:hover{border-color:var(--sj-pink);color:var(--sj-ink);background:rgba(255,154,213,.12);transform:translateY(-1px);}
+  .saju-ask-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:stretch;}
+  .saju-owl textarea{min-height:46px;height:46px;resize:none;}
+  .saju-owl-answer{display:flex;gap:10px;align-items:flex-start;margin-top:14px;}
+  .saju-owl-answer .owl{flex:none;font-size:26px;animation:sj-float 3s ease-in-out infinite;}
+  .saju-owl-answer .bubble{flex:1;min-width:0;background:rgba(255,255,255,.07);border:1px solid var(--sj-line);border-radius:4px 16px 16px 16px;padding:12px 14px;font-size:14px;line-height:1.75;}
+  .saju-owl-answer .bubble .topic{display:inline-block;font-size:11px;font-weight:700;color:#2a1a05;background:var(--sj-gold);border-radius:99px;padding:2px 9px;margin-bottom:6px;}
+  .saju-owl-answer .bubble p{margin:0 0 6px;opacity:0;animation:sj-fade .5s ease forwards;}
+  .saju-owl-answer .bubble p:last-child{margin:0;}
+  .saju-footer{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:16px;flex-wrap:wrap;}
+  .saju-disclaimer{font-size:11px;color:var(--sj-faint);margin:0;}
+  @media (prefers-reduced-motion: reduce){
+    .saju-modal-box *,.saju-modal-box::before{animation:none!important;}
+    .saju-owl-answer .bubble p{opacity:1;}
+  }
+  @media (max-width:520px){
+    .saju-modal-box{padding:22px 18px;}
+    .saju-modal-box h2{font-size:22px;}
+    .sj-owl{width:150px;height:112px;}
+    .saju-char{width:40px;height:44px;font-size:22px;}
+    .saju-grid-2{grid-template-columns:1fr;}
+    .saju-tabs button{font-size:12px;}
+    .saju-row{grid-template-columns:1.3fr 1fr 1fr;}
+    .saju-match-score{font-size:46px;}
+  }
   @media (max-width:400px){
     .header-icons{gap:6px;}
     .header-icon-btn{width:34px;height:34px;}
     .header-icon-btn svg{width:16px;height:16px;}
-    .saju-char{width:38px;height:38px;font-size:20px;}
-    .saju-row{grid-template-columns:1.3fr 1fr 1fr;}
-    .saju-tabs button{margin-right:10px;font-size:13px;}
   }
 
   .loading-overlay{
@@ -996,7 +1152,28 @@
     .tab-btn,.ads-section-btn,.sf-tab-btn{transition:none;}
     .mo-typing::after{display:none;}
   }
+
+  /* ---- 전체 UI 다듬기 ---- */
+  html{scroll-behavior:smooth;}
+  ::selection{background:color-mix(in srgb, var(--accent) 28%, transparent);}
+  input::placeholder,textarea::placeholder{color:var(--text-faint);opacity:1;}
+  input[type=time],input[type=date],input[type=email],input[type=search],input[type=password]{
+    width:100%;font:inherit;font-size:var(--fs-base);color:var(--text);background:var(--surface-2);
+    border:1px solid var(--border-strong);border-radius:var(--radius-sm);padding:7px 12px;
+  }
+  /* 쇼피파이 탭 입력칸도 광고 셋팅 탭과 같은 바탕색으로 */
+  .sf-app input[type=text],.sf-app textarea,.sf-app select{background:var(--surface-2);}
+  button:not(:disabled):active{transform:translateY(1px);}
+  .header-icon-btn{transition:color .12s,border-color .12s,transform .15s,box-shadow .15s;}
+  .header-icon-btn:hover{transform:translateY(-2px);box-shadow:0 8px 18px -10px rgba(28,176,246,.55);}
+  #saju-btn:hover{box-shadow:0 0 0 3px rgba(169,139,255,.25),0 8px 18px -8px rgba(124,92,255,.6);}
+  @media (min-width:1240px){
+    /* 넓은 화면: 아이콘 묶음을 화면 끝이 아니라 본문 오른쪽 끝·상단 토글 줄에 맞춘다 */
+    .header-bar{top:calc(var(--sp-8) + 1px);right:max(20px, calc((100% - 1180px) / 2 + 22px));}
+  }
 </style>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=Gowun+Dodum&display=swap">
 </head>
 <body>
 <div class="bg-orbs" aria-hidden="true"><span></span><span></span><span></span></div>
@@ -1170,24 +1347,64 @@
 </div>
 
 <div class="modal-overlay" id="saju-modal-overlay" hidden>
-  <div class="modal-box saju-modal-box">
+  <div class="modal-box saju-modal-box" role="dialog" aria-labelledby="saju-title">
     <button type="button" class="modal-close" data-close-modal="saju-modal-overlay" aria-label="닫기">×</button>
-    <h2>🔮 부엉 도사의 사주</h2>
-    <p class="hint" id="saju-hint">생년월일시로 내 사주·오늘의 운세·팀원 궁합·대운을 봐드려요. 재미로만 봐주세요!</p>
-    <p class="hint" id="saju-loading" hidden>부엉 도사가 명식을 펼치는 중... 🦉</p>
+    <h2 id="saju-title">부엉 도사의 사주</h2>
+    <p class="saju-sub-title">수정구슬에 비친 나의 여덟 글자</p>
+    <div class="sj-stage" id="sj-stage">
+      <svg class="sj-owl" id="sj-owl" viewBox="0 0 200 150" role="button" tabindex="0" aria-label="부엉 도사 — 눌러서 한마디 듣기">
+        <defs>
+          <radialGradient id="sjBall" cx="38%" cy="32%" r="70%"><stop offset="0" stop-color="#ffffff"/><stop offset=".22" stop-color="#e3d6ff"/><stop offset=".6" stop-color="#8b6cf0"/><stop offset="1" stop-color="#2e1d6e"/></radialGradient>
+          <radialGradient id="sjAura"><stop offset="0" stop-color="#cdb8ff" stop-opacity=".85"/><stop offset="1" stop-color="#cdb8ff" stop-opacity="0"/></radialGradient>
+          <linearGradient id="sjHat" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#6a4cc4"/><stop offset="1" stop-color="#2d1f6b"/></linearGradient>
+          <linearGradient id="sjBody" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#9a7556"/><stop offset="1" stop-color="#6b4b35"/></linearGradient>
+        </defs>
+        <g class="sj-owl-float">
+          <ellipse cx="100" cy="84" rx="37" ry="39" fill="url(#sjBody)"/>
+          <ellipse cx="100" cy="96" rx="22" ry="24" fill="#ecd9b8"/>
+          <path d="M90 92q5 4 10 0q5 4 10 0M88 101q6 4 12 0q6 4 12 0" fill="none" stroke="#c9ad85" stroke-width="1.6" stroke-linecap="round"/>
+          <path class="sj-wing-l" d="M66 78q-16 22 4 42q6-4 10-12q-8-14-6-30z" fill="#5c3f2c"/>
+          <path class="sj-wing-r" d="M134 78q16 22-4 42q-6-4-10-12q8-14 6-30z" fill="#5c3f2c"/>
+          <circle cx="86" cy="72" r="15" fill="#f6e9d0"/><circle cx="114" cy="72" r="15" fill="#f6e9d0"/>
+          <g class="sj-eyes">
+            <circle cx="86" cy="72" r="9.5" fill="#f3b13c"/><circle cx="114" cy="72" r="9.5" fill="#f3b13c"/>
+            <g class="sj-pupils"><circle cx="86" cy="72" r="5.5" fill="#1b1238"/><circle cx="114" cy="72" r="5.5" fill="#1b1238"/>
+            <circle cx="88" cy="70" r="1.8" fill="#fff"/><circle cx="116" cy="70" r="1.8" fill="#fff"/></g>
+          </g>
+          <path d="M96 81h8l-4 8z" fill="#e8962e"/>
+          <path d="M70 50Q96 -8 122 2q-12 10-2 20q6 12 12 28z" fill="url(#sjHat)"/>
+          <ellipse cx="100" cy="51" rx="42" ry="7.5" fill="#2d1f6b"/>
+          <path d="M98 22l1.6 3.4 3.6.4-2.7 2.4.8 3.6-3.3-1.9-3.3 1.9.8-3.6-2.7-2.4 3.6-.4z" fill="#f3cf7a"/>
+          <circle cx="111" cy="38" r="1.6" fill="#f3cf7a"/><circle cx="89" cy="40" r="1.2" fill="#f3cf7a"/>
+        </g>
+        <circle class="sj-aura" cx="100" cy="121" r="32" fill="url(#sjAura)"/>
+        <path d="M82 146h36l-6-11H88z" fill="#c9973f"/><path d="M86 146h28" stroke="#8d6326" stroke-width="2"/>
+        <g class="sj-ball">
+          <circle cx="100" cy="121" r="19" fill="url(#sjBall)"/>
+          <circle class="sj-swirl" cx="100" cy="121" r="12" fill="none" stroke="rgba(255,255,255,.55)" stroke-width="1.6" stroke-dasharray="7 9" stroke-linecap="round"/>
+          <ellipse cx="93" cy="113" rx="5" ry="3" fill="#fff" opacity=".85"/>
+        </g>
+        <path class="sj-spark" d="M30 40l1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5z" fill="#f3cf7a"/>
+        <path class="sj-spark" d="M168 30l1.2 3.2 3.2 1.2-3.2 1.2-1.2 3.2-1.2-3.2-3.2-1.2 3.2-1.2z" fill="#d9cbff"/>
+        <path class="sj-spark" d="M160 112l1.5 4 4 1.5-4 1.5-1.5 4-1.5-4-4-1.5 4-1.5z" fill="#f3cf7a"/>
+        <path class="sj-spark" d="M40 108l1.2 3.2 3.2 1.2-3.2 1.2-1.2 3.2-1.2-3.2-3.2-1.2 3.2-1.2z" fill="#ff9ad5"/>
+      </svg>
+      <div class="sj-bubble" id="sj-bubble" aria-live="polite">어서 와요! 생년월일시를 알려주면 구슬에 비춰볼게요.</div>
+    </div>
+    <p class="saju-loading-text" id="saju-loading" hidden>구슬에 명식을 비추는 중…</p>
 
     <form id="saju-form" class="saju-form" hidden novalidate>
       <div>
         <span class="saju-label">달력</span>
         <div class="saju-seg" role="radiogroup" aria-label="달력">
-          <label><input type="radio" name="calendar" value="solar" checked>양력</label>
-          <label><input type="radio" name="calendar" value="lunar">음력</label>
+          <label><input type="radio" name="calendar" value="solar" checked>☀️ 양력</label>
+          <label><input type="radio" name="calendar" value="lunar">🌙 음력</label>
         </div>
       </div>
       <div>
         <label class="saju-label" for="saju-year">생년월일</label>
         <div class="saju-row">
-          <input type="number" id="saju-year" inputmode="numeric" min="1900" max="2049" placeholder="1995" aria-label="태어난 해">
+          <input type="number" id="saju-year" inputmode="numeric" min="1900" max="2049" placeholder="1995년" aria-label="태어난 해">
           <input type="number" id="saju-month" inputmode="numeric" min="1" max="12" placeholder="월" aria-label="태어난 달">
           <input type="number" id="saju-day" inputmode="numeric" min="1" max="31" placeholder="일" aria-label="태어난 날">
         </div>
@@ -1201,11 +1418,11 @@
         </div>
       </div>
       <div>
-        <label class="saju-label" for="saju-place">태어난 곳 <span style="font-weight:600;color:var(--text-faint);">(경도에 따라 실제 태양시를 보정해요)</span></label>
+        <label class="saju-label" for="saju-place">태어난 곳 <span class="muted">· 경도에 맞춰 실제 태양시로 보정해요</span></label>
         <select id="saju-place"><option value="">모름 · 해외 (서울 기준)</option></select>
       </div>
       <div>
-        <span class="saju-label">성별 <span style="font-weight:600;color:var(--text-faint);">(대운 방향 계산에만 써요)</span></span>
+        <span class="saju-label">성별 <span class="muted">· 대운 방향 계산에만 써요</span></span>
         <div class="saju-seg" role="radiogroup" aria-label="성별">
           <label><input type="radio" name="gender" value="F">여성</label>
           <label><input type="radio" name="gender" value="M">남성</label>
@@ -1214,16 +1431,16 @@
       </div>
       <p class="saju-privacy">🔒 생년월일시는 내 계정에만 저장되고 다른 사람에게 보이지 않아요. 궁합에는 이름과 결과만 쓰이고, 언제든 삭제할 수 있어요.</p>
       <p class="saju-error" id="saju-form-error" hidden></p>
-      <button type="submit" class="saju-primary" id="saju-save-btn">🔮 사주 보기</button>
+      <button type="submit" class="saju-primary" id="saju-save-btn">✨ 구슬에 비춰보기</button>
       <button type="button" class="saju-ghost" id="saju-cancel-edit" hidden>← 결과로 돌아가기</button>
     </form>
 
     <div id="saju-result" hidden>
       <div class="saju-tabs" role="tablist">
-        <button type="button" class="active" data-saju-tab="chart">내 사주</button>
-        <button type="button" data-saju-tab="today">오늘의 운세</button>
-        <button type="button" data-saju-tab="match">팀원 궁합</button>
-        <button type="button" data-saju-tab="daewoon">대운</button>
+        <button type="button" class="active" data-saju-tab="chart">📜 내 사주</button>
+        <button type="button" data-saju-tab="today">🃏 오늘</button>
+        <button type="button" data-saju-tab="match">💞 궁합</button>
+        <button type="button" data-saju-tab="daewoon">🌊 대운</button>
       </div>
       <div data-saju-pane="chart"></div>
       <div data-saju-pane="today" hidden></div>
@@ -1237,10 +1454,12 @@
       <div data-saju-pane="daewoon" hidden></div>
 
       <div class="saju-owl" id="saju-owl">
-        <label class="saju-label" for="saju-question">🦉 부엉 도사에게 더 물어보기</label>
+        <p class="saju-owl-title">🦉 부엉 도사에게 더 물어보기</p>
         <div class="saju-topic-chips" id="saju-topic-chips"></div>
-        <textarea id="saju-question" maxlength="200" placeholder="주제를 누르거나 직접 물어보세요. 예) 내년에 이직해도 될까요?"></textarea>
-        <button type="button" class="saju-primary" id="saju-ask-btn">부엉 도사에게 물어보기</button>
+        <div class="saju-ask-row">
+          <textarea id="saju-question" maxlength="200" aria-label="부엉 도사에게 물어볼 질문" placeholder="예) 내년에 이직해도 될까요?"></textarea>
+          <button type="button" class="saju-primary" id="saju-ask-btn">묻기</button>
+        </div>
         <div id="saju-owl-answer"></div>
       </div>
 
@@ -4575,68 +4794,89 @@
   })();
 </script>
 <script>
-  // 🔮 부엉 도사의 사주 — 계산은 서버(saju.py), 여기선 입력/표시만.
+  // 🔮 부엉 도사의 사주 — 계산은 서버(saju.py), 여기선 입력/표시/연출만.
   (function () {
     var overlay = document.getElementById("saju-modal-overlay");
     if (!overlay) return;
     var form = document.getElementById("saju-form");
     var result = document.getElementById("saju-result");
     var loading = document.getElementById("saju-loading");
-    var hint = document.getElementById("saju-hint");
+    var stage = document.getElementById("sj-stage");
+    var bubble = document.getElementById("sj-bubble");
     var errEl = document.getElementById("saju-form-error");
     var EL = ["목", "화", "토", "금", "수"], EL_EMOJI = ["🌳", "🔥", "⛰️", "⚔️", "💧"];
+    var EL_MEAN = ["나무 — 성장·시작", "불 — 열정·표현", "흙 — 안정·신뢰", "쇠 — 결단·정리", "물 — 지혜·유연함"];
     var POS = { hour: "시주", day: "일주", month: "월주", year: "연주" };
-    var data = null, team = null;
+    var OWL_LINES = [
+      "부엉~ 오늘도 반짝이는 하루 보내요!", "구슬이 따뜻하게 빛나요. 좋은 징조예요 ✨",
+      "물 한 잔 마시고 가요. 도사의 처방이에요.", "운은 준비된 사람에게 와요. 부엉!",
+      "깃털 하나 드릴게요. 행운의 깃털이에요 🪶", "오늘 점심 메뉴는… 따뜻한 국물이 길해요!",
+      "구슬 너무 문지르면 도사 눈이 부셔요 😵", "웃는 얼굴에 복이 들어온대요. 부엉~",
+    ];
+    var data = null, pendingWith = null, owlTap = 0;
 
     function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); }
+    function say(text) {
+      bubble.textContent = text;
+      bubble.style.animation = "none"; void bubble.offsetWidth; bubble.style.animation = "";
+    }
+    function gaze(on) { stage.classList.toggle("gazing", !!on); }
     function show(view) {
       loading.hidden = view !== "loading";
       form.hidden = view !== "form";
       result.hidden = view !== "result";
-      hint.hidden = view === "result";
     }
     function api(url, body) {
       var opts = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
       return fetch(url, opts).then(function (r) { return r.json().catch(function () { return { ok: false }; }); });
     }
-    function charBox(ch, el, sub) {
-      return '<span class="saju-char" style="--el:var(--el-' + el + ')">' + esc(ch) + "<small>" + esc(sub) + "</small></span>";
+    function charBox(ch, el, sub, tip) {
+      return '<span class="saju-char" style="--el:var(--el-' + el + ')" title="' + esc(tip || "") + '">' + esc(ch) + "<small>" + esc(sub) + "</small></span>";
     }
     function stars(n) {
       var s = "";
       for (var i = 1; i <= 5; i++) s += i <= n ? "★" : '<span class="off">★</span>';
       return '<span class="saju-stars" aria-label="5점 중 ' + n + '점">' + s + "</span>";
     }
+    function countUp(el, to) {
+      var start = performance.now(), dur = 900;
+      (function tick(t) {
+        var k = Math.min(1, (t - start) / dur);
+        el.textContent = Math.round(to * (1 - Math.pow(1 - k, 3)));
+        if (k < 1) requestAnimationFrame(tick);
+      })(start);
+    }
 
     function renderChart() {
-      var c = data.chart, r = data.reading;
-      var cells = {};
+      var c = data.chart, r = data.reading, cells = {};
       c.cells.forEach(function (x) { cells[x.pos] = x; });
-      var html = '<p class="saju-headline">' + esc(r.headline) + "</p><div class=\"saju-pillars\">";
+      var html = '<p class="saju-headline"><em>' + esc(c.day_animal) + "</em>의 기운을 타고난 " + esc(r.headline.split(" ").slice(-2).join(" ")) + '</p><div class="saju-pillars">';
       ["hour", "day", "month", "year"].forEach(function (pos) {
         var x = cells[pos];
         if (!x) {
           html += '<div class="saju-pillar unknown"><span class="saju-pillar-pos">' + POS[pos] + '</span><span class="saju-god">&nbsp;</span>' +
-            charBox("?", 0, "") + charBox("?", 0, "") + '<span class="saju-god">시간 모름</span></div>';
+            charBox("?", 0, "", "태어난 시간을 알면 채워져요") + charBox("?", 0, "", "") + '<span class="saju-god">시간 모름</span></div>';
           return;
         }
         html += '<div class="saju-pillar' + (pos === "day" ? " me" : "") + '"><span class="saju-pillar-pos">' + POS[pos] + "</span>" +
           '<span class="saju-god">' + esc(x.stem_god) + "</span>" +
-          charBox(x.hanja[0], x.stem_element, x.hangul[0]) + charBox(x.hanja[1], x.branch_element, x.hangul[1]) +
+          charBox(x.hanja[0], x.stem_element, x.hangul[0], x.hangul[0] + " · " + EL[x.stem_element] + "(" + EL_MEAN[x.stem_element] + ")") +
+          charBox(x.hanja[1], x.branch_element, x.hangul[1], x.hangul[1] + " · " + EL[x.branch_element] + "(" + EL_MEAN[x.branch_element] + ")") +
           '<span class="saju-god">' + esc(x.branch_god) + "</span></div>";
       });
-      html += '</div><div class="saju-elements">';
+      html += "</div>";
+      if (c.solar_time) html += '<p class="saju-note">📍 ' + esc(c.place) + " 기준 실제 태양시 " + esc(c.solar_time) + " (" + c.lmt_minutes + "분 보정)</p>";
+      html += '<div class="saju-elements">';
       var max = Math.max.apply(null, c.element_counts.concat([4]));
       c.element_counts.forEach(function (n, i) {
-        html += "<span>" + EL_EMOJI[i] + " " + EL[i] + '</span><span class="saju-el-bar"><span style="--el:var(--el-' + i + ');width:' + (n / max * 100) + '%"></span></span><span class="saju-el-n">' + n + "</span>";
+        html += '<span title="' + EL_MEAN[i] + '">' + EL_EMOJI[i] + " " + EL[i] + '</span><span class="saju-el-bar"><span style="--el:var(--el-' + i + ');width:' + (n / max * 100) + "%;animation-delay:" + (0.4 + i * 0.08) + 's"></span></span><span class="saju-el-n">' + n + "</span>";
       });
       html += "</div>";
-      html += '<div class="saju-tags"><span class="saju-tag purple">' + esc(c.day_animal) + '</span><span class="saju-tag">' + esc(c.year_animal) + '띠</span><span class="saju-tag">' + esc(c.strength) + '</span><span class="saju-tag">행운 오행 ' + esc(r.lucky.element) + "</span></div>" +
-        (c.solar_time ? '<p class="saju-privacy" style="margin:-4px 0 10px;">📍 ' + esc(c.place) + " 기준 실제 태양시 " + esc(c.solar_time) + " (" + c.lmt_minutes + "분 보정)</p>" : "");
+      html += '<div class="saju-tags"><span class="saju-tag gold">' + esc(c.year_animal) + '띠</span><span class="saju-tag">' + esc(c.strength) + '</span><span class="saju-tag gold">행운 오행 ' + esc(r.lucky.element) + "</span></div>";
       html += '<div class="saju-card"><h3>' + esc(r.day_master.title) + "</h3><p>" + esc(r.day_master.body) + '</p><p class="saju-sub">👍 ' + esc(r.day_master.plus) + "<br>💡 " + esc(r.day_master.minus) + "</p></div>";
       html += '<div class="saju-card"><h3>⚖️ 기운의 세기</h3><p>' + esc(r.strength) + "</p>" + r.element_tips.map(function (t) { return '<p class="saju-sub">' + esc(t) + "</p>"; }).join("") + "</div>";
-      html += '<div class="saju-card"><h3>💼 일</h3><p>' + esc(r.work) + '</p></div><div class="saju-card"><h3>💰 재물</h3><p>' + esc(r.money) + '</p></div><div class="saju-card"><h3>💕 연애</h3><p>' + esc(r.love) + "</p></div>";
-      html += '<div class="saju-card"><h3>🍀 나에게 맞는 행운템</h3><p>색 ' + esc(r.lucky.color) + " · 숫자 " + esc(r.lucky.number) + " · 방향 " + esc(r.lucky.direction) + "<br>" + esc(r.lucky.item) + "을(를) 가까이 두세요.</p></div>";
+      html += '<div class="saju-grid-2"><div class="saju-card"><h3>💼 일</h3><p>' + esc(r.work) + '</p></div><div class="saju-card"><h3>💰 재물</h3><p>' + esc(r.money) + '</p></div><div class="saju-card"><h3>💕 연애</h3><p>' + esc(r.love) + "</p></div></div>";
+      html += '<div class="saju-card"><h3>🍀 나에게 맞는 행운템</h3><p>색 <b>' + esc(r.lucky.color) + "</b> · 숫자 <b>" + esc(r.lucky.number) + "</b> · 방향 <b>" + esc(r.lucky.direction) + "</b><br>" + esc(r.lucky.item) + "을(를) 가까이 두세요.</p></div>";
       result.querySelector('[data-saju-pane="chart"]').innerHTML = html;
     }
 
@@ -4644,12 +4884,20 @@
       var t = data.today, r = data.today_reading;
       var LABELS = { work: "💼 업무", money: "💰 금전", love: "💕 연애", health: "🍵 건강" };
       var d = new Date(t.date + "T00:00:00");
-      var html = '<div class="saju-today-head"><span class="saju-today-day">' + esc(t.pillar.hanja) + "</span><div><b>" + (d.getMonth() + 1) + "월 " + d.getDate() + "일 · " + esc(t.pillar.hangul) + "일</b><br><span style=\"color:var(--text-muted);font-size:var(--fs-sm);\">나에게 " + esc(t.ten_god) + "의 날 · 종합 " + stars(t.overall) + "</span></div></div>";
-      html += '<div class="saju-card"><p>' + esc(r.message) + "</p>" + r.extras.map(function (x) { return '<p class="saju-sub">' + esc(x) + "</p>"; }).join("") + "</div>";
+      var front = '<div class="saju-today-head"><span class="saju-today-day">' + esc(t.pillar.hanja) + '</span><div class="saju-today-meta"><b>' + (d.getMonth() + 1) + "월 " + d.getDate() + "일 · " + esc(t.pillar.hangul) + "일</b>나에게 " + esc(t.ten_god) + "의 날 · 종합 " + stars(t.overall) + "</div></div>" +
+        '<p style="margin:0 0 6px;">' + esc(r.message) + "</p>" + r.extras.map(function (x) { return '<p class="saju-sub" style="margin:0 0 4px;color:var(--sj-dim);font-size:13px;">' + esc(x) + "</p>"; }).join("");
+      var html = '<div class="sj-tarot" id="sj-tarot"><div class="sj-tarot-inner">' +
+        '<div class="sj-tarot-face sj-tarot-back" role="button" tabindex="0" aria-label="오늘의 운세 카드 뒤집기"><span class="sym">🔮</span>오늘의 운세 카드<small>눌러서 뒤집어 보세요</small></div>' +
+        '<div class="sj-tarot-face sj-tarot-front">' + front + "</div></div></div>";
       html += '<div class="saju-scores">';
       ["work", "money", "love", "health"].forEach(function (k) { html += '<div class="saju-score"><span>' + LABELS[k] + "</span>" + stars(t.scores[k]) + "</div>"; });
-      html += '</div><div class="saju-tags"><span class="saju-tag">🎨 행운의 색 ' + esc(r.lucky_color) + '</span><span class="saju-tag purple">🎁 ' + esc(r.lucky_item) + "</span></div>";
-      result.querySelector('[data-saju-pane="today"]').innerHTML = html;
+      html += '</div><div class="saju-tags"><span class="saju-tag gold">🎨 행운의 색 ' + esc(r.lucky_color) + '</span><span class="saju-tag">🎁 ' + esc(r.lucky_item) + "</span></div>";
+      var pane = result.querySelector('[data-saju-pane="today"]');
+      pane.innerHTML = html;
+      var tarot = pane.querySelector("#sj-tarot"), back = pane.querySelector(".sj-tarot-back");
+      function flip() { tarot.classList.add("open"); say(t.overall >= 4 ? "오오, 오늘 기운 아주 좋은데요? ✨" : t.overall >= 3 ? "무난하게 흘러가는 날이에요. 부엉~" : "살짝 조심하면 괜찮은 날이에요. 도사가 지켜볼게요!"); }
+      back.addEventListener("click", flip);
+      back.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); flip(); } });
     }
 
     function renderDaewoon() {
@@ -4659,29 +4907,29 @@
         pane.innerHTML = '<div class="saju-card"><p>대운은 성별에 따라 흐르는 방향이 달라져요. <b>정보 수정</b>에서 성별을 골라주면 10년 단위 흐름을 보여드릴게요.</p></div>';
         return;
       }
-      var html = '<p class="saju-headline">' + dw.start_age + "세부터 10년마다 바뀌는 큰 흐름 (" + (dw.forward ? "순행" : "역행") + ')</p><div class="saju-timeline">';
+      var html = '<p class="saju-headline">' + dw.start_age + "세부터 10년마다 바뀌는 큰 물결 <em>(" + (dw.forward ? "순행" : "역행") + ')</em></p><div class="saju-timeline">';
       dw.periods.forEach(function (p, i) {
-        html += '<button type="button" class="saju-period' + (p.current ? " current selected" : "") + '" data-i="' + i + '"><span>' + p.age + "세</span><b>" + esc(p.hanja) + "</b><span>" + esc(p.hangul) + "</span></button>";
+        html += '<button type="button" class="saju-period' + (p.current ? " current selected" : "") + '" data-i="' + i + '"><span>' + p.age + "세</span><b>" + esc(p.hanja) + "</b><span>" + esc(p.hangul) + "</span>" + (p.current ? '<span class="now">지금</span>' : "") + "</button>";
       });
       html += '</div><div id="saju-dw-detail"></div>';
       pane.innerHTML = html;
       function detail(i) {
         var p = dw.periods[i];
         pane.querySelectorAll(".saju-period").forEach(function (b) { b.classList.toggle("selected", +b.dataset.i === i); });
-        document.getElementById("saju-dw-detail").innerHTML = '<div class="saju-card"><h3>' + esc(p.hangul) + " 대운 · " + p.age + "~" + (p.age + 9) + "세 (" + p.start_year + "~" + (p.start_year + 9) + ")" + (p.current ? " · 지금" : "") + "</h3><p>" + esc(p.ten_god) + " · " + esc(data.daewoon_themes[p.group]) + "</p></div>";
+        var box = document.getElementById("saju-dw-detail");
+        box.innerHTML = '<div class="saju-card"><h3>' + esc(p.hangul) + " 대운 · " + p.age + "~" + (p.age + 9) + "세 (" + p.start_year + "~" + (p.start_year + 9) + ")" + (p.current ? " · 지금" : "") + "</h3><p>" + esc(p.ten_god) + " · " + esc(data.daewoon_themes[p.group]) + "</p></div>";
+        box.firstChild.style.animation = "sj-fade .35s ease";
       }
       pane.querySelectorAll(".saju-period").forEach(function (b) { b.addEventListener("click", function () { detail(+b.dataset.i); }); });
       var cur = dw.periods.findIndex(function (p) { return p.current; });
       detail(cur < 0 ? 0 : cur);
-      var curBtn = pane.querySelector(".saju-period.current");
-      if (curBtn) setTimeout(function () { curBtn.scrollIntoView({ block: "nearest", inline: "center" }); }, 50);
     }
 
-    function loadTeam() {
+    function loadTeam(then) {
       var sel = document.getElementById("saju-match-select");
       var btn = document.getElementById("saju-match-btn");
       api("/saju/team").then(function (res) {
-        team = (res && res.rows) || [];
+        var team = (res && res.rows) || [];
         sel.innerHTML = "";
         if (!team.length) {
           sel.innerHTML = "<option>아직 등록한 팀원이 없어요</option>";
@@ -4691,21 +4939,65 @@
         }
         sel.disabled = btn.disabled = false;
         team.forEach(function (t) { var o = document.createElement("option"); o.value = t.id; o.textContent = t.name; sel.appendChild(o); });
+        if (then) then(team);
       });
     }
-    document.getElementById("saju-match-btn").addEventListener("click", function () {
+    function runMatch() {
       var out = document.getElementById("saju-match-result");
-      out.innerHTML = '<p class="hint">궁합을 맞춰보는 중... 💞</p>';
-      api("/saju/match?id=" + encodeURIComponent(document.getElementById("saju-match-select").value)).then(function (m) {
-        if (!m.ok) { out.innerHTML = '<p class="saju-error">' + esc(m.error || "다시 시도해주세요.") + "</p>"; return; }
-        out.innerHTML = '<div class="saju-match-head"><span class="saju-match-score">' + m.score + "<small>점</small></span><div><b>" + esc(m.tier) + "</b><br><span style=\"color:var(--text-muted);font-size:var(--fs-sm);\">" + esc(data.chart.day_animal) + " × " + esc(m.other_animal) + " (" + esc(m.name) + ")</span></div></div>" +
-          '<div class="saju-card"><p>' + esc(m.comment) + '</p><ul class="saju-notes">' + m.notes.map(function (n) { return "<li>" + esc(n) + "</li>"; }).join("") + "</ul></div>";
+      var id = document.getElementById("saju-match-select").value;
+      out.innerHTML = '<p class="saju-loading-text">두 사람의 기운을 구슬에 겹쳐보는 중… 💞</p>';
+      gaze(true); say("음… 두 기운이 섞이는 게 보여요…");
+      api("/saju/match?id=" + encodeURIComponent(id)).then(function (m) {
+        setTimeout(function () {
+          gaze(false);
+          if (!m.ok) { out.innerHTML = '<p class="saju-error">' + esc(m.error || "다시 시도해주세요.") + "</p>"; return; }
+          say(m.score >= 78 ? "이 조합, 도사가 보증해요! 💞" : m.score >= 60 ? "서로 맞춰가면 좋은 짝꿍이에요." : "다르니까 배울 게 많은 사이예요!");
+          out.innerHTML = '<div class="saju-match-hero"><div class="saju-match-pair"><b>나</b> ' + esc(data.chart.day_animal) + " <span>×</span> " + esc(m.other_animal) + " <b>" + esc(m.name) + "</b></div>" +
+            '<div class="saju-match-score"><span id="sj-score">0</span><small>점</small></div><div class="saju-match-tier">' + esc(m.tier) + "</div></div>" +
+            '<div class="saju-card"><p>' + esc(m.comment) + '</p><ul class="saju-notes">' + m.notes.map(function (n) { return "<li>" + esc(n) + "</li>"; }).join("") + "</ul></div>" +
+            '<div class="saju-share"><button type="button" class="saju-outline" id="sj-send">' + (data.send_via === "slack" ? "💬 슬랙으로 보내기" : data.send_via === "email" ? "✉️ " + esc(m.name) + "님께 보내기" : "📤 보내기") + '</button><button type="button" class="saju-outline" id="sj-copy">🔗 링크 복사</button></div><p class="saju-share-status" id="sj-share-status"></p>';
+          countUp(document.getElementById("sj-score"), m.score);
+          var hero = out.querySelector(".saju-match-hero");
+          for (var i = 0; i < 7; i++) {
+            var h = document.createElement("span");
+            h.className = "sj-heart"; h.textContent = ["💖", "💜", "✨", "💞"][i % 4];
+            h.style.setProperty("--dx", (Math.random() * 160 - 80) + "px"); h.style.animationDelay = (i * 0.09) + "s";
+            hero.appendChild(h);
+          }
+          wireShare(m);
+        }, 700);
       });
-    });
+    }
+    function copyText(text, status, prefix) {
+      var done = function () { status.textContent = (prefix || "") + "📋 복사했어요! 슬랙이나 메신저에 붙여넣으세요."; };
+      if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, function () { prompt("복사해서 보내주세요", text); });
+      else { prompt("복사해서 보내주세요", text); }
+    }
+    function wireShare(m) {
+      var status = document.getElementById("sj-share-status");
+      var link = location.origin + "/?saju_with=" + encodeURIComponent(data.my_id || "");
+      var summary = "🔮 부엉 도사 궁합: 나 × " + m.name + " — " + m.score + "점 · " + m.tier + "\n" + m.comment + "\n내 화면에서 보기: " + link;
+      document.getElementById("sj-copy").addEventListener("click", function () { copyText(summary, status); });
+      document.getElementById("sj-send").addEventListener("click", function () {
+        var btn = this; btn.disabled = true; status.textContent = "부엉이가 편지를 물고 날아가는 중… 🦉✉️";
+        api("/saju/match/send", { id: m.id }).then(function (res) {
+          btn.disabled = false;
+          if (res.ok) { status.textContent = res.via === "slack" ? "💬 " + m.name + "님께 슬랙 DM으로 보냈어요!" : "✉️ " + m.name + "님께 메일로 보냈어요!"; say("편지 배달 완료! 부엉~"); }
+          else { copyText(res.text || summary, status, "자동 전송이 아직 설정되지 않아 내용을 대신 "); }
+        }).catch(function () { btn.disabled = false; status.textContent = "네트워크 오류예요."; });
+      });
+    }
+    document.getElementById("saju-match-btn").addEventListener("click", runMatch);
 
     function renderAll() {
-      renderChart(); renderToday(); renderDaewoon(); loadTeam();
+      renderChart(); renderToday(); renderDaewoon();
       document.getElementById("saju-match-result").innerHTML = "";
+      loadTeam(function (team) {
+        if (!pendingWith) return;
+        var hit = team.some(function (t) { return t.id === pendingWith; });
+        if (hit) { document.getElementById("saju-match-select").value = pendingWith; selectTab("match"); runMatch(); }
+        pendingWith = null;
+      });
       document.getElementById("saju-owl-answer").innerHTML = "";
       var chips = document.getElementById("saju-topic-chips");
       chips.innerHTML = "";
@@ -4715,6 +5007,7 @@
         b.addEventListener("click", function () { ask({ topic: t.key, question: "" }, t.label); });
         chips.appendChild(b);
       });
+      say(data.chart.day_animal + "의 기운이 보여요! 탭을 눌러 더 살펴봐요.");
       show("result");
     }
     function fillPlaces(places) {
@@ -4722,7 +5015,6 @@
       if (sel.options.length > 1 || !places) return;
       places.forEach(function (p) { var o = document.createElement("option"); o.value = p.key; o.textContent = p.label; sel.appendChild(o); });
     }
-
     function fillForm(p) {
       form.querySelector('input[name="calendar"][value="' + ((p && p.calendar) || "solar") + '"]').checked = true;
       document.getElementById("saju-year").value = p ? p.year : "";
@@ -4736,6 +5028,7 @@
       syncForm();
       errEl.hidden = true;
       document.getElementById("saju-cancel-edit").hidden = !p;
+      say(pendingWith ? "팀원이 궁합을 보냈어요! 내 사주부터 저장하면 바로 보여드릴게요 💌" : "어서 와요! 생년월일시를 알려주면 구슬에 비춰볼게요.");
     }
     function syncForm() {
       document.getElementById("saju-leap-wrap").hidden = form.querySelector('input[name="calendar"]:checked').value !== "lunar";
@@ -4755,12 +5048,14 @@
         place: document.getElementById("saju-place").value,
       };
       var btn = document.getElementById("saju-save-btn");
-      btn.disabled = true; errEl.hidden = true;
+      btn.disabled = true; errEl.hidden = true; gaze(true); say("구슬에 여덟 글자를 비추는 중… 🔮");
       api("/saju/me", body).then(function (res) {
-        btn.disabled = false;
-        if (!res.ok) { errEl.textContent = res.error || "저장하지 못했어요. 다시 시도해주세요."; errEl.hidden = false; return; }
-        data = res; selectTab("chart"); renderAll();
-      }).catch(function () { btn.disabled = false; errEl.textContent = "네트워크 오류예요. 다시 시도해주세요."; errEl.hidden = false; });
+        setTimeout(function () {
+          btn.disabled = false; gaze(false);
+          if (!res.ok) { errEl.textContent = res.error || "저장하지 못했어요. 다시 시도해주세요."; errEl.hidden = false; say("앗, 구슬이 흐려졌어요. 입력을 확인해줘요!"); return; }
+          data = res; selectTab("chart"); renderAll();
+        }, 900);
+      }).catch(function () { btn.disabled = false; gaze(false); errEl.textContent = "네트워크 오류예요. 다시 시도해주세요."; errEl.hidden = false; });
     });
     document.getElementById("saju-cancel-edit").addEventListener("click", function () { show("result"); });
     document.getElementById("saju-edit-btn").addEventListener("click", function () { fillForm(data.profile); show("form"); });
@@ -4770,39 +5065,66 @@
     });
 
     function selectTab(name) {
-      result.querySelectorAll("[data-saju-tab]").forEach(function (b) { b.classList.toggle("active", b.dataset.sajuTab === name); });
+      result.querySelectorAll("[data-saju-tab]").forEach(function (b) { b.classList.toggle("active", b.dataset.sajuTab === name); b.setAttribute("aria-selected", b.dataset.sajuTab === name); });
       result.querySelectorAll("[data-saju-pane]").forEach(function (p) { p.hidden = p.dataset.sajuPane !== name; });
     }
     result.querySelectorAll("[data-saju-tab]").forEach(function (b) { b.addEventListener("click", function () { selectTab(b.dataset.sajuTab); }); });
 
     function ask(body, label) {
       var btn = document.getElementById("saju-ask-btn"), out = document.getElementById("saju-owl-answer");
-      btn.disabled = true;
-      out.innerHTML = '<div class="saju-owl-answer"><span class="owl">🦉</span><p>음... 부엉 도사가 명식을 들여다보는 중이에요...</p></div>';
+      btn.disabled = true; gaze(true); say("음… 구슬 속을 들여다보는 중이에요…");
+      out.innerHTML = '<div class="saju-owl-answer"><span class="owl">🦉</span><div class="bubble"><p style="opacity:1">🔮 · · ·</p></div></div>';
       api("/saju/ask", body).then(function (res) {
-        btn.disabled = false;
-        if (!res.ok) { out.innerHTML = '<p class="saju-error">' + esc(res.error || "다시 시도해주세요.") + "</p>"; return; }
-        out.innerHTML = '<div class="saju-owl-answer"><span class="owl">🦉</span><p><b>[' + esc(label || res.topic_label) + "]</b>\n" + esc(res.answer) + "</p></div>";
-      }).catch(function () { out.innerHTML = '<p class="saju-error">네트워크 오류예요.</p>'; btn.disabled = false; });
+        setTimeout(function () {
+          btn.disabled = false; gaze(false);
+          if (!res.ok) { out.innerHTML = '<p class="saju-error">' + esc(res.error || "다시 시도해주세요.") + "</p>"; return; }
+          var lines = res.answer.split("\n");
+          out.innerHTML = '<div class="saju-owl-answer"><span class="owl">🦉</span><div class="bubble"><span class="topic">' + esc(label || res.topic_label) + "</span>" +
+            lines.map(function (l, i) { return '<p style="animation-delay:' + (i * 0.35) + 's">' + esc(l) + "</p>"; }).join("") + "</div></div>";
+          say("답이 나왔어요! 천천히 읽어봐요 🦉");
+        }, 1000);
+      }).catch(function () { out.innerHTML = '<p class="saju-error">네트워크 오류예요.</p>'; btn.disabled = false; gaze(false); });
     }
     document.getElementById("saju-ask-btn").addEventListener("click", function () {
       var q = document.getElementById("saju-question").value.trim();
       ask({ question: q }, q ? null : "종합 풀이");
     });
+    document.getElementById("saju-question").addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); document.getElementById("saju-ask-btn").click(); }
+    });
+
+    var owl = document.getElementById("sj-owl");
+    function poke() {
+      owlTap++;
+      gaze(true); setTimeout(function () { gaze(false); }, 700);
+      say(OWL_LINES[(owlTap + Math.floor(Math.random() * OWL_LINES.length)) % OWL_LINES.length]);
+    }
+    owl.addEventListener("click", poke);
+    owl.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); poke(); } });
 
     function open() {
       overlay.hidden = false;
-      if (data) return;
-      show("loading");
+      if (data) { if (pendingWith) renderAll(); return; }
+      show("loading"); gaze(true);
       api("/saju/me").then(function (res) {
+        gaze(false);
         fillPlaces(res && res.places);
         if (res && res.profile) { data = res; renderAll(); }
         else { fillForm(null); show("form"); }
-      }).catch(function () { fillForm(null); show("form"); });
+      }).catch(function () { gaze(false); fillForm(null); show("form"); });
     }
     document.getElementById("saju-btn").addEventListener("click", open);
     var lb = document.getElementById("loading-saju-btn");
     if (lb) lb.addEventListener("click", open);
+
+    // 팀원이 보낸 궁합 링크(/?saju_with=<보낸 사람 id>)로 들어오면 바로 열어준다.
+    var params = new URLSearchParams(location.search);
+    if (params.get("saju_with")) {
+      pendingWith = params.get("saju_with");
+      params.delete("saju_with");
+      history.replaceState(null, "", location.pathname + (params.toString() ? "?" + params : "") + location.hash);
+      open();
+    }
   })();
 </script>
 </body>

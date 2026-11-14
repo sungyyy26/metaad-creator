@@ -76,6 +76,14 @@ GAME_NAMES = {"mole", "snake", "dino", "breakout"}
 # 🎮 아이콘으로 바로 이동).
 UPDATE_ITEMS = [
     {
+        "version": "2026-11-14-saju-2",
+        "icon": "🦉",
+        "title": "사주 리뉴얼 · 궁합 보내기",
+        "desc": "수정구슬 보는 부엉 도사, 오늘의 운세 카드 뒤집기, 300개+ 답변, 궁합 결과를 팀원에게 보내기가 추가됐어요.",
+        "date": "11월 14일 업데이트",
+        "target": "saju-btn",
+    },
+    {
         "version": "2026-11-14-saju",
         "icon": "🔮",
         "title": "부엉 도사의 사주",
@@ -210,12 +218,17 @@ def _access_request_email_body(requester_email):
     )
 
 
-def _send_email(subject, body):
+def _email_configured():
+    return bool(RESEND_API_KEY or (SMTP_USER and SMTP_PASSWORD))
+
+
+def _send_email(subject, body, to=None):
     """Shared low-level sender behind every notification email this app
     sends (access requests, feedback) — same Resend-then-SMTP-then-log
     fallback chain, just parameterized on subject/body instead of being
     specific to one use case."""
-    if not ADMIN_EMAIL:
+    to = to or ADMIN_EMAIL
+    if not to:
         print(f"[email] ADMIN_EMAIL isn't set — not sent. subject={subject!r}")
         return False
     try:
@@ -223,7 +236,7 @@ def _send_email(subject, body):
             resp = requests.post(
                 "https://api.resend.com/emails",
                 headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
-                json={"from": RESEND_FROM, "to": [ADMIN_EMAIL], "subject": subject, "text": body},
+                json={"from": RESEND_FROM, "to": [to], "subject": subject, "text": body},
                 timeout=10,
             )
             resp.raise_for_status()
@@ -233,7 +246,7 @@ def _send_email(subject, body):
             msg = EmailMessage()
             msg["Subject"] = subject
             msg["From"] = SMTP_USER
-            msg["To"] = ADMIN_EMAIL
+            msg["To"] = to
             msg.set_content(body)
             with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
                 server.starttls()
@@ -410,6 +423,8 @@ def _saju_payload(profile):
         "daewoon": saju.daewoon(chart, today),
         "daewoon_themes": saju_text.DAEWOON_THEME,
         "places": _SAJU_PLACES,
+        "send_via": _saju_send_via(),
+        "my_id": profile["id"],
         "ask_topics": [{"key": k, "label": v[0]} for k, v in saju_text.ASK_TOPICS.items()],
     }
 
@@ -451,19 +466,87 @@ def saju_team():
     return {"ok": True, "rows": rows}
 
 
-@app.route("/saju/match")
-def saju_match():
-    me = _saju_profile(_saju_owner())
-    other = next((p for p in _load_json_list(SAJU_DB_PATH) if p["id"] == request.args.get("id")), None)
-    if not me or not other or other is me or other.get("email") == me.get("email"):
-        return {"ok": False, "error": "궁합을 볼 팀원을 다시 골라주세요."}, 400
+SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN")
+
+
+def _saju_send_via():
+    if not LOGIN_ENABLED:
+        return None
+    return "slack" if SLACK_BOT_TOKEN else ("email" if _email_configured() else None)
+
+
+def _saju_match_result(me, other):
     a, b = saju.build_chart(me), saju.build_chart(other)
     result = saju.compatibility(a, b)
     tier, comment = saju_text.match_tier(result["score"])
-    return {"ok": True, "name": other.get("name") or "팀원", "score": result["score"],
+    return {"ok": True, "id": other["id"], "name": other.get("name") or "팀원", "score": result["score"],
             "tier": tier, "comment": comment,
             "notes": [saju_text.MATCH_NOTES[n] for n in result["notes"]],
             "me_animal": a["day_animal"], "other_animal": b["day_animal"]}
+
+
+def _saju_pair():
+    me = _saju_profile(_saju_owner())
+    pid = request.args.get("id") or (request.get_json(silent=True) or {}).get("id")
+    other = next((p for p in _load_json_list(SAJU_DB_PATH) if p["id"] == pid), None)
+    if not me or not other or other.get("email") == me.get("email"):
+        return me, None
+    return me, other
+
+
+@app.route("/saju/match")
+def saju_match():
+    me, other = _saju_pair()
+    if not other:
+        return {"ok": False, "error": "궁합을 볼 팀원을 다시 골라주세요."}, 400
+    return _saju_match_result(me, other)
+
+
+def _slack_dm(email, text):
+    """users.lookupByEmail -> chat.postMessage. 봇 스코프: users:read.email, chat:write."""
+    headers = {"Authorization": f"Bearer {SLACK_BOT_TOKEN}"}
+    try:
+        user = requests.get("https://slack.com/api/users.lookupByEmail", params={"email": email},
+                            headers=headers, timeout=10).json()
+        if not user.get("ok"):
+            print(f"[slack] lookup failed: {user.get('error')}")
+            return False
+        sent = requests.post("https://slack.com/api/chat.postMessage", headers=headers, timeout=10,
+                             json={"channel": user["user"]["id"], "text": text}).json()
+        if not sent.get("ok"):
+            print(f"[slack] post failed: {sent.get('error')}")
+        return bool(sent.get("ok"))
+    except Exception as e:  # noqa: BLE001
+        print(f"[slack] failed: {e}")
+        return False
+
+
+@app.route("/saju/match/send", methods=["POST"])
+def saju_match_send():
+    """궁합 결과를 상대 팀원에게 보낸다 — 슬랙 봇이 있으면 DM, 없으면 이메일.
+    링크는 받는 사람 기준으로 다시 계산되는 /?saju_with=<보낸 사람 프로필 id>."""
+    me, other = _saju_pair()
+    if not other:
+        return {"ok": False, "error": "궁합을 볼 팀원을 다시 골라주세요."}, 400
+    m = _saju_match_result(me, other)
+    link = f"{request.url_root.rstrip('/')}/?saju_with={me['id']}"
+    sender = me.get("name") or "팀원"
+    text = (f"🔮 {sender} 님이 부엉 도사 궁합 결과를 보냈어요!\n"
+            f"{sender} × {m['name']} — {m['score']}점 · {m['tier']}\n{m['comment']}\n"
+            + "".join(f"· {n}\n" for n in m["notes"])
+            + f"\n내 화면에서 보기: {link}")
+    via = _saju_send_via()
+    ok = False
+    if via == "slack":
+        ok = _slack_dm(other["email"], text)
+        if not ok and _email_configured():
+            via = "email"
+    if via == "email":
+        ok = _send_email(f"🔮 {sender} 님과의 궁합 결과", text, to=other["email"])
+    if not ok:
+        return {"ok": False, "link": link, "text": text,
+                "error": "자동 전송이 설정되지 않았어요. 링크를 복사해서 보내주세요."}, 200
+    return {"ok": True, "via": via, "link": link}
 
 
 @app.route("/saju/ask", methods=["POST"])
@@ -478,10 +561,14 @@ def saju_ask():
     chart = saju.build_chart(profile)
     fortune = saju.daily_fortune(chart, today, seed=profile["id"])
     year = today.year if today >= date(today.year, 2, 4) else today.year - 1
+    now = saju.build_chart({"calendar": "solar", "year": today.year, "month": today.month, "day": today.day,
+                            "hour": 12, "minute": 0})
+    god, rel = saju.ten_god(chart["day_master"], now["pillars"]["month"]["stem"])
     result = saju_text.answer_question(
         chart, fortune, saju.daewoon(chart, today),
         saju.year_luck(chart, year), saju.year_luck(chart, year + 1),
-        question=question, topic=body.get("topic"))
+        month_god=(god, saju.TEN_GOD_GROUPS[rel]),
+        question=question, topic=body.get("topic"), seed=profile["id"])
     return {"ok": True, **result}
 
 

@@ -1,5 +1,8 @@
 """사주 풀이 문구 — 부엉 도사 말투(친근한 해요체). saju.py가 계산한 값을 받아
 화면에 보여줄 글로 조립한다. 재미용이라 단정 대신 '경향'으로 말한다."""
+import hashlib
+
+import saju_answers as A
 from saju import ELEMENTS, STEMS
 
 ELEMENT_EMOJI = ["🌳", "🔥", "⛰️", "⚔️", "💧"]
@@ -181,61 +184,10 @@ def daily_reading(chart, fortune):
 
 
 # ---------------------------------------------------------------- 🦉 부엉 도사 Q&A
-# API 없이 규칙으로 답한다: 질문에서 주제를 고르고, 올해 세운·현재 대운·오늘 일진·
-# 내 명식의 특징을 주제별 문장과 엮는다. 같은 날 같은 질문엔 같은 답이 나온다.
-ASK_TOPICS = {
-    "year": ("올해 운세", ["올해", "내년", "운세", "한해", "한 해", "신년", "새해"]),
-    "career": ("커리어·이직", ["이직", "회사", "커리어", "승진", "업무", "일이", "일을", "야근", "회의", "프로젝트", "직장", "퇴사", "취업", "사업", "창업", "성과", "연봉협상", "커리어"]),
-    "love": ("연애·결혼", ["연애", "결혼", "썸", "사랑", "남친", "여친", "남자친구", "여자친구", "짝", "소개팅", "애인", "인연", "배우자"]),
-    "money": ("재물", ["돈", "재물", "투자", "주식", "코인", "부동산", "월급", "연봉", "저축", "재테크", "로또", "금전"]),
-    "health": ("건강", ["건강", "몸", "다이어트", "운동", "피곤", "잠", "수면", "스트레스", "아파", "병"]),
-    "people": ("인간관계", ["사람", "동료", "관계", "친구", "상사", "팀장", "후배", "선배", "가족", "부모", "갈등", "인맥"]),
-}
-
-# 세운(그해)의 십성 무리 x 주제
-YEAR_TOPIC = {
-    "비겁": {"year": "내 힘으로 판을 짜는 해예요. 독립심이 커지고 동료·경쟁자가 함께 늘어나요.",
-             "career": "주도권을 쥐기 좋은 해예요. 다만 혼자 다 하려 하면 지치니 역할 분담이 핵심이에요.",
-             "love": "친구 같은 인연이 생기기 쉬워요. 연인과는 자존심 싸움만 피하면 돼요.",
-             "money": "들어오는 만큼 나가는 해예요. 같이 쓰는 돈·보증은 특히 조심!",
-             "health": "에너지는 넘치는데 무리하기 쉬워요. 운동은 경쟁보다 꾸준함으로.",
-             "people": "사람이 모이는 해예요. 좋은 동료도 얻지만 비교는 내려놓을수록 편해요."},
-    "식상": {"year": "표현하고 만들어내는 해예요. 아이디어가 결과물로 이어지기 쉬워요.",
-             "career": "기획·콘텐츠처럼 내 색깔을 보여주는 일에서 성과가 나요. 새 시도는 긍정적!",
-             "love": "매력이 잘 드러나는 해라 인연운이 좋아요. 솔직한 표현이 통해요.",
-             "money": "재능이 수입으로 연결되는 흐름이에요. 부업·사이드 프로젝트도 괜찮아요.",
-             "health": "생각이 많아 소화·수면이 흔들릴 수 있어요. 맛있는 걸 천천히 드세요.",
-             "people": "말 한마디가 힘이 되는 해예요. 다만 직설은 반 스푼만!"},
-    "재성": {"year": "결실을 거두는 해예요. 노력이 숫자로 돌아오고 현실 감각이 빛나요.",
-             "career": "성과가 눈에 보이는 해예요. 연봉·조건을 이야기하기 좋은 타이밍이에요.",
-             "love": "현실적인 인연운이 강해요. 함께 계획을 세울 수 있는 사람이 들어와요.",
-             "money": "재물운이 가장 밝은 해예요. 다만 크게 벌리기보다 지키는 것도 실력!",
-             "health": "바빠서 몸을 뒤로 미루기 쉬워요. 정기검진 하나는 꼭 챙기세요.",
-             "people": "실속 있는 인맥이 생겨요. 주고받는 균형만 맞추면 오래가요."},
-    "관성": {"year": "책임과 자리가 커지는 해예요. 평판이 쌓이는 만큼 무게도 늘어요.",
-             "career": "승진·인정운이 있어요. 이직보다는 지금 자리에서 증명하면 더 크게 열려요.",
-             "love": "진지한 인연운이에요. 가볍게 시작해도 오래 갈 관계가 될 수 있어요.",
-             "money": "안정적으로 모으는 해예요. 고정 수입을 지키는 쪽이 유리해요.",
-             "health": "압박감이 몸으로 오기 쉬워요. 어깨·목 스트레칭을 루틴으로!",
-             "people": "윗사람의 눈에 띄는 해예요. 약속과 마감만 지키면 신뢰가 쌓여요."},
-    "인성": {"year": "배우고 채우는 해예요. 공부·자격·멘토 운이 들어와 내공이 쌓여요.",
-             "career": "당장 뛰기보다 실력을 쌓기 좋은 해예요. 교육·자격증 투자가 남는 장사!",
-             "love": "대화가 잘 통하는 인연이 와요. 천천히 깊어지는 관계가 잘 맞아요.",
-             "money": "큰돈보다 문서·계약 운이 좋아요. 투자는 공부 먼저, 실행은 나중에.",
-             "health": "쉬는 만큼 회복되는 해예요. 잠을 우선순위 1번에 두세요.",
-             "people": "도와주는 사람이 많아요. 모르는 건 바로 물어보면 길이 열려요."},
-}
-
-TOPIC_TIP = {
-    "year": "올해의 키워드를 하나 정해 책상에 붙여두면 운이 그쪽으로 모여요.",
-    "career": "중요한 미팅이나 제안은 오늘의 운세에서 업무 별이 4개 이상인 날에 잡아보세요.",
-    "love": "인연은 익숙한 동선 밖에서 와요. 이번 달엔 새로운 모임 하나에 나가보세요.",
-    "money": "충동구매는 하루 묵혀두기! 다음 날에도 갖고 싶으면 그때 사도 늦지 않아요.",
-    "health": "물 자주 마시기와 10분 산책, 이 두 개만 지켜도 기운이 확 달라져요.",
-    "people": "고마운 사람에게 짧은 메시지 하나 보내보세요. 운은 사람을 타고 들어와요.",
-}
-
-OWL_OPENERS = ["부엉~ 명식을 펼쳐보니", "음, 부엉 도사가 보기엔", "부엉부엉~ 기운을 읽어보면"]
+# API 없이 saju_answers의 문장 풀을 조합한다: 질문에서 주제를 고르고, 일간 기질 ·
+# 세운 · 월운 · 대운 · 일진을 엮는다. 같은 사람이 같은 날 같은 질문을 하면 같은 답,
+# 질문·날짜가 바뀌면 다른 문장이 고른다.
+ASK_TOPICS = A.TOPICS
 
 
 def josa(word, pair=("이", "가")):
@@ -256,29 +208,39 @@ def detect_topic(question):
     return best
 
 
-def answer_question(chart, fortune, dw, year_now, year_next, question="", topic=None):
-    import hashlib
+def answer_question(chart, fortune, dw, year_now, year_next, month_god=None,
+                    question="", topic=None, seed=""):
     topic = topic if topic in ASK_TOPICS else detect_topic(question)
     q = question or ""
     target = year_next if ("내년" in q or str(year_next["year"]) in q) else year_now
-    seed = hashlib.sha256(f"{q}|{fortune['date']}|{topic}".encode()).digest()
-    lines = [f"{OWL_OPENERS[seed[0] % len(OWL_OPENERS)]} {chart['day_animal']} 일주인 당신은 {josa(DAY_MASTER[chart['day_master']]['plus'].split(' · ')[0])} 돋보이는 사람이에요."]
-    lines.append(f"{target['year']}년은 {target['hangul']}({target['animal']})년, 나에게 '{target['ten_god']}'의 해라서 — {YEAR_TOPIC[target['group']][topic]}")
+    digest = hashlib.sha256(f"{seed}|{q}|{fortune['date']}|{topic}".encode()).digest()
+
+    def pick(pool, i):
+        return pool[digest[i] % len(pool)]
+
+    dm = chart["day_master"]
+    lines = [f"{pick(A.OPENERS, 0)} {chart['day_animal']} 일주인 당신은 "
+             f"{josa(DAY_MASTER[dm]['plus'].split(' · ')[digest[1] % 3])} 돋보이는 사람이에요. "
+             f"{A.STEM_TOPIC[dm][topic]}"]
+    lines.append(f"{target['year']}년은 {target['hangul']}({target['animal']})년, 나에게 '{target['ten_god']}'의 해예요. "
+                 f"{pick(A.GOD_TOPIC[target['ten_god']][topic], 2)}")
     if target["harmony"]:
-        lines.append("게다가 그해 기운이 내 일지와 합을 이뤄서 도와주는 손길이 많아요 🤝")
+        lines.append(pick(A.HARMONY_LINES, 4))
     elif target["clash"]:
-        lines.append("그해 기운이 내 일지와 충돌해서 변화가 많을 수 있어요. 이동·변경은 한 번 더 점검!")
+        lines.append(pick(A.CLASH_LINES, 4))
+    if month_god:
+        lines.append(pick(A.MONTH_GROUP[month_god[1]], 5))
     cur = next((p for p in (dw or {}).get("periods", []) if p["current"]), None)
     if cur:
-        lines.append(f"큰 흐름으로는 {cur['age']}세부터의 {cur['hangul']} 대운({cur['ten_god']}) 안에 있어요. {DAEWOON_THEME[cur['group']]}")
+        lines.append(f"큰 흐름으로는 {cur['age']}세부터 {cur['hangul']} 대운 안에 있어요. {A.DAEWOON_GOD[cur['ten_god']]}")
+    if topic == "health":
+        lines.append(ELEMENT_TIPS["lack"][chart["weak_element"]])
+    elif topic in ("career", "money", "love"):
+        key = {"career": "work", "money": "money", "love": "love"}[topic]
+        lines.append(f"타고난 성향으로 보면, {GROUP_AREAS[chart['dominant_group']][key]}")
+    lines.append(f"오늘은 {fortune['ten_god']}의 날 — {TODAY[fortune['ten_god']][fortune['variant']]}")
     lucky = chart["lucky_element"]
-    if topic in ("career", "money", "year"):
-        area = GROUP_AREAS[chart["dominant_group"]]["work" if topic != "money" else "money"]
-        lines.append(f"타고난 성향으로 보면, {area}")
-    elif topic == "love":
-        lines.append(f"타고난 성향으로 보면, {GROUP_AREAS[chart['dominant_group']]['love']}")
-    elif topic == "health":
-        lines.append(STRENGTH[chart["strength"]].split(". ")[0] + ". " + ELEMENT_TIPS["lack"][chart["weak_element"]])
-    lines.append(f"오늘은 {fortune['ten_god']}의 날이에요. {TODAY[fortune['ten_god']][fortune['variant']]}")
-    lines.append(f"🍀 도사의 처방: {TOPIC_TIP[topic]} 행운 색은 {ELEMENT_COLOR[lucky]}, 행운템은 {josa(ELEMENT_ITEM[lucky], ('이에요', '예요'))}!")
+    lines.append(f"🍀 도사의 처방: {pick(A.TOPIC_TIPS[topic], 6)} 행운 색은 {ELEMENT_COLOR[lucky]}, "
+                 f"행운템은 {josa(ELEMENT_ITEM[lucky], ('이에요', '예요'))}!")
+    lines.append(pick(A.CLOSERS, 7))
     return {"topic": topic, "topic_label": ASK_TOPICS[topic][0], "answer": "\n".join(lines)}
