@@ -416,11 +416,11 @@
      칠한다(배경·글자색을 모두 명시). 오행 색(--el-*)은 이 블록 안에서만 쓰는 의미색. */
   #saju-modal-overlay{z-index:300;background:rgba(8,5,26,.72);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);}
   .saju-modal-box{
-    --sj-ink:#f1ecff; --sj-dim:#b9aedb; --sj-faint:#8f84b8; --sj-gold:#f3cf7a; --sj-gold-2:#e2ac4c;
+    --sj-ink:#f4f0ff; --sj-dim:#d0c7ec; --sj-faint:#a79dcc; --sj-gold:#f3cf7a; --sj-gold-2:#e2ac4c;
     --sj-violet:#a98bff; --sj-pink:#ff9ad5; --sj-line:rgba(190,165,255,.22); --sj-card:rgba(255,255,255,.055);
     --el-0:#7ee08f; --el-1:#ff8f6b; --el-2:#ffd66b; --el-3:#dfe3ea; --el-4:#7cc4ff;
     --sj-serif:"Gowun Batang","Nanum Myeongjo","Batang",serif; /* 한자 전용 */
-    --sj-display:"Do Hyeon","NanumSquareRound","Malgun Gothic",sans-serif; --sj-round:"Do Hyeon","NanumSquareRound","Malgun Gothic",sans-serif;
+    --sj-display:"Do Hyeon","NanumSquareRound","Malgun Gothic",sans-serif; --sj-round:"NanumSquareRound","Malgun Gothic",sans-serif;
     max-width:580px;color:var(--sj-ink);font-family:var(--sj-round);border:1px solid rgba(243,207,122,.18);
     background:
       radial-gradient(90% 40% at 50% -5%, rgba(169,139,255,.2), transparent 70%),
@@ -986,9 +986,10 @@
   }
   .sf-app *{box-sizing:border-box;}
   .sf-wrap{max-width:1180px;margin:0 auto;padding:0;}
-  .sf-top{margin-bottom:32px;display:flex;justify-content:space-between;align-items:flex-start;gap:20px;background:var(--surface-opaque);border:1px solid var(--glass-border);border-radius:var(--radius-lg);box-shadow:var(--sf-shadow);padding:22px 26px;}
+  .sf-top{margin-bottom:32px;display:flex;justify-content:space-between;align-items:flex-start;gap:20px;background:var(--surface-opaque);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--sf-shadow);padding:22px 26px;}
   .sf-eyebrow{font-family:var(--font-heading);font-weight:600;font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--sf-accent);margin:0 0 10px;}
-  .sf-h1{font-family:var(--font-heading);font-weight:800;font-size:30px;letter-spacing:-.02em;margin:0 0 8px;color:var(--sf-ink);}
+  .sf-h1{font-family:var(--font-heading);font-weight:800;font-size:30px;letter-spacing:-.02em;margin:0 0 8px;color:var(--sf-ink);line-height:normal;}
+  .sf-top .sf-eyebrow{line-height:normal;}
   .sf-sub{color:var(--sf-ink-dim);margin:0;max-width:64ch;font-size:14.5px;line-height:1.6;}
   .sf-logo{color:var(--sf-ink);flex-shrink:0;margin-top:6px;}
 
@@ -1255,9 +1256,15 @@
   .header-icon-btn{transition:color .12s,border-color .12s,transform .15s,box-shadow .15s;}
   .header-icon-btn:hover{transform:translateY(-2px);box-shadow:0 8px 18px -10px rgba(28,176,246,.55);}
   #saju-btn:hover{box-shadow:0 0 0 3px rgba(169,139,255,.25),0 8px 18px -8px rgba(124,92,255,.6);}
-  @media (min-width:1240px){
-    /* 넓은 화면: 아이콘 묶음을 화면 끝이 아니라 본문 오른쪽 끝·상단 토글 줄에 맞춘다 */
-    .header-bar{top:calc(var(--sp-8) + 1px);right:max(20px, calc((100% - 1180px) / 2 + 22px));}
+  @media (min-width:1101px){
+    /* 넓은 화면: 아이콘 묶음을 본문 오른쪽 끝에 맞추고, 상단 토글보다 위 줄에 둔다 */
+    .header-bar{top:16px;right:max(20px, calc((100% - 1180px) / 2 + 22px));}
+    #app{padding-top:76px;}
+  }
+  @media (min-width:601px) and (max-width:1100px){
+    /* 중간 폭: 인사말·계정·아이콘이 두 줄로 접히면 토글을 덮으므로 문서 흐름에 둔다 */
+    .header-bar{position:static;max-width:none;padding:16px 22px 0;}
+    #app{padding-top:20px;}
   }
 
   /* 🦉 메인 화면 부엉이 도우미 — 끌어서 옮기고, 누르면 안내 말풍선 */
@@ -1282,7 +1289,8 @@
   .owl-pet-actions{display:flex;flex-wrap:wrap;gap:6px;}
   .owl-pet-actions button{font:inherit;font-size:var(--fs-xs);font-weight:700;padding:6px 11px;border-radius:99px;border:1px solid var(--border-strong);background:var(--surface-3);color:var(--text);cursor:pointer;}
   .owl-pet-actions button:hover{border-color:var(--accent);color:var(--accent);}
-  .owl-pet-actions button.primary{background:var(--accent-2);border-color:var(--accent-2);color:#fff;}
+  .owl-pet-actions button.owl-go{background:#7c5cff;border-color:#7c5cff;color:#fff;box-shadow:none;}
+  .owl-pet-actions button.owl-go:hover{background:#6a49f0;color:#fff;}
   .owl-pet-x{position:absolute;top:6px;right:8px;border:0;background:none;color:var(--text-faint);cursor:pointer;font-size:14px;}
   .owl-pet-call{position:fixed;right:16px;bottom:16px;z-index:40;width:40px;height:40px;border-radius:50%;border:1px solid var(--glass-border);background:var(--surface);box-shadow:var(--shadow);cursor:pointer;font-size:20px;}
   .owl-pet-call[hidden]{display:none;}
@@ -5397,7 +5405,7 @@
       var box = bubble.querySelector(".owl-pet-actions");
       (actions || []).forEach(function (a) {
         var b = document.createElement("button");
-        b.type = "button"; b.textContent = a[0]; if (a[2]) b.className = "primary";
+        b.type = "button"; b.textContent = a[0]; if (a[2]) b.className = "owl-go";
         b.addEventListener("click", function (e) { e.stopPropagation(); a[1](); });
         box.appendChild(b);
       });
