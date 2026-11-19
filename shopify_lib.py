@@ -909,13 +909,16 @@ def apply_page_modifications(shop, token, page, mods):
 
 def get_page_by_tag(shop, token, tag_value):
     """Finds the Page (shop.pages, i.e. /pages/<handle> — not a product) whose
-    custom.tag metafield equals tag_value exactly. Confirmed live against this
-    store's metafield definitions: Pages have their own custom.tag
-    (single_line_text_field) and custom.amazon_url (url) metafields, distinct
-    from the Product metafields used by create_bridge_page below."""
+    custom.tag metafield (or, failing that, handle) equals tag_value EXACTLY.
+
+    Shopify's pages search does not match metafield values exactly — it
+    tokenizes on hyphens, so searching 'metafield:custom.tag:2026-bfcm-amazon-
+    nad-serum-template' also returns '...-nad-duo-template', and not
+    necessarily first. Taking edges[0] blindly duplicated the wrong page, so
+    every candidate is checked against the exact value before it is used."""
     query = """
     query($search: String!) {
-      pages(first: 5, query: $search) {
+      pages(first: 50, query: $search) {
         edges {
           node {
             id
@@ -932,12 +935,26 @@ def get_page_by_tag(shop, token, tag_value):
       }
     }
     """
-    search = f"metafield:custom.tag:{tag_value}"
-    data = _gql(shop, token, query, {"search": search})
-    edges = data["pages"]["edges"]
-    if not edges:
-        raise ShopifyNotFoundError(f"태그 '{tag_value}'에 해당하는 Shopify 페이지를 찾지 못했습니다.")
-    return edges[0]["node"]
+    want = (tag_value or "").strip()
+
+    def tag_of(node):
+        for e in node["metafields"]["edges"]:
+            mf = e["node"]
+            if mf["namespace"] == "custom" and mf["key"] == "tag":
+                return (mf["value"] or "").strip()
+        return None
+
+    seen = []
+    for search in (f"metafield:custom.tag:{want}", f"handle:{want}"):
+        nodes = [e["node"] for e in _gql(shop, token, query, {"search": search})["pages"]["edges"]]
+        seen.extend(nodes)
+        exact = [n for n in nodes if tag_of(n) == want]
+        if exact:
+            return exact[0]
+    by_handle = [n for n in seen if n["handle"] == want]
+    if by_handle:
+        return by_handle[0]
+    raise ShopifyNotFoundError(f"태그(또는 핸들)가 정확히 '{want}'인 Shopify 페이지를 찾지 못했습니다.")
 
 
 def create_page_bridge(shop, token, *, source_tag, new_handle, new_tag,
