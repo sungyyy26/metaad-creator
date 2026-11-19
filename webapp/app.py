@@ -10,22 +10,31 @@ Run (one-time setup):
 Run (every time after that — no need to re-export anything):
     python webapp/app.py
 """
+import contextlib
 import csv
 import io
 import json
 import os
+import secrets
 import re
 import sys
 import threading
+import time
 import uuid
-from datetime import datetime
+from datetime import date, datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
+import requests
 from dotenv import load_dotenv
-from flask import Flask, redirect, render_template, request, session
+from flask import Flask, Response, redirect, render_template, request, send_file, session, url_for
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import copy_generator  # noqa: E402
+import budget_optimizer  # noqa: E402
 import meta_lib  # noqa: E402
+import saju  # noqa: E402
+import saju_daily  # noqa: E402
+import saju_text  # noqa: E402
 import shopify_lib  # noqa: E402
 
 load_dotenv()  # reads .env in the repo root (or nearest parent) if present;
@@ -33,14 +42,754 @@ load_dotenv()  # reads .env in the repo root (or nearest parent) if present;
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", os.urandom(24))
-DB_PATH = os.path.join(os.path.dirname(__file__), "requests.json")
-UPLOADS_DB_PATH = os.path.join(os.path.dirname(__file__), "uploads.json")
+
+
+@app.errorhandler(405)
+def _redirect_method_not_allowed(_err):
+    # /submit, /submit_bulk, /retry/<id> 등은 전부 POST 전용이라, 제출 중
+    # 서버가 재배포되며 끊기거나 사용자가 새로고침을 누르면 브라우저가 같은
+    # URL로 GET을 보내 "Method Not Allowed" 에러 화면이 뜬다. 안내 없는
+    # 에러 페이지 대신 대시보드로 돌려보낸다.
+    return redirect("/")
+
+
+# SameSite=Lax는 대부분의 cross-site POST 위조 요청에서 세션 쿠키가 전송되는 걸
+# 막아준다 — Flask가 이미 기본값으로 적용하지만, 버전에 기대지 않고 명시적으로
+# 고정해둔다. Secure는 HTTPS에서만 켠다 — 로컬 개발(http://127.0.0.1)에서까지
+# 켜면 브라우저가 쿠키를 아예 안 보내서 로그인이 깨진다.
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+DATABASE_URL = os.environ.get("DATABASE_URL")
+# 로컬에서는 DATABASE_URL이 없으면 기존처럼 그냥 JSON 파일에 저장한다 — Postgres를
+# 따로 띄우지 않아도 로컬 개발은 그대로 동작한다. Render처럼 DATABASE_URL이 설정된
+# 환경에서만 Postgres를 쓴다 (requests.json/uploads.json은 그 환경에서 재시작마다
+# 사라지는 디스크에 있기 때문).
+DB_PATH = "requests" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "requests.json")
+UPLOADS_DB_PATH = "uploads" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "uploads.json")
+SCORES_DB_PATH = "game_scores" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "game_scores.json")
+SAJU_DB_PATH = "saju_profiles" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "saju_profiles.json")
+GAME_NAMES = {"mole", "snake", "dino", "breakout"}
+# 새 기능을 배포할 때마다 맨 앞에 새 항목을 추가한다(오래된 건 지워도 됨) — 목록의
+# 첫 항목 version이 전체 팝업의 기준이 된다. 관리자(ADMIN_EMAIL)를 제외한 나머지
+# 로그인 사용자에게, 이 version을 아직 못 본 경우에만 처음 방문했을 때 1회성
+# 팝업으로 목록 전체를 보여준다(allowed_users의 seenUpdateVersion과 비교).
+# target은 선택 — 카드를 누르면 그 id를 가진 요소를 대신 클릭해준다(예: 헤더의
+# 🎮 아이콘으로 바로 이동).
+UPDATE_ITEMS = [
+    {
+        "version": "2026-11-14-owl-pet",
+        "icon": "🦉",
+        "title": "부엉이 도우미",
+        "desc": "화면 오른쪽 아래 부엉이를 끌어서 옮기고, 누르면 사용 팁과 오늘 운세 바로가기를 알려줘요.",
+        "date": "11월 14일 업데이트",
+    },
+    {
+        "version": "2026-11-14-saju-today",
+        "icon": "☕",
+        "title": "컵홀더 운세 · 오늘의 운세왕",
+        "desc": "사주 '오늘의 운세'에서 컵홀더를 내려 100점 만점 점수, 직장인 지수, 추천 음료·점심, 팀 운세 순위를 확인해보세요.",
+        "date": "11월 14일 업데이트",
+        "target": "saju-btn",
+    },
+    {
+        "version": "2026-11-14-saju-2",
+        "icon": "🦉",
+        "title": "사주 리뉴얼 · 궁합 보내기",
+        "desc": "수정구슬 보는 부엉 도사, 오늘의 운세 카드 뒤집기, 300개+ 답변, 궁합 결과를 팀원에게 보내기가 추가됐어요.",
+        "date": "11월 14일 업데이트",
+        "target": "saju-btn",
+    },
+    {
+        "version": "2026-11-14-saju",
+        "icon": "🔮",
+        "title": "부엉 도사의 사주",
+        "desc": "오른쪽 위 🔮에서 내 사주·오늘의 운세·팀원 궁합·대운을 재미로 볼 수 있어요.",
+        "date": "11월 14일 업데이트",
+        "target": "saju-btn",
+    },
+    {
+        "version": "2026-11-12-creative-preview",
+        "icon": "🎬",
+        "title": "예산 조정 · 소재 미리보기",
+        "desc": "조회 결과의 소재명 옆 썸네일을 누르면 영상·이미지 원본과 성과를 함께 볼 수 있어요.",
+        "date": "11월 12일 업데이트",
+    },
+    {
+        "version": "2026-11-11-font-motion",
+        "icon": "✨",
+        "title": "글꼴 통일 · 화면 전환 효과",
+        "desc": "글꼴을 맑은 고딕으로 통일하고, 탭·팝업·목록이 부드럽게 전환되도록 바꿨어요.",
+        "date": "11월 11일 업데이트",
+    },
+    {
+        "version": "2026-11-10-dup-amazon-link",
+        "icon": "⚠️",
+        "title": "아마존 링크 중복 경고",
+        "desc": "예전에 쓴 어트리뷰션 링크를 다시 입력하면 제출 전에 알려드려요.",
+        "date": "11월 10일 업데이트",
+    },
+    {
+        "version": "2026-11-09-games-2",
+        "icon": "🏆",
+        "title": "게임별 · 통합 순위표",
+        "desc": "닉네임으로 기록을 남기고 다른 분들과 순위를 겨뤄보세요.",
+        "date": "11월 9일 업데이트",
+        "target": "game-btn",
+    },
+    {
+        "version": "2026-11-07-games-1",
+        "icon": "🎮",
+        "title": "미니게임 4종 추가",
+        "desc": "두더지 잡기 · 뱀 게임 · 공룡 달리기 · 벽돌깨기",
+        "date": "11월 7일 업데이트",
+        "target": "game-btn",
+    },
+]
+LATEST_UPDATE_VERSION = UPDATE_ITEMS[0]["version"]
+UPDATE_POPUP_TITLE = (
+    f"띵동! {UPDATE_ITEMS[0]['title']} 외 {len(UPDATE_ITEMS) - 1}개 기능이 업데이트됐어요"
+    if len(UPDATE_ITEMS) > 1
+    else f"띵동! {UPDATE_ITEMS[0]['title']}가 업데이트됐어요"
+)
+ALLOWED_USERS_PATH = "allowed_users" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "allowed_users.json")
+ACCESS_REQUESTS_PATH = "access_requests" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "access_requests.json")
+FEEDBACK_PATH = "feedback" if DATABASE_URL else os.path.join(os.path.dirname(__file__), "feedback.json")
+_VALID_TABLES = {"requests", "uploads", "allowed_users", "access_requests", "feedback", "game_scores", "saju_profiles"}
 LOCK = threading.Lock()
+BUDGET_CACHE_LOCK = threading.Lock()
+BUDGET_META_CACHE = {}
+BUDGET_META_CACHE_EXPIRES = 0.0
+BUDGET_META_CACHE_TTL = 60
+
+# --- Google 로그인 ---
+# GOOGLE_OAUTH_CLIENT_ID/SECRET이 설정되어 있을 때만 로그인을 강제한다 — 로컬
+# 개발 중에는 이 값들을 안 만들어도 그대로 바로 쓸 수 있다. 실제로 로그인이
+# 걸리는 건 Render처럼 이 값들이 설정된 배포 환경뿐이다.
+GOOGLE_OAUTH_CLIENT_ID = os.environ.get("GOOGLE_OAUTH_CLIENT_ID")
+GOOGLE_OAUTH_CLIENT_SECRET = os.environ.get("GOOGLE_OAUTH_CLIENT_SECRET")
+# ADMIN_EMAIL은 항상 로그인 가능하고 /admin/users에서 다른 사람을 추가/삭제할 수
+# 있는 유일한 계정이다 — 도메인 전체가 아니라 이 관리자가 직접 승인한 이메일만
+# 로그인할 수 있도록 allowed_users 테이블로 접근을 제어한다.
+ADMIN_EMAIL = (os.environ.get("ADMIN_EMAIL") or "").strip().lower()
+LOGIN_ENABLED = bool(GOOGLE_OAUTH_CLIENT_ID and GOOGLE_OAUTH_CLIENT_SECRET)
+# Render처럼 실제 배포된 환경(HTTPS)에서만 Secure 쿠키를 켠다 — 로컬 개발 서버는
+# http://127.0.0.1이라 Secure 쿠키가 켜지면 브라우저가 쿠키를 보내지 않는다.
+app.config["SESSION_COOKIE_SECURE"] = bool(DATABASE_URL) or LOGIN_ENABLED
+
+oauth = None
+if LOGIN_ENABLED:
+    from authlib.integrations.flask_client import OAuth
+    oauth = OAuth(app)
+    oauth.register(
+        name="google",
+        client_id=GOOGLE_OAUTH_CLIENT_ID,
+        client_secret=GOOGLE_OAUTH_CLIENT_SECRET,
+        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+        client_kwargs={"scope": "openid email profile"},
+    )
+
+
+def load_allowed_users():
+    return _load_json_list(ALLOWED_USERS_PATH)
+
+
+def nickname_for(email):
+    """Admin-set display name for the 로그인 환영 메시지 — set via /admin/users'
+    닉네임 field, not the Google profile name. None when unset (ADMIN_EMAIL
+    is never in allowed_users, so it always falls through to None here)."""
+    email = (email or "").strip().lower()
+    for u in load_allowed_users():
+        if (u.get("email") or "").lower() == email:
+            return (u.get("nickname") or "").strip() or None
+    return None
+
+
+def is_email_allowed(email):
+    email = (email or "").strip().lower()
+    if not email:
+        return False
+    if email == ADMIN_EMAIL:
+        return True
+    return any((u.get("email") or "").lower() == email for u in load_allowed_users())
+
+
+# 둘 다 안 걸려 있으면 이메일을 실제로 보내지 않고 서버 로그에만 남긴다 —
+# 로컬 개발이나 아직 메일 설정을 안 한 배포에서도 요청 흐름 자체는 깨지지
+# 않도록 하기 위함. RESEND_API_KEY가 있으면 그쪽을 우선 쓰고(2FA/앱 비밀번호가
+# 전혀 필요 없음), 없고 SMTP_USER/PASSWORD만 있으면 Gmail SMTP로 보낸다 — 둘
+# 다 설정해두면 Resend가 우선.
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+RESEND_FROM = os.environ.get("RESEND_FROM", "onboarding@resend.dev")
+SMTP_HOST = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
+SMTP_USER = os.environ.get("SMTP_USER")
+SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD")
+
+
+def _access_request_email_body(requester_email):
+    admin_url = f"{request.url_root.rstrip('/')}/admin/users" if request else "/admin/users"
+    return (
+        f"{requester_email} 님이 Meta Ad Desk 접근 권한을 요청했습니다.\n\n"
+        f"허용하려면 관리자 페이지에서 추가해주세요: {admin_url}"
+    )
+
+
+def _email_configured():
+    return bool(RESEND_API_KEY or (SMTP_USER and SMTP_PASSWORD))
+
+
+def _send_email(subject, body, to=None):
+    """Shared low-level sender behind every notification email this app
+    sends (access requests, feedback) — same Resend-then-SMTP-then-log
+    fallback chain, just parameterized on subject/body instead of being
+    specific to one use case."""
+    to = to or ADMIN_EMAIL
+    if not to:
+        print(f"[email] ADMIN_EMAIL isn't set — not sent. subject={subject!r}")
+        return False
+    try:
+        if RESEND_API_KEY:
+            resp = requests.post(
+                "https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
+                json={"from": RESEND_FROM, "to": [to], "subject": subject, "text": body},
+                timeout=10,
+            )
+            resp.raise_for_status()
+        elif SMTP_USER and SMTP_PASSWORD:
+            import smtplib
+            from email.message import EmailMessage
+            msg = EmailMessage()
+            msg["Subject"] = subject
+            msg["From"] = SMTP_USER
+            msg["To"] = to
+            msg.set_content(body)
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=10) as server:
+                server.starttls()
+                server.login(SMTP_USER, SMTP_PASSWORD)
+                server.send_message(msg)
+        else:
+            print(f"[email] no method configured (RESEND_API_KEY or SMTP_USER/SMTP_PASSWORD) — "
+                  f"not sent. subject={subject!r}")
+            return False
+        return True
+    except Exception as e:  # noqa: BLE001
+        print(f"[email] failed to send (subject={subject!r}): {e}")
+        return False
+
+
+# 같은 이메일로 짧은 시간 안에 반복 요청해도 관리자에게 메일이 계속 가지
+# 않도록 하는 최소 쿨다운. 환경변수로 조절 가능 (기본 1시간).
+ACCESS_REQUEST_COOLDOWN_SECONDS = int(os.environ.get("ACCESS_REQUEST_COOLDOWN_SECONDS", str(60 * 60)))
+
+
+def load_access_requests():
+    return _load_json_list(ACCESS_REQUESTS_PATH)
+
+
+def _access_request_on_cooldown(email):
+    email = (email or "").strip().lower()
+    for r in load_access_requests():
+        if r.get("id") == email:
+            return (time.time() - (r.get("lastRequestedAt") or 0)) < ACCESS_REQUEST_COOLDOWN_SECONDS
+    return False
+
+
+def _record_access_request(email):
+    email = (email or "").strip().lower()
+    _upsert(ACCESS_REQUESTS_PATH, {"id": email, "lastRequestedAt": time.time()})
+
+
+def send_access_request_email(requester_email):
+    return _send_email("Meta Ad Desk 접근 권한 요청", _access_request_email_body(requester_email))
+
+
+def load_feedback():
+    return _load_json_list(FEEDBACK_PATH)
+
+
+def _feedback_email_body(sender_label, message):
+    return f"{sender_label} 님이 Meta Ad Desk에 개선 요청을 남겼습니다.\n\n{message}"
+
+
+def send_feedback_email(sender_label, message):
+    return _send_email("Meta Ad Desk 개선 요청", _feedback_email_body(sender_label, message))
+
+
+@app.route("/feedback", methods=["POST"])
+def submit_feedback():
+    """로그인 여부와 무관하게 동작 — 로컬 개발 중에도 아이디어를 남길 수 있다.
+    ADMIN_EMAIL이 설정돼 있으면 이메일로도 가고, 설정이 안 돼 있거나 발송이
+    실패해도 기록 자체는 항상 저장된다(이메일 설정 실패로 의견이 통째로
+    사라지지 않도록)."""
+    message = (request.form.get("message") or "").strip()
+    if not message:
+        return {"ok": False, "error": "내용을 입력해주세요."}, 400
+    sender_label = current_user_label() if LOGIN_ENABLED and session.get("user_email") else "로컬 사용자"
+    entry = new_entry(type="feedback", message=message, createdBy=sender_label)
+    _upsert(FEEDBACK_PATH, entry)
+    emailed = send_feedback_email(sender_label, message)
+    return {"ok": True, "emailed": emailed}
+
+
+@app.route("/game_score", methods=["POST"])
+def submit_game_score():
+    game = (request.form.get("game") or "").strip()
+    try:
+        score = int(request.form.get("score") or 0)
+    except ValueError:
+        score = 0
+    # 상한은 콘솔로 말도 안 되는 점수를 넣어 1위를 고정하는 걸 막기 위한 것 — 1회
+    # 최대 1분 30초 기준으로 어떤 게임도 이 근처에 가지 못한다.
+    if game not in GAME_NAMES or score <= 0 or score > 10000:
+        return {"ok": False}, 400
+    name = greeting_name_for(session.get("user_email")) if LOGIN_ENABLED and session.get("user_email") else "로컬 유저"
+    existing = [r for r in _load_json_list(SCORES_DB_PATH) if r.get("game") == game]
+    rank = sum(1 for r in existing if r.get("score", 0) > score) + 1
+    _upsert(SCORES_DB_PATH, {"id": str(uuid.uuid4()), "game": game, "name": name, "score": score})
+    return {"ok": True, "rank": rank, "name": name}
+
+
+@app.route("/game_leaderboard")
+def game_leaderboard():
+    """game='all'(또는 생략): 모든 게임의 개별 기록을 한데 섞어 점수순 top 10
+    (각 행에 어느 게임인지 포함) — 특정 게임이면 그 게임만."""
+    game = (request.args.get("game") or "").strip()
+    rows = _load_json_list(SCORES_DB_PATH)
+    if game and game != "all":
+        rows = [r for r in rows if r.get("game") == game]
+    rows.sort(key=lambda r: r.get("score", 0), reverse=True)
+    return {"ok": True, "rows": rows[:10]}
+
+
+@app.route("/admin/game_scores/clear", methods=["POST"])
+def clear_game_scores():
+    denied = require_admin()
+    if denied:
+        return denied
+    _save_json_list(SCORES_DB_PATH, [])
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------- 🔮 사주
+# 생년월일시는 본인 계정에만 저장되고(로컬 개발에선 "local"), 다른 사람에게는
+# 프로필 id와 표시 이름만 보인다 — 궁합 결과에도 상대의 생일은 담지 않는다.
+SAJU_BIRTH_FIELDS = ("calendar", "year", "month", "day", "leap", "hour", "minute", "time_unknown", "gender", "place", "visible")
+_KST = timezone(timedelta(hours=9))
+_SAJU_PLACES = [{"key": k, "label": v[0], "region": v[2]} for k, v in saju.BIRTHPLACES.items()]
+
+
+def _saju_owner():
+    if not LOGIN_ENABLED:
+        return "local"
+    return (session.get("user_email") or "").strip().lower()
+
+
+def _saju_profile(owner):
+    return next((p for p in _load_json_list(SAJU_DB_PATH) if p.get("email") == owner), None)
+
+
+def _saju_birth(raw):
+    def num(key, default=None):
+        val = raw.get(key)
+        if val in (None, ""):
+            return default
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            raise saju.SajuInputError("날짜와 시간은 숫자로 입력해주세요.")
+    time_unknown = bool(raw.get("time_unknown"))
+    birth = {
+        "calendar": "lunar" if raw.get("calendar") == "lunar" else "solar",
+        "year": num("year"), "month": num("month"), "day": num("day"),
+        "leap": bool(raw.get("leap")) and raw.get("calendar") == "lunar",
+        "hour": 0 if time_unknown else num("hour", 0), "minute": 0 if time_unknown else num("minute", 0),
+        "time_unknown": time_unknown,
+        "gender": raw.get("gender") if raw.get("gender") in ("M", "F") else "",
+        "place": raw.get("place") if raw.get("place") in saju.BIRTHPLACES else "",
+        # 팀원 궁합 목록에 나를 보여줄지 — 기본은 공개(끄면 목록·링크 모두에서 빠진다)
+        "visible": raw.get("visible", True) is not False,
+    }
+    if None in (birth["year"], birth["month"], birth["day"]):
+        raise saju.SajuInputError("생년월일을 모두 입력해주세요.")
+    if not (0 <= birth["hour"] <= 23 and 0 <= birth["minute"] <= 59):
+        raise saju.SajuInputError("태어난 시간을 다시 확인해주세요.")
+    return birth
+
+
+def _public_chart(chart):
+    return {k: v for k, v in chart.items() if not k.startswith("_")}
+
+
+def _saju_today():
+    return datetime.now(_KST).date()
+
+
+def _saju_payload(profile):
+    if not profile:
+        return {"ok": True, "profile": None, "places": _SAJU_PLACES}
+    chart = saju.build_chart(profile)
+    today = _saju_today()
+    fortune = saju.daily_fortune(chart, today, seed=profile["id"])
+    return {
+        "ok": True,
+        "profile": {k: profile.get(k) for k in SAJU_BIRTH_FIELDS},
+        "chart": _public_chart(chart),
+        "reading": saju_text.chart_reading(chart),
+        "today": fortune,
+        "today_reading": saju_text.daily_reading(chart, fortune),
+        "card": saju_daily.today_card(chart, fortune, profile["id"]),
+        "daewoon": saju.daewoon(chart, today),
+        "daewoon_themes": saju_text.DAEWOON_THEME,
+        "places": _SAJU_PLACES,
+        "send_via": _saju_send_via(),
+        "my_id": profile["id"],
+        "ask_topics": [{"key": k, "label": v[0]} for k, v in saju_text.ASK_TOPICS.items()],
+    }
+
+
+@app.route("/saju/me", methods=["GET", "POST"])
+def saju_me():
+    owner = _saju_owner()
+    if not owner:
+        return {"ok": False}, 401
+    profile = _saju_profile(owner)
+    if request.method == "GET":
+        return _saju_payload(profile)
+    try:
+        birth = _saju_birth(request.get_json(silent=True) or {})
+        saju.build_chart(birth)
+    except saju.SajuInputError as e:
+        return {"ok": False, "error": str(e)}, 400
+    name = greeting_name_for(session.get("user_email")) if LOGIN_ENABLED else "나"
+    entry = dict(profile or {"id": str(uuid.uuid4()), "email": owner})
+    entry.update(birth, name=name, updatedAt=datetime.now(_KST).isoformat(timespec="seconds"))
+    _upsert(SAJU_DB_PATH, entry)
+    return _saju_payload(entry)
+
+
+@app.route("/saju/me/delete", methods=["POST"])
+def saju_delete():
+    profile = _saju_profile(_saju_owner())
+    if profile:
+        _remove(SAJU_DB_PATH, profile["id"])
+    return {"ok": True}
+
+
+@app.route("/saju/today_board")
+def saju_today_board():
+    """☕ 오늘의 운세왕 — 공개한 팀원들의 오늘 점수 순위(이름·점수만) + 오늘의 귀인 팀원."""
+    owner = _saju_owner()
+    today = _saju_today()
+    rows, others, me_chart = [], [], None
+    for p in _load_json_list(SAJU_DB_PATH):
+        mine = p.get("email") == owner
+        if not mine and not p.get("visible", True):
+            continue
+        try:
+            chart = saju.build_chart(p)
+        except saju.SajuInputError:
+            continue
+        fortune = saju.daily_fortune(chart, today, seed=p["id"])
+        rows.append({"name": p.get("name") or "팀원", "score": saju_daily.score100(fortune, p["id"]), "me": mine})
+        if mine:
+            me_chart = chart
+        else:
+            others.append((p["id"], p.get("name") or "팀원", chart))
+    rows.sort(key=lambda r: -r["score"])
+    for i, r in enumerate(rows):
+        r["rank"] = i + 1
+    mine = next((r for r in rows if r["me"]), None)
+    guardian = None
+    if me_chart and others:
+        guardian = saju_daily.guardian(me_chart, today.isoformat(), [
+            (pid, name, c, saju.compatibility(me_chart, c)["score"]) for pid, name, c in others])
+    return {"ok": True, "rows": rows[:10], "me": mine, "total": len(rows), "guardian": guardian}
+
+
+@app.route("/saju/team")
+def saju_team():
+    owner = _saju_owner()
+    rows = [{"id": p["id"], "name": p.get("name") or "팀원"}
+            for p in _load_json_list(SAJU_DB_PATH) if p.get("email") != owner and p.get("visible", True)]
+    rows.sort(key=lambda r: r["name"])
+    return {"ok": True, "rows": rows}
+
+
+SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN")
+
+
+def _saju_send_via():
+    if not LOGIN_ENABLED:
+        return None
+    return "slack" if SLACK_BOT_TOKEN else ("email" if _email_configured() else None)
+
+
+def _saju_match_result(me, other):
+    a, b = saju.build_chart(me), saju.build_chart(other)
+    result = saju.compatibility(a, b)
+    tier, comment = saju_text.match_tier(result["score"])
+    return {"ok": True, "id": other["id"], "name": other.get("name") or "팀원", "score": result["score"],
+            "tier": tier, "comment": comment,
+            "notes": [saju_text.MATCH_NOTES[n] for n in result["notes"]],
+            "me_animal": a["day_animal"], "other_animal": b["day_animal"]}
+
+
+def _saju_pair():
+    me = _saju_profile(_saju_owner())
+    pid = request.args.get("id") or (request.get_json(silent=True) or {}).get("id")
+    other = next((p for p in _load_json_list(SAJU_DB_PATH) if p["id"] == pid), None)
+    if not me or not other or other.get("email") == me.get("email") or not other.get("visible", True):
+        return me, None
+    return me, other
+
+
+@app.route("/saju/match")
+def saju_match():
+    me, other = _saju_pair()
+    if not other:
+        return {"ok": False, "error": "궁합을 볼 팀원을 다시 골라주세요."}, 400
+    return _saju_match_result(me, other)
+
+
+def _slack_dm(email, text):
+    """users.lookupByEmail -> chat.postMessage. 봇 스코프: users:read.email, chat:write."""
+    headers = {"Authorization": f"Bearer {SLACK_BOT_TOKEN}"}
+    try:
+        user = requests.get("https://slack.com/api/users.lookupByEmail", params={"email": email},
+                            headers=headers, timeout=10).json()
+        if not user.get("ok"):
+            print(f"[slack] lookup failed: {user.get('error')}")
+            return False
+        sent = requests.post("https://slack.com/api/chat.postMessage", headers=headers, timeout=10,
+                             json={"channel": user["user"]["id"], "text": text}).json()
+        if not sent.get("ok"):
+            print(f"[slack] post failed: {sent.get('error')}")
+        return bool(sent.get("ok"))
+    except Exception as e:  # noqa: BLE001
+        print(f"[slack] failed: {e}")
+        return False
+
+
+@app.route("/saju/match/send", methods=["POST"])
+def saju_match_send():
+    """궁합 결과를 상대 팀원에게 보낸다 — 슬랙 봇이 있으면 DM, 없으면 이메일.
+    링크는 받는 사람 기준으로 다시 계산되는 /?saju_with=<보낸 사람 프로필 id>."""
+    me, other = _saju_pair()
+    if not other:
+        return {"ok": False, "error": "궁합을 볼 팀원을 다시 골라주세요."}, 400
+    m = _saju_match_result(me, other)
+    link = f"{request.url_root.rstrip('/')}/?saju_with={me['id']}"
+    sender = me.get("name") or "팀원"
+    text = (f"🔮 {sender} 님이 부엉 도사 궁합 결과를 보냈어요!\n"
+            f"{sender} × {m['name']} — {m['score']}점 · {m['tier']}\n{m['comment']}\n"
+            + "".join(f"· {n}\n" for n in m["notes"])
+            + f"\n내 화면에서 보기: {link}")
+    via = _saju_send_via()
+    ok = False
+    if via == "slack":
+        ok = _slack_dm(other["email"], text)
+        if not ok and _email_configured():
+            via = "email"
+    if via == "email":
+        ok = _send_email(f"🔮 {sender} 님과의 궁합 결과", text, to=other["email"])
+    if not ok:
+        return {"ok": False, "link": link, "text": text,
+                "error": "자동 전송이 설정되지 않았어요. 링크를 복사해서 보내주세요."}, 200
+    return {"ok": True, "via": via, "link": link}
+
+
+@app.route("/saju/ask", methods=["POST"])
+def saju_ask():
+    """🦉 부엉 도사 — 외부 API 없이 saju_text의 규칙으로 답한다."""
+    profile = _saju_profile(_saju_owner())
+    if not profile:
+        return {"ok": False, "error": "먼저 생년월일을 저장해주세요."}, 400
+    body = request.get_json(silent=True) or {}
+    question = (body.get("question") or "").strip()[:200]
+    today = _saju_today()
+    chart = saju.build_chart(profile)
+    fortune = saju.daily_fortune(chart, today, seed=profile["id"])
+    year = today.year if today >= date(today.year, 2, 4) else today.year - 1
+    now = saju.build_chart({"calendar": "solar", "year": today.year, "month": today.month, "day": today.day,
+                            "hour": 12, "minute": 0})
+    god, rel = saju.ten_god(chart["day_master"], now["pillars"]["month"]["stem"])
+    result = saju_text.answer_question(
+        chart, fortune, saju.daewoon(chart, today),
+        saju.year_luck(chart, year), saju.year_luck(chart, year + 1),
+        month_god=(god, saju.TEN_GOD_GROUPS[rel]),
+        question=question, topic=body.get("topic"), seed=profile["id"])
+    return {"ok": True, **result}
+
+
+@app.route("/mark_update_seen", methods=["POST"])
+def mark_update_seen():
+    email = (session.get("user_email") or "").strip().lower()
+    if not email or email == ADMIN_EMAIL:
+        return {"ok": False}, 400
+    for u in load_allowed_users():
+        if (u.get("email") or "").lower() == email:
+            u["seenUpdateVersion"] = LATEST_UPDATE_VERSION
+            upsert_allowed_user(u)
+    return {"ok": True}
+
+
+@app.route("/login")
+def login():
+    if not LOGIN_ENABLED:
+        return redirect("/")
+    return render_template("login.html")
+
+
+@app.route("/login/google")
+def login_google():
+    if not LOGIN_ENABLED:
+        return redirect("/")
+    # intent=request는 "계정이 없으니 권한을 요청한다"는 의도를 콜백까지 들고
+    # 가기 위한 표시일 뿐 — Google 로그인 자체는 평소와 동일하게 진행된다.
+    session["oauth_intent"] = request.args.get("intent", "")
+    redirect_uri = url_for("auth_callback", _external=True)
+    return oauth.google.authorize_redirect(redirect_uri)
+
+
+@app.route("/login/callback")
+def auth_callback():
+    if not LOGIN_ENABLED:
+        return redirect("/")
+    token = oauth.google.authorize_access_token()
+    userinfo = token.get("userinfo") or {}
+    email = (userinfo.get("email") or "").strip()
+    intent = session.pop("oauth_intent", "")
+
+    if is_email_allowed(email):
+        session["user_email"] = email.lower()
+        session["user_name"] = (userinfo.get("name") or "").strip()
+        return redirect("/")
+
+    if intent == "request":
+        if not _access_request_on_cooldown(email):
+            _record_access_request(email)
+            send_access_request_email(email)
+        return render_template("access_requested.html", email=email)
+
+    return render_template("access_denied.html", email=email)
+
+
+@app.route("/logout")
+def logout():
+    session.pop("user_email", None)
+    return redirect(url_for("login") if LOGIN_ENABLED else "/")
+
+
+@app.before_request
+def require_login():
+    if not LOGIN_ENABLED:
+        return
+    if request.endpoint in ("login", "login_google", "auth_callback", "static") or request.endpoint is None:
+        return
+    email = session.get("user_email")
+    if not email:
+        return redirect(url_for("login"))
+    # 계정 관리에서 삭제된 사용자는 쿠키가 남아 있어도 바로 차단한다.
+    if not is_email_allowed(email):
+        session.clear()
+        return redirect(url_for("login"))
+
+
+def require_admin():
+    """관리자 전용 라우트 맨 앞에서 호출 — 관리자가 아니면 403."""
+    if not LOGIN_ENABLED:
+        return "관리자 페이지는 로그인이 설정된 환경에서만 사용할 수 있습니다.", 403
+    if (session.get("user_email") or "").lower() != ADMIN_EMAIL:
+        return "관리자만 접근할 수 있습니다.", 403
+    return None
+
+
+@app.route("/admin/users")
+def admin_users():
+    denied = require_admin()
+    if denied:
+        return denied
+    non_admin_users = [u for u in load_allowed_users() if (u.get("email") or "").lower() != ADMIN_EMAIL]
+    non_admin_users.sort(key=lambda u: (u.get("email") or "").lower())
+    return render_template("admin_users.html", admin_email=ADMIN_EMAIL,
+                            admin_nickname=nickname_for(ADMIN_EMAIL),
+                            allowed_users=non_admin_users)
+
+
+@app.route("/admin/users/add", methods=["POST"])
+def admin_users_add():
+    denied = require_admin()
+    if denied:
+        return denied
+    email = (request.form.get("email") or "").strip().lower()
+    nickname = (request.form.get("nickname") or "").strip()
+    if email and email != ADMIN_EMAIL and not is_email_allowed(email):
+        upsert_allowed_user(new_entry(email=email, nickname=nickname, addedBy=ADMIN_EMAIL))
+    return redirect(url_for("admin_users"))
+
+
+@app.route("/admin/users/<path:email>/nickname", methods=["POST"])
+def admin_users_set_nickname(email):
+    """Also handles the admin's own nickname (admin_email, from the 관리자
+    카드) even though ADMIN_EMAIL is never added via admin_users_add — there's
+    no existing entry to update in that case, so one is created just to hold
+    the nickname; it grants no extra access since ADMIN_EMAIL is already
+    always allowed regardless of list membership."""
+    denied = require_admin()
+    if denied:
+        return denied
+    email = email.strip().lower()
+    nickname = (request.form.get("nickname") or "").strip()
+    matches = [u for u in load_allowed_users() if (u.get("email") or "").lower() == email]
+    if matches:
+        for u in matches:
+            u["nickname"] = nickname
+            upsert_allowed_user(u)
+    elif email == ADMIN_EMAIL:
+        upsert_allowed_user(new_entry(email=email, nickname=nickname, addedBy=ADMIN_EMAIL))
+    return redirect(url_for("admin_users"))
+
+
+@app.route("/admin/users/<path:email>/delete", methods=["POST"])
+def admin_users_delete(email):
+    denied = require_admin()
+    if denied:
+        return denied
+    email = email.strip().lower()
+    matches = [u for u in load_allowed_users() if (u.get("email") or "").lower() == email]
+    for u in matches:
+        remove_allowed_user(u["id"])
+    return redirect(url_for("admin_users"))
+
 
 ACCOUNTS = {
     "1298298124998350": "EQQUALBERRY_AMAZON_US (USD)",
 }
 CANDIDATE_ACCOUNT_IDS = list(ACCOUNTS.keys())
+PACIFIC = ZoneInfo("America/Los_Angeles")
+
+
+def budget_meta_cache():
+    """Short-lived read cache for campaign/ad inventory across repeat lookups."""
+    global BUDGET_META_CACHE, BUDGET_META_CACHE_EXPIRES
+    now = time.monotonic()
+    with BUDGET_CACHE_LOCK:
+        if now >= BUDGET_META_CACHE_EXPIRES:
+            BUDGET_META_CACHE = {}
+            BUDGET_META_CACHE_EXPIRES = now + BUDGET_META_CACHE_TTL
+        return BUDGET_META_CACHE
+
+
+def budget_reporting_periods(now=None):
+    """Return the complete-data anchor and requested PDT reporting windows."""
+    local_now = now.astimezone(PACIFIC) if now else datetime.now(PACIFIC)
+    anchor = local_now.date() if local_now.hour >= 10 else local_now.date() - timedelta(days=1)
+    return {
+        "anchor": anchor,
+        "three_start": anchor - timedelta(days=2),
+        "droas_start": anchor - timedelta(days=7),
+    }
 
 # Matches the meta-ad-duplicator artifact's bulk paste column order exactly.
 BULK_COLUMNS = [
@@ -48,33 +797,34 @@ BULK_COLUMNS = [
     "복제할 광고 (필수 — 이미 있거나 같은 배치의 다른 행이 만드는 광고 세트에 광고만 추가하려면 비워두세요)",
     "새 광고 세트 이름 (필수)",
     "새 광고 이름 (필수)",
-    "일일 예산 (필수)",
-    "웹사이트 URL (필수)",
+    "일일 예산 (새 광고 세트를 만들 때는 필수; '복제할 광고' 열을 비워 기존 광고 세트에 광고만 추가할 때는 "
+    "비우거나 '-'를 넣으면 그 광고 세트의 현재 예산을 그대로 둡니다)",
+    "웹사이트 URL (필수 — /products/ 포함 시 상품을, /pages/ 포함 시 페이지를 복제합니다)",
     "소재 (필수)",
-    "헤드라인 (실제 문구를 입력하세요 — 자동 생성이 필요하면 '카피 생성' 탭에서 만든 문구를 붙여넣어주세요)",
-    "기본 텍스트 (실제 문구를 입력하세요 — 자동 생성이 필요하면 '카피 생성' 탭에서 만든 문구를 붙여넣어주세요)",
-    "시작 (비워두면 즉시; 형식 YYYY/MM/DD H(:MM)AM/PM, 예: 2026/09/08 12AM — 해당 광고 계정의 Meta 시간대 기준)",
-    "종료 (비워두면 종료일 없음; 형식은 시작과 동일, 예: 2026/09/08 11:59PM)",
-    "생성 후 상태 (더 이상 사용되지 않음 — 값을 적어도 무시됩니다: 광고는 항상 즉시 활성화, 새로 만들어지는 광고 세트는 항상 일시중지 상태로 생성됩니다)",
-    "복제할 Shopify 상품 핸들 (선택 — 비워두면 브릿지 페이지 없음; 제목이 아니라 핸들)",
-    "Shopify 제목 재지정 (선택)",
-    "Shopify 태그 재지정 (선택, 쉼표로 구분)",
-    "Shopify 테마 템플릿 재지정 (선택)",
+    "헤드라인 (선택 — 실제 문구를 입력하면 그대로 쓰고, 비워두면 '소재'가 EQQUALBERRY 소재명 규칙을 따를 때 자동 작성)",
+    "기본 텍스트 (선택 — 실제 문구를 입력하면 그대로 쓰고, 비워두면 '소재'가 EQQUALBERRY 소재명 규칙을 따를 때 자동 작성)",
+    "복제할 Shopify 페이지 태그 (선택 — 웹사이트 URL이 /products/면 상품 핸들로, /pages/면 페이지 태그로 "
+    "사용됩니다; 비워두면 Shopify 복제 없음)",
     "Shopify 아마존 어트리뷰션 링크 재지정 (선택)",
 ]
 # 0-indexed column -> human label, for the required-field check. Column 1
 # (복제할 광고) is deliberately NOT required — leaving it blank is the
 # "ads-only" mode (add just an ad into an existing/batch-created ad set).
+# 일일 예산 (col 4) is handled separately in parse_bulk_row, not here — it's
+# only required when creating a brand-new ad set; an "ads-only" row (col 1
+# blank) may leave it blank/'-' to leave the shared ad set's budget alone.
 REQUIRED_BULK_COLS = {
     0: "캠페인", 2: "새 광고 세트 이름", 3: "새 광고 이름",
-    4: "일일 예산", 5: "웹사이트 URL", 6: "소재",
+    5: "웹사이트 URL", 6: "소재",
 }
 MIN_BULK_COLS = 7  # through "소재" — everything required is in the first 7
 
 # Tokens people commonly type to mean "leave this blank" (a spreadsheet habit) —
 # treated as empty rather than as a literal value (e.g. a Shopify handle "-").
 BLANK_TOKENS = {"-", "--", "—", "n/a", "na", "없음", "none"}
-GENERATE_TOKENS = {"생성", "generate"}
+# '작성' included because that's what people actually type here in practice —
+# same intent as '생성'/'generate' ("write this for me").
+GENERATE_TOKENS = {"생성", "generate", "작성"}
 
 
 def is_blank(value):
@@ -82,20 +832,95 @@ def is_blank(value):
 
 
 def is_generate_placeholder(value):
-    return (value or "").strip().lower() in GENERATE_TOKENS
+    """True when this cell is asking for auto-generated copy — either left
+    blank (대량 업로드 rows normally paste real copy directly now, so a blank
+    cell is the signal to auto-generate) or filled with an explicit '생성'
+    placeholder word (still supported for anyone who prefers typing it)."""
+    return is_blank(value) or (value or "").strip().lower() in GENERATE_TOKENS
 
 
-def parse_schedule_datetime(value):
-    """'YYYY/MM/DD H(:MM)AM/PM' (e.g. '2026/09/08 12AM') -> ISO 8601 with no
-    timezone offset, which Meta then interprets in the ad account's own
-    configured timezone."""
-    normalized = value.strip().upper()
-    for fmt in ("%Y/%m/%d %I:%M%p", "%Y/%m/%d %I%p"):
-        try:
-            return datetime.strptime(normalized, fmt).strftime("%Y-%m-%dT%H:%M:%S")
-        except ValueError:
-            continue
-    raise ValueError(f"'{value}' 형식을 인식하지 못했습니다 (예: 2026/09/08 12AM 또는 2026/09/08 11:59PM)")
+def _select_copy_variant(candidates, creative_name, salt, used):
+    """Randomly rotates through the available copy candidates.
+
+    The old implementation hashed the 소재명, so the same name always returned
+    the same copy. A random starting point makes repeated generations feel
+    fresh while ``used`` still prevents duplicates inside one bulk batch.
+    """
+    if not candidates:
+        return ""
+    start = secrets.randbelow(len(candidates))
+    for offset in range(len(candidates)):
+        candidate = candidates[(start + offset) % len(candidates)]
+        if used is None or candidate not in used:
+            if used is not None:
+                used.add(candidate)
+            return candidate
+    return candidates[start]
+
+
+def _resolve_generated_copy(headline, primary_text, creative_name, used_headlines=None, used_primary_texts=None):
+    """If either field is a '생성' placeholder, fills it in from
+    copy_generator using creative_name (the 소재 field) — entirely offline
+    template substitution, no Meta/Claude call. Returns (headline,
+    primary_text, error) — error is None on success, or a Korean message the
+    caller should surface (leaving headline/primary_text unresolved) when
+    creative_name doesn't match a known 소재명 pattern."""
+    if not (is_generate_placeholder(headline) or is_generate_placeholder(primary_text)):
+        return headline, primary_text, None
+    try:
+        generated = copy_generator.generate(creative_name)
+    except copy_generator.CopyGenerationError as e:
+        return headline, primary_text, str(e)
+    if is_generate_placeholder(headline):
+        headline = _select_copy_variant(generated["headlines"], creative_name, "headline", used_headlines)
+    if is_generate_placeholder(primary_text):
+        primary_text = _select_copy_variant(generated["primary_texts"], creative_name, "primary", used_primary_texts)
+    return headline, primary_text, None
+
+
+def _resolve_copy(token, *, campaign_id, account_override, source_adset_name, new_adset_name,
+                   headline, primary_text, creative_name,
+                   used_headlines=None, used_primary_texts=None, cache=None):
+    """Resolves '생성' placeholders, preferring an ad set's own existing copy
+    over freshly generated text: for an "ads-only" row (source_adset_name
+    blank, i.e. just adding another ad into new_adset_name) whose target ad
+    set already has an ad, reuse that ad's exact headline/primary text — this
+    is what makes several creatives dropped into the same ad set look like a
+    matched set instead of each getting independently generated copy. Only
+    fields still holding a '생성' placeholder are touched; anything the row
+    already specifies literally is left alone. Falls through to the offline
+    copy_generator template path (_resolve_generated_copy) for whichever
+    field, if any, no reusable existing copy covered. Returns (headline,
+    primary_text, error, reused_existing)."""
+    reused = False
+    if token and is_blank(source_adset_name) and (
+        is_generate_placeholder(headline) or is_generate_placeholder(primary_text)
+    ):
+        existing = meta_lib.find_existing_ad_copy(
+            token, campaign_id, CANDIDATE_ACCOUNT_IDS, new_adset_name,
+            account_override=account_override or None, cache=cache,
+        )
+        if existing:
+            if is_generate_placeholder(headline) and existing["headline"]:
+                headline = existing["headline"]
+                reused = True
+            if is_generate_placeholder(primary_text) and existing["primary_text"]:
+                primary_text = existing["primary_text"]
+                reused = True
+    headline, primary_text, gen_err = _resolve_generated_copy(
+        headline, primary_text, creative_name, used_headlines, used_primary_texts
+    )
+    return headline, primary_text, gen_err, reused
+
+
+def extract_shopify_page_identifier(url):
+    """Pulls the campaign/ad identifier out of a Shopify page URL, e.g.
+    'https://x.com/pages/261006_..._2?utm_source_IG' -> '261006_..._2'. Used
+    as both the new Shopify page's URL handle and its 태그 metafield, since a
+    page bridge always keeps those two in sync with the ad's own website URL
+    rather than asking for them as separate inputs."""
+    match = re.search(r"/pages/([^/?#]+)", url or "")
+    return match.group(1) if match else None
 
 
 def split_bulk_rows(text):
@@ -114,103 +939,11 @@ class RowError(Exception):
     pass
 
 
-# 예산 조정 탭: 업로드하는 파일마다 헤더 이름이 다를 수 있어서, 정확한 문구가
-# 아니라 허용된 별칭 집합으로 컬럼을 찾는다. 값(딕셔너리 키)은 코드 내부용,
-# 사람에게 보여줄 땐 BUDGET_FIELD_LABELS를 쓴다.
-BUDGET_COLUMN_ALIASES = {
-    "creative_name": {"소재", "소재명", "광고명"},
-    "current_budget": {"기존", "기존예산", "기존 예산", "현재", "현재예산", "현재 예산"},
-    "new_budget": {"변경", "변경예산", "변경 예산", "제안", "제안예산", "제안 예산"},
-}
 BUDGET_FIELD_LABELS = {
-    "creative_name": "소재명",
+    "creative_name": "소재명 또는 광고세트명",
     "current_budget": "기존 예산",
     "new_budget": "변경 예산",
 }
-
-
-def find_budget_columns(header_row):
-    """Maps each required field to its 0-indexed column position by matching
-    the header row's cell text against BUDGET_COLUMN_ALIASES, not a fixed
-    column order — different teammates export this spreadsheet with
-    different headers. Raises RowError naming exactly what's missing rather
-    than silently guessing, since a wrong guess would mismatch real columns."""
-    positions = {}
-    for idx, cell in enumerate(header_row):
-        label = (str(cell) if cell is not None else "").strip()
-        for field, aliases in BUDGET_COLUMN_ALIASES.items():
-            if field not in positions and label in aliases:
-                positions[field] = idx
-    missing = [field for field in BUDGET_COLUMN_ALIASES if field not in positions]
-    if missing:
-        raise RowError("헤더에서 다음 컬럼을 찾지 못했습니다: " + ", ".join(BUDGET_FIELD_LABELS[m] for m in missing))
-    return positions
-
-
-def parse_budget_amount(value):
-    """Loosely parses a budget cell — strips currency symbols/commas/won
-    signs and whitespace, since real spreadsheets format numbers
-    inconsistently (e.g. '₩1,000', '1000.0', ' 1,000 ')."""
-    if value is None:
-        return None
-    text = str(value).strip()
-    if not text:
-        return None
-    cleaned = re.sub(r"[^\d.\-]", "", text)
-    if not cleaned or cleaned in ("-", "."):
-        return None
-    try:
-        return int(round(float(cleaned)))
-    except ValueError:
-        return None
-
-
-def read_budget_rows(filename, file_obj):
-    """Reads an uploaded .xlsx/.xlsm/.csv file into a list of
-    {creative_name, current_budget, new_budget} dicts, using find_budget_columns
-    for flexible header matching instead of assuming a fixed column order."""
-    ext = os.path.splitext(filename)[1].lower()
-    if ext in (".xlsx", ".xlsm"):
-        try:
-            import openpyxl
-        except ImportError:
-            raise RowError("엑셀(.xlsx) 파일을 읽으려면 pip install openpyxl 이 필요합니다 (webapp/requirements.txt에 포함되어 있습니다).")
-        try:
-            workbook = openpyxl.load_workbook(file_obj, read_only=True, data_only=True)
-        except Exception as e:  # noqa: BLE001
-            raise RowError(f"엑셀 파일을 열지 못했습니다: {e}")
-        all_rows = list(workbook.active.iter_rows(values_only=True))
-    elif ext == ".csv":
-        text = file_obj.read().decode("utf-8-sig")
-        all_rows = list(csv.reader(io.StringIO(text)))
-    elif ext == ".xls":
-        raise RowError("옛 .xls 형식은 지원하지 않습니다 — 엑셀에서 '다른 이름으로 저장 → .xlsx'로 저장한 뒤 다시 올려주세요.")
-    else:
-        raise RowError(f"지원하지 않는 파일 형식입니다: '{ext or '(확장자 없음)'}' — .xlsx 또는 .csv 파일을 올려주세요.")
-
-    if not all_rows:
-        raise RowError("파일에 내용이 없습니다.")
-    header, data_rows = all_rows[0], all_rows[1:]
-    positions = find_budget_columns(header)
-
-    def cell(row, idx):
-        return row[idx] if idx < len(row) else None
-
-    results = []
-    for row in data_rows:
-        if row is None or all(c in (None, "") for c in row):
-            continue
-        creative_name = (str(cell(row, positions["creative_name"]) or "")).strip()
-        if not creative_name:
-            continue
-        results.append({
-            "creative_name": creative_name,
-            "current_budget": parse_budget_amount(cell(row, positions["current_budget"])),
-            "new_budget": parse_budget_amount(cell(row, positions["new_budget"])),
-        })
-    if not results:
-        raise RowError("헤더 아래에 실제 데이터 행이 없습니다.")
-    return results
 
 
 def parse_bulk_row(cols):
@@ -228,28 +961,22 @@ def parse_bulk_row(cols):
     def get(i):
         return cols[i] if i < len(cols) else ""
 
-    daily_budget = cols[4]
-    if not daily_budget.isdigit():
-        raise RowError(f"예산은 숫자여야 합니다: '{daily_budget}'")
+    source_adset_name = "" if is_blank(get(1)) else get(1)
+    budget_raw = get(4)
+    if is_blank(budget_raw):
+        if source_adset_name:
+            raise RowError("일일 예산이 비어있습니다 — 새 광고 세트를 만들 때는 예산이 필수입니다.")
+        # "광고만 추가" (1번 열이 비어있음): 예산을 비워두면(또는 '-') 이미
+        # 공유되고 있는 광고 세트의 현재 예산을 그대로 두고 건드리지 않는다.
+        daily_budget = None
+    elif not budget_raw.isdigit():
+        raise RowError(f"예산은 숫자여야 합니다: '{budget_raw}'")
+    else:
+        daily_budget = budget_raw
 
+    # 헤드라인/기본 텍스트는 일부러 필수가 아니다 — 대량 업로드는 대부분 카피를
+    # 직접 붙여넣지만, 비워두면(또는 '생성'이라고 입력하면) 자동 생성된다.
     headline, primary_text = get(7), get(8)
-    for label, value in (("헤드라인", headline), ("기본 텍스트", primary_text)):
-        if is_generate_placeholder(value):
-            raise RowError(
-                f"{label}에 '생성'이 입력되어 있습니다 — 이 페이지는 자동 생성을 지원하지 않습니다. "
-                f"'카피 생성' 탭에서 만든 문구를 복사해 붙여넣어주세요."
-            )
-        if is_blank(value):
-            raise RowError(f"{label}가 비어있습니다 — 실제 문구를 입력해주세요.")
-
-    try:
-        start_iso = parse_schedule_datetime(get(9)) if not is_blank(get(9)) else None
-        end_iso = parse_schedule_datetime(get(10)) if not is_blank(get(10)) else None
-    except ValueError as e:
-        raise RowError(str(e))
-
-    after_raw = get(11)
-    after_status = "ACTIVE" if (not is_blank(after_raw) and after_raw.strip().lower() in ("active", "활성화")) else "PAUSED"
 
     warning = None
     extra = [v for v in cols[len(BULK_COLUMNS):] if v.strip()]
@@ -259,7 +986,7 @@ def parse_bulk_row(cols):
 
     return dict(
         campaign_id=cols[0],
-        source_adset_name="" if is_blank(get(1)) else get(1),
+        source_adset_name=source_adset_name,
         new_adset_name=cols[2],
         new_ad_name=cols[3],
         daily_budget=daily_budget,
@@ -267,41 +994,118 @@ def parse_bulk_row(cols):
         creative_name=cols[6],
         headline=headline,
         primary_text=primary_text,
-        start_iso=start_iso,
-        end_iso=end_iso,
-        after_status=after_status,
-        shopify_source_handle="" if is_blank(get(12)) else get(12),
-        shopify_title="" if is_blank(get(13)) else get(13),
-        shopify_tags="" if is_blank(get(14)) else get(14),
-        shopify_template="" if is_blank(get(15)) else get(15),
-        shopify_amazon="" if is_blank(get(16)) else get(16),
+        shopify_identifier="" if is_blank(get(9)) else get(9),
+        shopify_amazon="" if is_blank(get(10)) else get(10),
         warning=warning,
     )
 
 
-def _load_json_list(path):
-    if not os.path.exists(path):
-        return []
-    with open(path, encoding="utf-8") as f:
-        return json.load(f)
+@contextlib.contextmanager
+def _db_connect():
+    """A raw psycopg2 connection's own context-manager protocol only commits
+    or rolls back the transaction on exit — it never closes the underlying
+    connection. Every call site here does `with _db_connect() as conn: ...`
+    once per request, so without an explicit close() each request leaked one
+    live Postgres connection for the lifetime of the server process, until
+    the database's connection limit was hit and every DB-touching route
+    (heaviest first: bulk upload, many upserts per request) started failing
+    with a raw, unhandled 500. Wrapping it here guarantees the connection is
+    always closed, without touching any of the call sites."""
+    import psycopg2
+    conn = psycopg2.connect(DATABASE_URL)
+    try:
+        yield conn
+    finally:
+        conn.close()
 
 
-def _save_json_list(path, items):
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(items, f, ensure_ascii=False, indent=2)
+def _init_db():
+    """Idempotent — safe to call on every startup. Each table is just an
+    id + a JSONB blob, mirroring the old file-of-a-JSON-list shape exactly,
+    so every call site that already deals in plain dicts needs no changes."""
+    if not DATABASE_URL:
+        return
+    with _db_connect() as conn, conn.cursor() as cur:
+        for table in _VALID_TABLES:
+            cur.execute(f"""
+                CREATE TABLE IF NOT EXISTS {table} (
+                    id TEXT PRIMARY KEY,
+                    seq BIGSERIAL,
+                    data JSONB NOT NULL
+                )
+            """)
+        conn.commit()
 
 
-def _upsert(path, entry):
+def _load_json_list(table_or_path):
+    if not DATABASE_URL:
+        path = table_or_path
+        if not os.path.exists(path):
+            return []
+        with open(path, encoding="utf-8") as f:
+            return json.load(f)
+
+    table = table_or_path
+    assert table in _VALID_TABLES
+    with _db_connect() as conn, conn.cursor() as cur:
+        cur.execute(f"SELECT data FROM {table} ORDER BY seq ASC")
+        return [row[0] for row in cur.fetchall()]
+
+
+def _save_json_list(table_or_path, items):
+    """Replaces the entire list's contents, same as the old file-overwrite
+    behavior (used by the '전체 삭제' bulk-delete routes)."""
+    if not DATABASE_URL:
+        path = table_or_path
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(items, f, ensure_ascii=False, indent=2)
+        return
+
+    table = table_or_path
+    assert table in _VALID_TABLES
+    with _db_connect() as conn, conn.cursor() as cur:
+        cur.execute(f"DELETE FROM {table}")
+        for it in items:
+            cur.execute(f"INSERT INTO {table} (id, data) VALUES (%s, %s)", (it["id"], json.dumps(it)))
+        conn.commit()
+
+
+def _upsert(table_or_path, entry):
+    """Matches the old file-based behavior exactly: an entry with an id
+    that already exists is replaced and moves to the end of the list (its
+    seq is refreshed), not updated in place."""
     with LOCK:
-        items = [it for it in _load_json_list(path) if it["id"] != entry["id"]]
-        items.append(entry)
-        _save_json_list(path, items)
+        if not DATABASE_URL:
+            path = table_or_path
+            items = [it for it in _load_json_list(path) if it["id"] != entry["id"]]
+            items.append(entry)
+            _save_json_list(path, items)
+            return
+
+        table = table_or_path
+        assert table in _VALID_TABLES
+        with _db_connect() as conn, conn.cursor() as cur:
+            cur.execute(f"DELETE FROM {table} WHERE id = %s", (entry["id"],))
+            cur.execute(f"INSERT INTO {table} (id, data) VALUES (%s, %s)", (entry["id"], json.dumps(entry)))
+            conn.commit()
 
 
-def _remove(path, entry_id):
+def _remove(table_or_path, entry_id):
     with LOCK:
-        items = [it for it in _load_json_list(path) if it["id"] != entry_id]
-        _save_json_list(path, items)
+        if not DATABASE_URL:
+            path = table_or_path
+            items = [it for it in _load_json_list(path) if it["id"] != entry_id]
+            _save_json_list(path, items)
+            return
+
+        table = table_or_path
+        assert table in _VALID_TABLES
+        with _db_connect() as conn, conn.cursor() as cur:
+            cur.execute(f"DELETE FROM {table} WHERE id = %s", (entry_id,))
+            conn.commit()
+
+
+_init_db()
 
 
 def load_requests():
@@ -328,20 +1132,51 @@ def remove_upload(upload_id):
     _remove(UPLOADS_DB_PATH, upload_id)
 
 
+def upsert_allowed_user(entry):
+    _upsert(ALLOWED_USERS_PATH, entry)
+
+
+def remove_allowed_user(entry_id):
+    _remove(ALLOWED_USERS_PATH, entry_id)
+
+
+def current_user_label():
+    """Google 계정에 저장된 이름(예: "예성")을 그대로 쓰고, 이름이 비어있으면
+    이메일의 @ 앞부분만 보여준다 (예: "ys.lee"). 로그인이 꺼져 있는 로컬 개발
+    환경에서는 호출되지 않는다 — 이땐 호출하는 쪽에서 LOGIN_ENABLED를 먼저
+    확인한다."""
+    name = (session.get("user_name") or "").strip()
+    if name:
+        return name
+    email = (session.get("user_email") or "").strip()
+    return email.split("@")[0] if email else email
+
+
+def greeting_name_for(email):
+    """Prefers the admin-set 닉네임 for the one-time login greeting over the
+    Google profile name — a nickname is a deliberate personal touch an admin
+    chose, where current_user_label() is just whatever Google reports."""
+    return nickname_for(email) or current_user_label()
+
+
 def new_entry(**fields):
     entry = {
         "id": str(uuid.uuid4()),
         "submittedAt": datetime.now().strftime("%m/%d %H:%M"),
         "status": "processing",
     }
+    if LOGIN_ENABLED:
+        entry["createdBy"] = greeting_name_for(session.get("user_email"))
     entry.update(fields)
     return entry
 
 
 def run_duplicate(token, entry, *, campaign_id, source_adset_name, new_adset_name,
                    new_ad_name, daily_budget, website_url, creative_name, headline,
-                   primary_text, after_status, account_override=None, start_iso=None,
-                   end_iso=None, cache=None, batch_adsets=None):
+                   primary_text, account_override=None, cache=None, batch_adsets=None):
+    """Ads are always created immediately active with no end date; new ad
+    sets are always created paused (a safety net until turned on by hand) —
+    these are no longer configurable from the bulk/manual inputs."""
     try:
         result = meta_lib.duplicate_ad(
             token,
@@ -351,14 +1186,12 @@ def run_duplicate(token, entry, *, campaign_id, source_adset_name, new_adset_nam
             source_adset_name=source_adset_name,
             new_adset_name=new_adset_name,
             new_ad_name=new_ad_name,
-            daily_budget=int(daily_budget),
+            daily_budget=int(daily_budget) if daily_budget is not None else None,
             website_url=website_url,
             creative_name=creative_name,
             headline=headline,
             primary_text=primary_text,
-            start_iso=start_iso,
-            end_iso=end_iso,
-            status=after_status,
+            status="ACTIVE",
             cache=cache,
             batch_adsets=batch_adsets,
         )
@@ -375,30 +1208,56 @@ def run_duplicate(token, entry, *, campaign_id, source_adset_name, new_adset_nam
         return False, entry["error"]
 
 
-def run_shopify_bridge(entry, *, new_ad_name, source_handle, title_override=None,
-                        tags_override=None, template_override=None, amazon_link_override=None):
+def run_shopify_bridge(entry, *, new_ad_name, website_url, source_identifier, amazon_link_override=None):
     """Only called after a successful Meta duplicate_ad. Downgrades a 'done'
     entry to 'incomplete' (never touches the already-created Meta ad) if the
     Shopify side fails, matching the original artifact's rule that Meta
-    success + Shopify failure is never reported as fully 'done'."""
+    success + Shopify failure is never reported as fully 'done'.
+
+    Dispatches purely on website_url's own path: a /products/... URL
+    duplicates source_identifier as a product handle (unchanged
+    create_bridge_page behavior); a /pages/... URL duplicates it as a page's
+    태그 metafield, with the new page's handle+태그 both derived from that
+    same URL's /pages/ segment. The created product/page id is stashed on
+    the entry (resultShopifyProductId/resultShopifyPageId) so a later
+    rollback can delete it if something else in the same row fails."""
     shop = os.environ.get("SHOPIFY_SHOP")
     shopify_token = os.environ.get("SHOPIFY_ACCESS_TOKEN")
     if not shop or not shopify_token:
         entry["status"] = "incomplete"
         entry["shopifyError"] = "SHOPIFY_SHOP / SHOPIFY_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."
         return
+    is_product = "/products/" in website_url
+    is_page = "/pages/" in website_url
     try:
-        bridge = shopify_lib.create_bridge_page(
-            shop, shopify_token,
-            source_handle=source_handle,
-            new_handle=new_ad_name,
-            title_override=title_override or None,
-            tags_override=tags_override or None,
-            template_override=template_override or None,
-            amazon_link_override=amazon_link_override or None,
-            storefront_domain=os.environ.get("SHOPIFY_STOREFRONT_DOMAIN"),
-        )
-        entry["resultShopifyUrl"] = bridge["url"]
+        if is_product:
+            bridge = shopify_lib.create_bridge_page(
+                shop, shopify_token,
+                source_handle=source_identifier,
+                new_handle=new_ad_name,
+                amazon_link_override=amazon_link_override or None,
+                storefront_domain=os.environ.get("SHOPIFY_STOREFRONT_DOMAIN"),
+            )
+            entry["resultShopifyUrl"] = bridge["url"]
+            entry["resultShopifyProductId"] = bridge["product_id"]
+        elif is_page:
+            new_identifier = extract_shopify_page_identifier(website_url)
+            bridge = shopify_lib.create_page_bridge(
+                shop, shopify_token,
+                source_tag=source_identifier,
+                new_handle=new_identifier,
+                new_tag=new_identifier,
+                amazon_url_override=amazon_link_override or None,
+                storefront_domain=os.environ.get("SHOPIFY_STOREFRONT_DOMAIN"),
+            )
+            entry["resultShopifyPageUrl"] = bridge["url"]
+            entry["resultShopifyPageId"] = bridge["page_id"]
+        else:
+            entry["status"] = "incomplete"
+            entry["shopifyError"] = (
+                "웹사이트 URL에 /products/ 또는 /pages/ 가 없어 상품/페이지 중 "
+                "무엇을 복제할지 판단하지 못했습니다."
+            )
     except shopify_lib.ShopifyApiError as e:
         entry["status"] = "incomplete"
         entry["shopifyError"] = str(e)
@@ -418,10 +1277,32 @@ def index():
     uploads = list(reversed(load_uploads()))
     message = session.pop("flash_message", None)
 
+    # 로그인된 사람에게 보여줄 이름 — 계정바 옆 상시 인사말과 로딩 화면 문구에
+    # 둘 다 쓰인다. 로그인이 꺼져 있거나(로컬 개발) 아직 로그인 전이면 None.
+    user_email = session.get("user_email")
+    greeting_name = greeting_name_for(user_email) if LOGIN_ENABLED and user_email else None
+    # </script> 등으로 <script> 블록을 깨고 나가는 걸 막기 위한 최소한의 이스케이프 —
+    # 닉네임은 관리자만 설정할 수 있지만, 그래도 그대로 JS 문자열에 꽂지 않는다.
+    greeting_name_json = json.dumps(greeting_name, ensure_ascii=False).replace("</", "<\\/")
+
+    # 업데이트 안내 팝업 — 요청한 관리자 본인(ADMIN_EMAIL)은 제외하고, 아직 이
+    # LATEST_UPDATE["version"]을 못 본 로그인 사용자에게만 1회 보여준다.
+    show_update = False
+    if LOGIN_ENABLED and user_email and user_email.lower() != ADMIN_EMAIL:
+        seen = next(
+            (u.get("seenUpdateVersion") for u in load_allowed_users() if (u.get("email") or "").lower() == user_email.lower()),
+            None,
+        )
+        show_update = seen != LATEST_UPDATE_VERSION
+
     return render_template("index.html", accounts=ACCOUNTS, setting_items=setting_items,
                             budget_items=budget_items, shopify_items=shopify_items, uploads=uploads,
                             message=message, bulk_columns=BULK_COLUMNS,
-                            shopify_status_labels=shopify_lib.STATUS_LABELS)
+                            shopify_status_labels=shopify_lib.STATUS_LABELS,
+                            user_email=user_email, greeting_name=greeting_name,
+                            greeting_name_json=greeting_name_json,
+                            show_update=show_update, update_items=UPDATE_ITEMS, update_title=UPDATE_POPUP_TITLE,
+                            is_admin=LOGIN_ENABLED and (user_email or "").lower() == ADMIN_EMAIL)
 
 
 def _manual_input_snapshot(form, headline, primary_text):
@@ -438,11 +1319,7 @@ def _manual_input_snapshot(form, headline, primary_text):
         "creative_name": form.get("creative_name", ""),
         "headline": headline,
         "primary_text": primary_text,
-        "after_status": form.get("after_status", "PAUSED"),
-        "shopify_source_handle": form.get("shopify_source_handle", "").strip(),
-        "shopify_title": form.get("shopify_title_override", "").strip(),
-        "shopify_tags": form.get("shopify_tags_override", "").strip(),
-        "shopify_template": form.get("shopify_template_override", "").strip(),
+        "shopify_identifier": form.get("shopify_identifier", "").strip(),
         "shopify_amazon": form.get("shopify_amazon_override", "").strip(),
     }
 
@@ -464,10 +1341,73 @@ def generate_copy_endpoint():
     return {"ok": True, **result}
 
 
+@app.route("/copy_database_upload", methods=["POST"])
+def copy_database_upload():
+    """Hot-reloads the local copy database from one or more validated JSON files."""
+    files = [f for f in request.files.getlist("copy_database_files") if f and f.filename]
+    if not files:
+        return {"ok": False, "error": "업데이트할 JSON 파일을 선택해주세요."}, 400
+
+    payloads = []
+    try:
+        for file in files:
+            if not file.filename.lower().endswith(".json"):
+                raise copy_generator.CopyGenerationError(
+                    f"'{file.filename}'은 JSON 파일이 아닙니다."
+                )
+            payloads.append((file.filename, json.load(file.stream)))
+        result = copy_generator.update_database(payloads)
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        return {"ok": False, "error": f"JSON 파일을 읽지 못했습니다: {e}"}, 400
+    except copy_generator.CopyGenerationError as e:
+        return {"ok": False, "error": str(e)}, 400
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"카피 DB 업데이트 중 오류가 발생했습니다: {e}"}, 500
+
+    return {"ok": True, **result}
+
+
+@app.route("/copy_database_download")
+def copy_database_download():
+    """Downloads the current editable database as one re-uploadable bundle."""
+    payload = json.dumps(copy_generator.export_database(), ensure_ascii=False, indent=2) + "\n"
+    return Response(
+        payload,
+        mimetype="application/json",
+        headers={"Content-Disposition": "attachment; filename=copy_database_bundle.json"},
+    )
+
+
+@app.route("/copy_database_refresh", methods=["POST"])
+def copy_database_refresh():
+    """Merge copy from Meta ads updated during the last 3 PDT days."""
+    token = os.environ.get("META_ACCESS_TOKEN")
+    if not token:
+        return {"ok": False, "error": "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."}, 400
+    since = (datetime.now(PACIFIC).date() - timedelta(days=3)).isoformat()
+    try:
+        ads = meta_lib.list_recent_ad_copies(token, CANDIDATE_ACCOUNT_IDS, since)
+        result = copy_generator.merge_meta_copies(ads)
+    except meta_lib.MetaApiError as e:
+        return {"ok": False, "error": str(e)}, 400
+    except copy_generator.CopyGenerationError as e:
+        return {"ok": False, "error": str(e)}, 400
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"최근 카피 업데이트 중 오류가 발생했습니다: {e}"}, 500
+    return {"ok": True, "since": since, **result}
+
+
 @app.route("/submit", methods=["POST"])
 def submit():
     form = request.form
+    token = os.environ.get("META_ACCESS_TOKEN")
     headline, primary_text = form.get("headline", ""), form.get("primary_text", "")
+    headline, primary_text, generation_error, _reused = _resolve_copy(
+        token,
+        campaign_id=form.get("campaign_id", ""), account_override=form.get("account_override", "").strip(),
+        source_adset_name=form.get("source_adset_name", ""), new_adset_name=form.get("new_adset_name", ""),
+        headline=headline, primary_text=primary_text, creative_name=form.get("creative_name", ""),
+    )
     entry = new_entry(
         type="setting",
         campaign=form.get("campaign_id", ""),
@@ -479,18 +1419,14 @@ def submit():
     )
     upsert(entry)
 
-    token = os.environ.get("META_ACCESS_TOKEN")
-    generate_field = next((label for label, v in (("헤드라인", headline), ("기본 텍스트", primary_text))
-                           if is_generate_placeholder(v)), None)
     if not token:
         entry["status"] = "error"
         entry["error"] = "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다. 터미널에서 export/set 하고 서버를 다시 시작하세요."
         upsert(entry)
         message = {"kind": "err", "text": entry["error"]}
-    elif generate_field:
+    elif generation_error:
         entry["status"] = "error"
-        entry["error"] = (f"{generate_field}에 '생성'이 입력되어 있습니다 — 이 페이지는 자동 생성을 지원하지 않습니다. "
-                          f"'카피 생성' 탭에서 만든 문구를 복사해 붙여넣어주세요.")
+        entry["error"] = f"자동 카피 생성 실패: {generation_error}"
         upsert(entry)
         message = {"kind": "err", "text": entry["error"]}
     else:
@@ -501,23 +1437,21 @@ def submit():
             new_ad_name=form["new_ad_name"], daily_budget=form["daily_budget"],
             website_url=form["website_url"], creative_name=form["creative_name"],
             headline=headline, primary_text=primary_text,
-            after_status="ACTIVE",  # ad is always created active; new ad sets are always created paused
         )
-        shopify_source_handle = form.get("shopify_source_handle", "").strip()
-        if ok and shopify_source_handle:
+        shopify_identifier = form.get("shopify_identifier", "").strip()
+        shopify_amazon_override = form.get("shopify_amazon_override", "").strip()
+        if ok and shopify_identifier:
             run_shopify_bridge(
-                entry, new_ad_name=form["new_ad_name"], source_handle=shopify_source_handle,
-                title_override=form.get("shopify_title_override", "").strip(),
-                tags_override=form.get("shopify_tags_override", "").strip(),
-                template_override=form.get("shopify_template_override", "").strip(),
-                amazon_link_override=form.get("shopify_amazon_override", "").strip(),
+                entry, new_ad_name=form["new_ad_name"], website_url=form["website_url"],
+                source_identifier=shopify_identifier,
+                amazon_link_override=shopify_amazon_override,
             )
         upsert(entry)
 
         if not ok:
             message = {"kind": "err", "text": err}
         elif entry["status"] == "incomplete":
-            message = {"kind": "err", "text": f"Meta 광고는 생성됐지만 Shopify 브릿지 페이지 실패: {entry['shopifyError']}"}
+            message = {"kind": "err", "text": f"Meta 광고는 생성됐지만 Shopify 복제 실패: {entry.get('shopifyError')}"}
         else:
             message = {"kind": "ok", "text": f"생성 완료: 광고 세트 {entry['result']['ad_set_id']} / 광고 {entry['result']['ad_id']}"}
 
@@ -529,6 +1463,12 @@ def submit():
 def submit_bulk():
     text = request.form.get("bulk_text", "")
     rows = list(enumerate(split_bulk_rows(text), start=1))
+    try:
+        copy_overrides = json.loads(request.form.get("copy_overrides", "{}") or "{}")
+        if not isinstance(copy_overrides, dict):
+            raise ValueError
+    except (json.JSONDecodeError, ValueError):
+        copy_overrides = {}
 
     token = os.environ.get("META_ACCESS_TOKEN")
     if not rows:
@@ -544,6 +1484,11 @@ def submit_bulk():
         # one this same batch just made.
         meta_cache = {}
         batch_adsets = {}
+        # Shared across the whole batch so rows with near-identical 소재명
+        # (same product/부위/고민) don't all get auto-generated byte-identical
+        # copy — see _select_copy_variant.
+        used_headlines = set()
+        used_primary_texts = set()
         for lineno, cols in rows:
             try:
                 row = parse_bulk_row(cols)
@@ -551,6 +1496,39 @@ def submit_bulk():
                 fail += 1
                 details.append(f"{lineno}행: {e}")
                 continue
+
+            # When the user reviewed the generated copy in the browser, use
+            # that exact edited version instead of generating a new random
+            # variant again at submission time.
+            override = copy_overrides.get(str(lineno))
+            if isinstance(override, dict):
+                edited_headline = str(override.get("headline") or "").strip()
+                edited_primary = str(override.get("primary_text") or "").strip()
+                if not edited_headline or not edited_primary:
+                    fail += 1
+                    details.append(f"{lineno}행: 수정한 헤드라인과 기본 텍스트를 모두 입력해주세요.")
+                    continue
+                row["headline"] = edited_headline
+                row["primary_text"] = edited_primary
+
+            headline, primary_text, gen_err, reused = _resolve_copy(
+                token,
+                campaign_id=row["campaign_id"], account_override="",
+                source_adset_name=row["source_adset_name"], new_adset_name=row["new_adset_name"],
+                headline=row["headline"], primary_text=row["primary_text"], creative_name=row["creative_name"],
+                used_headlines=used_headlines, used_primary_texts=used_primary_texts, cache=meta_cache,
+            )
+            if gen_err:
+                fail += 1
+                details.append(f"{lineno}행 ({row['new_ad_name']}): 자동 카피 생성 실패 — {gen_err}")
+                continue
+            changed = headline != row["headline"] or primary_text != row["primary_text"]
+            row["headline"], row["primary_text"] = headline, primary_text
+            if changed:
+                note = "헤드라인/기본 텍스트를 같은 광고 세트의 기존 광고 카피로 채움" if reused else "헤드라인/기본 텍스트 자동 생성됨"
+                row["warning"] = " / ".join(w for w in (
+                    row["warning"], f"{note} (검수 후 게재를 권장합니다)",
+                ) if w)
 
             entry = new_entry(
                 type="setting",
@@ -568,13 +1546,7 @@ def submit_bulk():
                     "creative_name": row["creative_name"],
                     "headline": row["headline"],
                     "primary_text": row["primary_text"],
-                    "start_iso": row["start_iso"],
-                    "end_iso": row["end_iso"],
-                    "after_status": row["after_status"],
-                    "shopify_source_handle": row["shopify_source_handle"],
-                    "shopify_title": row["shopify_title"],
-                    "shopify_tags": row["shopify_tags"],
-                    "shopify_template": row["shopify_template"],
+                    "shopify_identifier": row["shopify_identifier"],
                     "shopify_amazon": row["shopify_amazon"],
                 },
             )
@@ -586,15 +1558,12 @@ def submit_bulk():
                 new_ad_name=row["new_ad_name"], daily_budget=row["daily_budget"],
                 website_url=row["website_url"], creative_name=row["creative_name"],
                 headline=row["headline"], primary_text=row["primary_text"],
-                start_iso=row["start_iso"], end_iso=row["end_iso"],
-                after_status="ACTIVE",  # ad is always created active; new ad sets are always created paused
                 cache=meta_cache, batch_adsets=batch_adsets,
             )
-            if ok and row["shopify_source_handle"]:
+            if ok and row["shopify_identifier"]:
                 run_shopify_bridge(
-                    entry, new_ad_name=row["new_ad_name"], source_handle=row["shopify_source_handle"],
-                    title_override=row["shopify_title"], tags_override=row["shopify_tags"],
-                    template_override=row["shopify_template"], amazon_link_override=row["shopify_amazon"],
+                    entry, new_ad_name=row["new_ad_name"], website_url=row["website_url"],
+                    source_identifier=row["shopify_identifier"], amazon_link_override=row["shopify_amazon"],
                 )
             upsert(entry)
 
@@ -605,7 +1574,7 @@ def submit_bulk():
                 details.append(f"{lineno}행 ({row['new_ad_name']}): {err}")
             elif entry["status"] == "incomplete":
                 incomplete += 1
-                details.append(f"{lineno}행 ({row['new_ad_name']}): Meta 광고는 생성됨, Shopify 실패 — {entry['shopifyError']}")
+                details.append(f"{lineno}행 ({row['new_ad_name']}): Meta 광고는 생성됨, Shopify 실패 — {entry.get('shopifyError')}")
             else:
                 success += 1
 
@@ -616,21 +1585,80 @@ def submit_bulk():
     return redirect("/")
 
 
+def _used_amazon_links():
+    """모든 과거 요청에서 사용자가 실제로 입력했던 '아마존 어트리뷰션 링크
+    재지정' 값의 집합 — 비워뒀던 행(원본 링크 그대로 사용)은 우리가 그
+    결과값을 모르므로 포함되지 않는다."""
+    return {
+        (it.get("input") or {}).get("shopify_amazon", "").strip()
+        for it in load_requests()
+        if (it.get("input") or {}).get("shopify_amazon")
+    }
+
+
+@app.route("/check_amazon_links", methods=["POST"])
+def check_amazon_links():
+    """제출 전 미리 확인 — bulk_text가 오면 각 행을 똑같이 파싱해서 재지정된
+    링크를, 아니면 link 하나를 과거에 이미 쓴 적 있는지 검사한다."""
+    candidates = []
+    if "bulk_text" in request.form:
+        for cols in split_bulk_rows(request.form.get("bulk_text", "")):
+            try:
+                row = parse_bulk_row(cols)
+            except RowError:
+                continue
+            if row.get("shopify_amazon"):
+                candidates.append(row["shopify_amazon"])
+    else:
+        link = (request.form.get("link") or "").strip()
+        if link:
+            candidates.append(link)
+    used = _used_amazon_links()
+    duplicates = sorted({c for c in candidates if c in used})
+    return {"ok": True, "duplicates": duplicates}
+
+
 @app.route("/preview_bulk", methods=["POST"])
 def preview_bulk():
-    """Parses the pasted bulk text the same way /submit_bulk does, but only
-    parses — never calls Meta/Shopify — so the page can show what each row
-    will do before the user commits to running it."""
+    """Parses the pasted bulk text the same way /submit_bulk does — nothing
+    is created until the user clicks 제출. The one read-only exception: an
+    'ads-only' row whose '생성' placeholder could be filled from an ad
+    already sitting in its target ad set makes a read-only Meta lookup here
+    too (via _resolve_copy), so the user sees — and can still edit — the
+    exact copy that would otherwise only appear after submission."""
     text = request.form.get("bulk_text", "")
     rows = list(enumerate(split_bulk_rows(text), start=1))
+    token = os.environ.get("META_ACCESS_TOKEN")
+    meta_cache = {}
 
     preview = []
+    used_headlines = set()
+    used_primary_texts = set()
     for lineno, cols in rows:
         try:
             row = parse_bulk_row(cols)
         except RowError as e:
             preview.append({"lineno": lineno, "ok": False, "error": str(e)})
             continue
+
+        headline, primary_text, gen_err, reused = _resolve_copy(
+            token,
+            campaign_id=row["campaign_id"], account_override="",
+            source_adset_name=row["source_adset_name"], new_adset_name=row["new_adset_name"],
+            headline=row["headline"], primary_text=row["primary_text"], creative_name=row["creative_name"],
+            used_headlines=used_headlines, used_primary_texts=used_primary_texts, cache=meta_cache,
+        )
+        if gen_err:
+            preview.append({"lineno": lineno, "ok": False, "error": f"자동 카피 생성 실패 — {gen_err}"})
+            continue
+        changed = headline != row["headline"] or primary_text != row["primary_text"]
+        row["headline"], row["primary_text"] = headline, primary_text
+        if changed:
+            note = "헤드라인/기본 텍스트를 같은 광고 세트의 기존 광고 카피로 채움" if reused else "헤드라인/기본 텍스트 자동 생성됨"
+            row["warning"] = " / ".join(w for w in (
+                row["warning"], f"{note} (검수 후 게재를 권장합니다)",
+            ) if w)
+
         preview.append({
             "lineno": lineno,
             "ok": True,
@@ -643,11 +1671,8 @@ def preview_bulk():
             "creative_name": row["creative_name"],
             "headline": row["headline"],
             "primary_text": row["primary_text"],
-            "start": row["start_iso"] or "즉시",
-            "end": row["end_iso"] or "없음",
             "status": "즉시 활성화 (광고 세트는 항상 일시중지로 생성)",
-            "shopify_handle": row["shopify_source_handle"] or "-",
-            "shopify_title": row["shopify_title"] or None,
+            "shopify_identifier": row["shopify_identifier"] or None,
             "warning": row["warning"],
         })
 
@@ -655,23 +1680,35 @@ def preview_bulk():
     return {"rows": preview, "total": len(rows), "ok_count": ok_count, "error_count": len(rows) - ok_count}
 
 
+_RETRY_INPUT_FIELDS = (
+    "campaign_id", "account_override", "source_adset_name", "new_adset_name",
+    "new_ad_name", "daily_budget", "website_url", "creative_name", "headline",
+    "primary_text", "shopify_identifier", "shopify_amazon",
+)
+
+
 @app.route("/retry/<req_id>", methods=["POST"])
 def retry(req_id):
-    """Re-runs a request that previously failed outright, using the inputs
-    captured when it was first submitted — no retyping. Only offered for
-    status == 'error' (nothing was created yet); an 'incomplete' entry already
-    has a real Meta ad, so re-running it would create a duplicate ad rather
-    than fix anything."""
+    """Re-runs a request that previously failed, using the inputs captured
+    when it was first submitted — unless the edit-and-retry form supplied
+    changed values (any _RETRY_INPUT_FIELDS key present in the POST body
+    overrides the saved one; the plain '재시도' button posts none, so it
+    replays exactly as before). Offered for both outright failures ('error'
+    — nothing was created yet, so a full re-run is safe) and partial ones
+    ('incomplete' — the Meta ad already exists, so only the Shopify half is
+    re-attempted, never a duplicate ad)."""
     items = load_requests()
     entry = next((it for it in items if it["id"] == req_id), None)
-    if not entry or not entry.get("input") or entry.get("status") != "error":
+    if not entry or not entry.get("input") or entry.get("status") not in ("error", "incomplete"):
         session["flash_message"] = {"kind": "err", "text": "이 항목은 재시도할 수 없습니다."}
         return redirect("/")
 
-    inp = entry["input"]
+    inp = dict(entry["input"])
+    for key in _RETRY_INPUT_FIELDS:
+        if key in request.form:
+            inp[key] = request.form.get(key, "")
+    entry["input"] = inp
     entry["submittedAt"] = datetime.now().strftime("%m/%d %H:%M")
-    entry.pop("error", None)
-    upsert(entry)
 
     token = os.environ.get("META_ACCESS_TOKEN")
     if not token:
@@ -681,6 +1718,32 @@ def retry(req_id):
         session["flash_message"] = {"kind": "err", "text": entry["error"]}
         return redirect("/")
 
+    if entry["status"] == "incomplete":
+        entry.pop("shopifyError", None)
+        entry["status"] = "done"
+        upsert(entry)
+        shopify_identifier = (inp.get("shopify_identifier") or "").strip()
+        if not shopify_identifier:
+            entry["status"] = "incomplete"
+            entry["shopifyError"] = "Shopify 식별자가 비어 있어 재시도할 수 없습니다."
+            upsert(entry)
+            message = {"kind": "err", "text": entry["shopifyError"]}
+        else:
+            run_shopify_bridge(
+                entry, new_ad_name=inp["new_ad_name"], website_url=inp["website_url"],
+                source_identifier=shopify_identifier, amazon_link_override=inp.get("shopify_amazon"),
+            )
+            upsert(entry)
+            if entry["status"] == "incomplete":
+                message = {"kind": "err", "text": f"Shopify 재시도 실패: {entry.get('shopifyError')}"}
+            else:
+                message = {"kind": "ok", "text": "Shopify 복제 재시도 성공"}
+        session["flash_message"] = message
+        return redirect("/")
+
+    entry.pop("error", None)
+    upsert(entry)
+
     ok, err = run_duplicate(
         token, entry,
         campaign_id=inp["campaign_id"], account_override=inp.get("account_override") or None,
@@ -688,21 +1751,18 @@ def retry(req_id):
         new_ad_name=inp["new_ad_name"], daily_budget=inp["daily_budget"],
         website_url=inp["website_url"], creative_name=inp["creative_name"],
         headline=inp["headline"], primary_text=inp["primary_text"],
-        start_iso=inp.get("start_iso"), end_iso=inp.get("end_iso"),
-        after_status="ACTIVE",  # ad is always created active; new ad sets are always created paused
     )
-    if ok and inp.get("shopify_source_handle"):
+    if ok and inp.get("shopify_identifier"):
         run_shopify_bridge(
-            entry, new_ad_name=inp["new_ad_name"], source_handle=inp["shopify_source_handle"],
-            title_override=inp.get("shopify_title"), tags_override=inp.get("shopify_tags"),
-            template_override=inp.get("shopify_template"), amazon_link_override=inp.get("shopify_amazon"),
+            entry, new_ad_name=inp["new_ad_name"], website_url=inp["website_url"],
+            source_identifier=inp["shopify_identifier"], amazon_link_override=inp.get("shopify_amazon"),
         )
     upsert(entry)
 
     if not ok:
         message = {"kind": "err", "text": err}
     elif entry["status"] == "incomplete":
-        message = {"kind": "err", "text": f"Meta 광고는 생성됐지만 Shopify 브릿지 페이지 실패: {entry['shopifyError']}"}
+        message = {"kind": "err", "text": f"Meta 광고는 생성됐지만 Shopify 복제 실패: {entry.get('shopifyError')}"}
     else:
         message = {"kind": "ok", "text": f"재시도 성공: 광고 세트 {entry['result']['ad_set_id']} / 광고 {entry['result']['ad_id']}"}
 
@@ -716,6 +1776,101 @@ def delete(req_id):
     removed from requests.json and the caller deletes the <tr> itself, so the
     page never navigates away (keeping whichever tab/scroll position it was on)."""
     remove_request(req_id)
+    return {"ok": True}
+
+
+@app.route("/delete_created/<req_id>", methods=["POST"])
+def delete_created(req_id):
+    """Rolls back whatever this request actually created — the Meta ad (and
+    its ad set, but only if one was created fresh for this request, never a
+    shared/ads-only ad set other ads also live in) and/or any Shopify
+    product/page — then removes the local history entry if nothing's left
+    to roll back. An optional 'scope' field ('ad' or 'shopify') limits this
+    to just that half, for when only one side should be undone; omitted (or
+    any other value), both are attempted, matching the original all-or-
+    nothing behavior. Every applicable live delete is attempted regardless
+    of an earlier one failing, and all failures are reported together; a
+    part that fails is left in the entry (with rollbackError set) so it
+    stays visible and can be retried, while a part that already succeeded
+    is cleared from the entry so a retry doesn't attempt it again."""
+    items = load_requests()
+    entry = next((it for it in items if it["id"] == req_id), None)
+    if not entry:
+        return {"ok": False, "error": "이미 삭제된 요청입니다."}, 404
+
+    scope = (request.form.get("scope") or request.args.get("scope") or "").strip()
+    do_ad = scope in ("", "ad")
+    do_shopify = scope in ("", "shopify")
+
+    errors = []
+
+    if do_ad:
+        result = entry.get("result")
+        if result:
+            token = os.environ.get("META_ACCESS_TOKEN")
+            if not token:
+                errors.append("META_ACCESS_TOKEN 환경변수가 설정되어 있지 않아 Meta 광고를 삭제하지 못했습니다.")
+            else:
+                ad_ok = False
+                try:
+                    meta_lib.delete_ad(token, result["ad_id"])
+                    ad_ok = True
+                except meta_lib.MetaApiError as e:
+                    errors.append(f"Meta 광고 삭제 실패: {e}")
+                if ad_ok:
+                    created_own_adset = bool((entry.get("input") or {}).get("source_adset_name"))
+                    adset_ok = True
+                    if created_own_adset:
+                        try:
+                            meta_lib.delete_adset(token, result["ad_set_id"])
+                        except meta_lib.MetaApiError as e:
+                            errors.append(f"Meta 광고 세트 삭제 실패: {e}")
+                            adset_ok = False
+                    if adset_ok:
+                        entry.pop("result", None)
+        elif scope == "ad":
+            errors.append("삭제할 광고가 없습니다.")
+
+    if do_shopify:
+        shopify_product_id = entry.get("resultShopifyProductId")
+        shopify_page_id = entry.get("resultShopifyPageId")
+        if shopify_product_id or shopify_page_id:
+            shop = os.environ.get("SHOPIFY_SHOP")
+            shopify_token = os.environ.get("SHOPIFY_ACCESS_TOKEN")
+            if not shop or not shopify_token:
+                errors.append("SHOPIFY_SHOP / SHOPIFY_ACCESS_TOKEN 환경변수가 설정되어 있지 않아 Shopify 쪽을 삭제하지 못했습니다.")
+            else:
+                if shopify_product_id:
+                    try:
+                        shopify_lib.delete_product(shop, shopify_token, shopify_product_id)
+                    except shopify_lib.ShopifyApiError as e:
+                        errors.append(f"Shopify 상품 삭제 실패: {e}")
+                    else:
+                        entry.pop("resultShopifyProductId", None)
+                        entry.pop("resultShopifyUrl", None)
+                if shopify_page_id:
+                    try:
+                        shopify_lib.delete_page(shop, shopify_token, shopify_page_id)
+                    except shopify_lib.ShopifyApiError as e:
+                        errors.append(f"Shopify 페이지 삭제 실패: {e}")
+                    else:
+                        entry.pop("resultShopifyPageId", None)
+                        entry.pop("resultShopifyPageUrl", None)
+        elif scope == "shopify":
+            errors.append("삭제할 Shopify 상품/페이지가 없습니다.")
+
+    if errors:
+        entry["rollbackError"] = " / ".join(errors)
+        upsert(entry)
+        return {"ok": False, "error": entry["rollbackError"]}, 500
+
+    entry.pop("rollbackError", None)
+    still_has_ad = bool(entry.get("result"))
+    still_has_shopify = bool(entry.get("resultShopifyProductId") or entry.get("resultShopifyPageId"))
+    if not still_has_ad and not still_has_shopify:
+        remove_request(req_id)
+    else:
+        upsert(entry)
     return {"ok": True}
 
 
@@ -741,42 +1896,71 @@ def delete_all_requests():
 
 @app.route("/upload_creative", methods=["POST"])
 def upload_creative():
-    """Uploads a local video/image file straight into a Meta ad account's
-    creative library — no public hosting needed, since this runs on your own
-    machine and can send the file's bytes directly."""
-    file = request.files.get("creative_file")
+    """Uploads one or more local video/image files to a Meta ad account.
+
+    Each file is handled independently so one failed upload does not prevent
+    the remaining selected files from being attempted.  Keep accepting the
+    old singular field name for bookmarks or older cached copies of the UI.
+    """
+    files = [file for file in request.files.getlist("creative_files")
+             if file and file.filename]
+    if not files:
+        files = [file for file in request.files.getlist("creative_file")
+                 if file and file.filename]
     account_id = request.form.get("upload_account_id", "")
-    entry = new_entry(filename=(file.filename if file else ""), accountId=account_id)
-    upsert_upload(entry)
-
     token = os.environ.get("META_ACCESS_TOKEN")
-    if not file or not file.filename:
-        entry["status"] = "error"
-        entry["error"] = "업로드할 파일을 선택해주세요."
-    elif not account_id:
-        entry["status"] = "error"
-        entry["error"] = "업로드할 광고 계정을 선택해주세요."
-    elif not token:
-        entry["status"] = "error"
-        entry["error"] = "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."
-    else:
-        try:
-            result = meta_lib.upload_creative(token, account_id, file.filename, file.stream)
-            entry["status"] = "done"
-            entry["result"] = result
-        except meta_lib.MetaApiError as e:
-            entry["status"] = "error"
-            entry["error"] = str(e)
-        except Exception as e:  # noqa: BLE001
-            entry["status"] = "error"
-            entry["error"] = f"예상치 못한 오류: {e}"
-    upsert_upload(entry)
 
-    message = ({"kind": "ok", "text": f"업로드 완료: {entry['result']['kind']} — {entry['result']['asset_id']}"}
-               if entry["status"] == "done"
-               else {"kind": "err", "text": entry.get("error", "알 수 없는 오류")})
+    if not files:
+        session["flash_message"] = {"kind": "err", "text": "업로드할 파일을 선택해주세요."}
+        return redirect("/?tab=upload")
+
+    entries = []
+    for file in files:
+        entry = new_entry(filename=file.filename, accountId=account_id)
+        upsert_upload(entry)
+
+        if not account_id:
+            entry["status"] = "error"
+            entry["error"] = "업로드할 광고 계정을 선택해주세요."
+        elif not token:
+            entry["status"] = "error"
+            entry["error"] = "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."
+        else:
+            try:
+                result = meta_lib.upload_creative(
+                    token, account_id, file.filename, file.stream
+                )
+                entry["status"] = "done"
+                entry["result"] = result
+            except meta_lib.MetaApiError as e:
+                entry["status"] = "error"
+                entry["error"] = str(e)
+            except Exception as e:  # noqa: BLE001
+                entry["status"] = "error"
+                entry["error"] = f"예상치 못한 오류: {e}"
+
+        upsert_upload(entry)
+        entries.append(entry)
+
+    completed = [entry for entry in entries if entry["status"] == "done"]
+    failed = [entry for entry in entries if entry["status"] == "error"]
+    if not failed:
+        message = {
+            "kind": "ok",
+            "text": f"{len(completed)}개 파일 업로드를 완료했습니다.",
+        }
+    else:
+        message = {
+            "kind": "err",
+            "text": f"업로드 결과: 성공 {len(completed)}개 · 실패 {len(failed)}개",
+            "details": [
+                f"{entry['filename']}: {entry.get('error', '알 수 없는 오류')}"
+                for entry in failed
+            ],
+        }
+
     session["flash_message"] = message
-    return redirect("/")
+    return redirect("/?tab=upload")
 
 
 @app.route("/delete_upload/<upload_id>", methods=["POST"])
@@ -785,132 +1969,356 @@ def delete_upload(upload_id):
     return {"ok": True}
 
 
+@app.route("/delete_all_uploads", methods=["POST"])
+def delete_all_uploads():
+    """Clears upload history without deleting any assets from Meta."""
+    _save_json_list(UPLOADS_DB_PATH, [])
+    session["flash_message"] = {
+        "kind": "ok",
+        "text": "업로드 기록을 모두 삭제했습니다. Meta에 업로드된 실제 소재는 유지됩니다.",
+    }
+    return redirect("/?tab=upload")
+
+
+_NUMERIC_ID = re.compile(r"^\d{1,30}$")
+
+
+@app.route("/budget_creatives", methods=["POST"])
+def budget_creatives():
+    """예산 조정 표의 소재 썸네일 — 조회 직후 행마다의 활성 광고 id를 한 번에 받는다."""
+    token = os.environ.get("META_ACCESS_TOKEN")
+    payload = request.get_json(silent=True) or {}
+    ad_ids = list(dict.fromkeys(
+        str(i) for i in (payload.get("ad_ids") or []) if _NUMERIC_ID.match(str(i))
+    ))[:500]
+    if not token or not ad_ids:
+        return {"ok": False, "error": "조회할 광고가 없습니다."}, 400
+    try:
+        return {"ok": True, "creatives": meta_lib.get_ad_creatives(token, ad_ids)}
+    except meta_lib.MetaApiError as e:
+        return {"ok": False, "error": str(e)}, 502
+
+
+@app.route("/creative_media")
+def creative_media():
+    """소재 미리보기를 열 때 그 광고 하나의 실제 영상/미리보기 주소. 영상 주소는
+    만료되므로 미리 받아두지 않고 열 때마다 받는다."""
+    token = os.environ.get("META_ACCESS_TOKEN")
+    ad_id = (request.args.get("ad_id") or "").strip()
+    video_id = (request.args.get("video_id") or "").strip()
+    if not token or not _NUMERIC_ID.match(ad_id) or (video_id and not _NUMERIC_ID.match(video_id)):
+        return {"ok": False, "error": "잘못된 요청입니다."}, 400
+    try:
+        return {"ok": True, **meta_lib.get_ad_media(token, ad_id, video_id or None)}
+    except meta_lib.MetaApiError as e:
+        return {"ok": False, "error": str(e)}, 502
+
+
 @app.route("/budget_lookup", methods=["POST"])
 def budget_lookup():
-    """Reads the uploaded 소재/기존예산/변경예산 file, finds every Meta campaign
-    whose name contains both the 채널 and 제품군 keywords, then matches each
-    file row's 소재명 against the ad (or creative) names inside just those
-    campaigns — never calls Meta to change anything, only looks things up, so
-    the results can be reviewed before /apply_budget_changes is ever called."""
-    channel = request.form.get("channel", "").strip()
+    """Builds the full budget recommendation table without changing Meta."""
+    channel_query = request.form.get("channel_query", "").strip()
     product_group = request.form.get("product_group", "").strip()
-    file = request.files.get("budget_file")
+    budget_logic = request.form.get("budget_logic", "legacy").strip()
+    if budget_logic not in ("legacy", "v2"):
+        budget_logic = "legacy"
+    campaign_types = [value.upper() for value in request.form.getlist("campaign_types") if value.upper() in {"CV", "TF"}]
+    desired_budget_raw = request.form.get("desired_budget", "").strip()
+    detail_budgets = []
+    try:
+        raw_detail_budgets = json.loads(request.form.get("detail_budgets", "[]"))
+        if not isinstance(raw_detail_budgets, list) or len(raw_detail_budgets) > 20:
+            raise ValueError
+    except (json.JSONDecodeError, ValueError):
+        return {"ok": False, "error": "세부 예산 필터 형식이 올바르지 않습니다."}, 400
+    seen_filters = set()
+    for entry in raw_detail_budgets:
+        filter_value = str(entry.get("filter") or "").strip() if isinstance(entry, dict) else ""
+        try:
+            value = float(entry.get("budget"))
+            if not filter_value or value < 0:
+                raise ValueError
+        except (TypeError, ValueError, AttributeError):
+            return {"ok": False, "error": "각 세부 예산에는 필터값과 0 이상의 예산을 모두 입력해주세요."}, 400
+        normalized_filter = filter_value.casefold()
+        if normalized_filter in seen_filters:
+            return {"ok": False, "error": f"중복된 세부 예산 필터입니다: {filter_value}"}, 400
+        seen_filters.add(normalized_filter)
+        detail_budgets.append({"filter": filter_value, "budget": value})
+    file = request.files.get("droas_file")
 
-    if not channel:
-        return {"ok": False, "error": "채널을 선택해주세요."}, 400
+    if not channel_query:
+        return {"ok": False, "error": "채널을 입력해주세요."}, 400
+    if not product_group:
+        return {"ok": False, "error": "제품군을 입력해주세요."}, 400
+    if not campaign_types:
+        return {"ok": False, "error": "구분에서 CV 또는 TF를 하나 이상 선택해주세요."}, 400
+    try:
+        desired_budget = float(desired_budget_raw)
+        if desired_budget <= 0:
+            raise ValueError
+    except ValueError:
+        return {"ok": False, "error": "희망 예산은 0보다 큰 숫자로 입력해주세요."}, 400
+    if sum(entry["budget"] for entry in detail_budgets) > desired_budget:
+        return {"ok": False, "error": "세부 예산 합계는 희망 총 예산을 초과할 수 없습니다."}, 400
     if not file or not file.filename:
-        return {"ok": False, "error": "엑셀(.xlsx) 또는 CSV 파일을 선택해주세요."}, 400
+        return {"ok": False, "error": "D.ROAS 계산을 위한 Amazon Attribution 일일 RAW 파일을 업로드해주세요."}, 400
 
     token = os.environ.get("META_ACCESS_TOKEN")
     if not token:
         return {"ok": False, "error": "META_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다. 터미널에서 export/set 하고 서버를 다시 시작하세요."}, 400
 
     try:
-        rows = read_budget_rows(file.filename, file.stream)
-    except RowError as e:
+        raw_rows = budget_optimizer.read_raw_report(file.filename, file.stream)
+    except budget_optimizer.BudgetDataError as e:
         return {"ok": False, "error": str(e)}, 400
 
-    keywords = [channel, product_group] if product_group else [channel]
-    cache = {}
+    tokens = [token.strip() for token in channel_query.split(",") if token.strip()]
+    include_terms = [token for token in tokens if not token.startswith("*")]
+    exclude_terms = [token[1:].strip() for token in tokens if token.startswith("*") and token[1:].strip()]
+    if not include_terms:
+        return {"ok": False, "error": "채널에는 제외값이 아닌 포함값을 하나 이상 입력해주세요."}, 400
+
+    cache = budget_meta_cache()
     try:
-        campaigns = meta_lib.find_matching_campaigns(token, CANDIDATE_ACCOUNT_IDS, keywords, cache=cache)
+        campaigns = meta_lib.find_matching_budget_campaigns(
+            token, CANDIDATE_ACCOUNT_IDS, include_terms, exclude_terms,
+            product_group, campaign_types, cache=cache,
+        )
     except meta_lib.MetaApiError as e:
         return {"ok": False, "error": str(e)}, 400
 
     if not campaigns:
         return {
-            "ok": True, "campaigns": [], "matches": [], "conflicts": [],
-            "not_found": [r["creative_name"] for r in rows],
-            "message": f"'{' / '.join(keywords)}' 키워드를 모두 포함하는 캠페인을 찾지 못했습니다.",
+            "ok": True, "campaigns": [], "matches": [], "summary": {},
+            "message": "입력한 채널·제품군·구분 조건에 맞는 캠페인을 찾지 못했습니다.",
         }
 
-    all_ads = []
+    periods = budget_reporting_periods()
+    since_3d = periods["three_start"].isoformat()
+    until = periods["anchor"].isoformat()
+    history_since = (periods["anchor"] - timedelta(days=29)).isoformat()
+    campaigns_by_account = {}
+    for campaign in campaigns:
+        campaigns_by_account.setdefault(campaign["account_id"], []).append(campaign)
+
+    matches = []
     try:
-        for c in campaigns:
-            for ad in meta_lib.list_campaign_ads(token, c["id"], cache=cache):
-                all_ads.append({**ad, "_campaign_name": c["name"]})
+        for account_id, account_campaigns in campaigns_by_account.items():
+            campaign_ids = [campaign["id"] for campaign in account_campaigns]
+            campaign_names = {str(campaign["id"]): campaign["name"] for campaign in account_campaigns}
+            ads = meta_lib.list_account_active_ads(token, account_id, campaign_ids, cache=cache)
+            adsets_by_id = {}
+            ads_by_adset = {}
+            for ad in ads:
+                adset = ad.get("adset") or {}
+                if (adset.get("effective_status") or adset.get("status")) != "ACTIVE":
+                    continue
+                adset_id = str(adset.get("id") or "")
+                if not adset_id:
+                    continue
+                adsets_by_id[adset_id] = adset
+                if (ad.get("effective_status") or ad.get("status")) == "ACTIVE":
+                    ads_by_adset.setdefault(adset_id, []).append(ad)
+            if not adsets_by_id:
+                continue
+            adset_ids = list(adsets_by_id)
+            active_ad_ids = [str(ad["id"]) for group in ads_by_adset.values() for ad in group if ad.get("id")]
+            insight_by_adset = meta_lib.get_account_adset_insights(
+                token, account_id, adset_ids, since_3d, until,
+            )
+            spend_by_adset = (
+                meta_lib.get_account_daily_ad_spend(token, account_id, active_ad_ids, history_since, until)
+                if active_ad_ids else {}
+            )
+            for adset in adsets_by_id.values():
+                adset_id = str(adset["id"])
+                active_ads = ads_by_adset.get(adset_id, [])
+                insight = insight_by_adset.get(adset_id, {"cpa": None, "cpm": None})
+                adset_name = adset.get("name", "")
+                campaign_id = adset.get("campaign_id") or (active_ads[0].get("campaign_id") if active_ads else "")
+                is_da = bool(re.search(r"(^|[_\-\s])DA([_\-\s]|$)", adset_name, re.I))
+                active_names = [ad.get("name", "") for ad in active_ads if ad.get("name")]
+                matches.append({
+                    "adset_id": adset_id,
+                    "campaign_name": campaign_names.get(str(campaign_id), ""),
+                    "adset_name": adset_name, "type": "DA" if is_da else "PA",
+                    "active_ad_names": active_names,
+                    "active_ad_count": len(active_names),
+                    "active_ad_ids": [str(ad["id"]) for ad in active_ads if ad.get("id")],
+                    "account_id": str(account_id),
+                    "adset_created_time": adset.get("created_time"),
+                    "active_ad_created_times": [ad.get("created_time") for ad in active_ads if ad.get("created_time")],
+                    "display_name": (
+                        f"{active_names[0]} 외 {len(active_names) - 1}개" if len(active_names) > 1
+                        else active_names[0] if is_da and active_names else adset_name
+                    ),
+                    "current_budget": int(adset["daily_budget"]) / 100 if adset.get("daily_budget") else 0,
+                    "cpa_3d": insight.get("cpa"), "cpm_3d": insight.get("cpm"),
+                    "_meta_spend_rows": spend_by_adset.get(adset_id, []),
+                })
     except meta_lib.MetaApiError as e:
         return {"ok": False, "error": str(e)}, 400
 
-    # Budget lives on the ad set, not the ad — so every ad set gets matched
-    # (and its budget changed) at most once, even if several of the file's
-    # 소재명 rows each independently find an ad inside that same ad set.
-    adset_info = {}          # adset_id -> {campaign_name, adset_name, live_budget}
-    adset_contributions = {}  # adset_id -> [{creative_name, current_budget, new_budget}, ...]
-    not_found = []
-
-    for row in rows:
-        needle = row["creative_name"].lower()
-        found_ads = [
-            ad for ad in all_ads
-            if needle in (ad.get("name") or "").lower()
-            or needle in ((ad.get("creative") or {}).get("name") or "").lower()
-        ]
-        if not found_ads:
-            not_found.append(row["creative_name"])
-            continue
-
-        matched_adset_ids = set()
-        for ad in found_ads:
-            adset = ad.get("adset") or {}
-            adset_id = adset.get("id")
-            if not adset_id:
-                continue
-            matched_adset_ids.add(adset_id)
-            if adset_id not in adset_info:
-                adset_info[adset_id] = {
-                    "campaign_name": ad["_campaign_name"],
-                    "adset_name": adset.get("name", ""),
-                    "live_budget": int(adset["daily_budget"]) // 100 if adset.get("daily_budget") else None,
-                }
-        # A row that matches several ads within the same ad set (a broad
-        # substring hit) still only counts as this row's single opinion about
-        # that ad set's budget — not once per ad.
-        for adset_id in matched_adset_ids:
-            adset_contributions.setdefault(adset_id, []).append({
-                "creative_name": row["creative_name"],
-                "current_budget": row["current_budget"],
-                "new_budget": row["new_budget"],
-            })
-
-    matches, conflicts = [], []
-    for adset_id, contributions in adset_contributions.items():
-        info = adset_info[adset_id]
-        creative_names = [c["creative_name"] for c in contributions]
-        unique_pairs = {(c["current_budget"], c["new_budget"]) for c in contributions}
-        if len(unique_pairs) > 1:
-            # Several 소재명 in the same ad set disagree on what the budget
-            # should be — refuse to guess which one is right and surface it
-            # as a conflict the user has to fix in the file instead.
-            conflicts.append({
-                "campaign_name": info["campaign_name"],
-                "adset_name": info["adset_name"],
-                "values": [
-                    {"creative_name": c["creative_name"], "current_budget": c["current_budget"], "new_budget": c["new_budget"]}
-                    for c in contributions
-                ],
-            })
-            continue
-        current_budget, new_budget = next(iter(unique_pairs))
-        live_budget = info["live_budget"]
-        matches.append({
-            "creative_names": creative_names,
-            "campaign_name": info["campaign_name"],
-            "adset_id": adset_id,
-            "adset_name": info["adset_name"],
-            "file_current_budget": current_budget,
-            "live_current_budget": live_budget,
-            "mismatch": (current_budget is not None and live_budget is not None and current_budget != live_budget),
-            "new_budget": new_budget,
-        })
+    budget_optimizer.attach_raw_metrics(matches, raw_rows, today=periods["anchor"])
+    optimize_fn = budget_optimizer.optimize_v2 if budget_logic == "v2" else budget_optimizer.optimize
+    matches, calculation_summary = optimize_fn(matches, desired_budget, detail_budgets)
+    calculation_summary["logic"] = budget_logic
+    calculation_summary["anchor_date"] = periods["anchor"].isoformat()
+    calculation_summary["cpa_cpm_period"] = f"{periods['three_start'].isoformat()}~{periods['anchor'].isoformat()}"
+    calculation_summary["droas_period"] = f"{periods['droas_start'].isoformat()}~{periods['anchor'].isoformat()}"
 
     return {
         "ok": True,
         "campaigns": [{"id": c["id"], "name": c["name"]} for c in campaigns],
         "matches": matches,
-        "conflicts": conflicts,
-        "not_found": not_found,
+        "summary": calculation_summary,
     }
+
+
+@app.route("/budget_export", methods=["POST"])
+def budget_export():
+    """Export the currently edited budget table as a two-sheet workbook."""
+    payload = request.get_json(silent=True) or {}
+    rows = payload.get("rows") or []
+    summary = payload.get("summary") or {}
+    if not rows:
+        return {"ok": False, "error": "다운로드할 예산 조정 결과가 없습니다."}, 400
+
+    try:
+        import openpyxl
+        from openpyxl.styles import Alignment, Font, PatternFill
+        from openpyxl.utils import get_column_letter
+    except ImportError:
+        return {"ok": False, "error": "엑셀 파일 생성을 위해 openpyxl이 필요합니다."}, 500
+
+    workbook = openpyxl.Workbook()
+    criteria = workbook.active
+    criteria.title = "판정기준 요약"
+    criteria.append(["판정기준 요약", "값"])
+    before_total = sum(float(row.get("current_budget") or 0) for row in rows)
+    changed_total = sum(float(row.get("suggested_budget") or 0) for row in rows)
+    is_v2 = summary.get("logic") == "v2"
+    summary_rows = [
+        ("계산 로직", "신규 로직 (신뢰도 블렌딩)" if is_v2 else "기존 로직"),
+        ("기준일 (PDT)", summary.get("anchor_date") or "-"),
+        ("CPA·CPM 기간", summary.get("cpa_cpm_period") or "-"),
+        ("D.ROAS 기간", summary.get("droas_period") or "-"),
+    ]
+    if is_v2:
+        summary_rows += [
+            ("신규 보호(2일 이내) 세트 수", summary.get("brand_new_count", 0)),
+            ("OFF 후보 세트 수", summary.get("off_count", 0)),
+            ("배분 대상(pool) 세트 수", summary.get("pool_count", 0)),
+            ("배분 대상 목표예산", summary.get("pool_target", 0)),
+            ("D.ROAS 중앙값 (신뢰도 50%+ 세트)", summary.get("median_droas_7d")),
+            ("OFF 상대 기준 (중앙값×0.8)", summary.get("off_relative")),
+            ("OFF 절대 하한", summary.get("off_absolute", 0.3)),
+        ]
+    else:
+        summary_rows += [
+            ("신규 조정대상 세트 수", summary.get("new_assessable_count", 0)),
+            ("신규 최소배정 세트 수", summary.get("new_minimum_count", 0)),
+            ("신규 목표 총예산", summary.get("new_target", 0)),
+            ("신규 평균 CPA", summary.get("avg_cpa")),
+            ("신규 OFF 기준", summary.get("off_cpa")),
+            ("기존 세트 수", summary.get("existing_count", 0)),
+            ("기존 판정 보류 세트 수", summary.get("existing_hold_count", 0)),
+            ("기존 평균 D.ROAS", summary.get("avg_droas")),
+            ("기존 OFF 기준", summary.get("off_droas", 0.3)),
+        ]
+    summary_rows += [
+        ("변경 전 예산 합계", before_total),
+        ("희망 총예산", summary.get("desired_total", 0)),
+        ("변경 예산 합계", changed_total),
+    ]
+    for entry in summary.get("detail_budgets") or []:
+        group, value = entry.get("filter"), entry.get("budget")
+        summary_rows.append((f"{group} 세부 예산", value))
+        summary_rows.append((f"{group} 실제 배정", (summary.get("detail_allocated") or {}).get(group, 0)))
+    for label, value in summary_rows:
+        criteria.append([label, "-" if value is None else value])
+
+    detail = workbook.create_sheet("세트별 상세")
+    detail.append([
+        "버킷", "유형", "표시명", "활성 광고 수", "운영일수", "CPA", "D.ROAS", "CPM (3일)",
+        "현재예산", "제안예산", "증감", "분류", "상세설명", "비고",
+    ])
+    for row in rows:
+        current = float(row.get("current_budget") or 0)
+        suggested = float(row.get("suggested_budget") or 0)
+        detail.append([
+            row.get("bucket") or "-", row.get("type") or "-", row.get("display_name") or "-",
+            int(row.get("active_ad_count") or 0),
+            row.get("operating_days") if row.get("operating_days") is not None else "-",
+            row.get("cpa_3d") if row.get("cpa_3d") is not None else "-",
+            row.get("droas_7d") if row.get("droas_7d") is not None else "-",
+            row.get("cpm_3d") if row.get("cpm_3d") is not None else "-",
+            current, suggested, suggested - current, row.get("classification") or "-",
+            row.get("reason") or "-", row.get("note") or "-",
+        ])
+
+    header_fill = PatternFill("solid", fgColor="1F4E78")
+    header_font = Font(color="FFFFFF", bold=True)
+    warning_fill = PatternFill("solid", fgColor="FFF2CC")
+    off_fill = PatternFill("solid", fgColor="F4CCCC")
+    for sheet in (criteria, detail):
+        sheet.freeze_panes = "A2"
+        sheet.auto_filter.ref = sheet.dimensions
+        for cell in sheet[1]:
+            cell.fill = header_fill
+            cell.font = header_font
+            cell.alignment = Alignment(horizontal="center", vertical="center")
+        for column in range(1, sheet.max_column + 1):
+            values = [str(sheet.cell(row, column).value or "") for row in range(1, sheet.max_row + 1)]
+            sheet.column_dimensions[get_column_letter(column)].width = min(60, max(11, max(map(len, values)) + 2))
+        for row_cells in sheet.iter_rows(min_row=2):
+            for cell in row_cells:
+                cell.alignment = Alignment(vertical="top", wrap_text=True)
+
+    currency_labels = {
+        "신규 목표 총예산", "신규 평균 CPA", "신규 OFF 기준",
+        "변경 전 예산 합계", "희망 총예산", "변경 예산 합계", "배분 대상 목표예산",
+    }
+    currency_labels.update(
+        label for label, _ in summary_rows
+        if label.endswith("세부 예산") or label.endswith("실제 배정")
+    )
+    percent_labels = {
+        "기존 평균 D.ROAS", "기존 OFF 기준",
+        "D.ROAS 중앙값 (신뢰도 50%+ 세트)", "OFF 상대 기준 (중앙값×0.8)", "OFF 절대 하한",
+    }
+    for row_index in range(2, criteria.max_row + 1):
+        label = criteria.cell(row_index, 1).value
+        if label in currency_labels and isinstance(criteria.cell(row_index, 2).value, (int, float)):
+            criteria.cell(row_index, 2).number_format = '$#,##0.00'
+        elif label in percent_labels and isinstance(criteria.cell(row_index, 2).value, (int, float)):
+            criteria.cell(row_index, 2).number_format = '0.0%'
+    for row_index in range(2, detail.max_row + 1):
+        for column in (6, 8, 9, 10, 11):
+            if isinstance(detail.cell(row_index, column).value, (int, float)):
+                detail.cell(row_index, column).number_format = '$#,##0.00'
+        if isinstance(detail.cell(row_index, 7).value, (int, float)):
+            detail.cell(row_index, 7).number_format = '0.0%'
+        classification = str(detail.cell(row_index, 12).value or "")
+        fill = off_fill if "OFF" in classification else (
+            warning_fill if any(term in classification for term in ("보류", "검토", "모니터링", "재개")) else None
+        )
+        if fill:
+            for cell in detail[row_index]:
+                cell.fill = fill
+                cell.font = Font(bold=True)
+
+    output = io.BytesIO()
+    workbook.save(output)
+    output.seek(0)
+    stamp = str(summary.get("anchor_date") or date.today().isoformat()).replace("-", "")
+    return send_file(
+        output,
+        as_attachment=True,
+        download_name=f"meta_budget_adjustment_{stamp}.xlsx",
+        mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
 
 
 @app.route("/apply_budget_changes", methods=["POST"])
@@ -946,11 +2354,23 @@ def apply_budget_changes():
             entry_items.append(sub)
             results.append({"adset_id": adset_id, "ok": False, "error": sub["error"]})
             continue
+        if float(new_budget) <= 0:
+            sub["ok"], sub["error"] = True, None
+            sub["skipped"] = True
+            entry_items.append(sub)
+            results.append({"adset_id": adset_id, "ok": True, "skipped": True, "status": "OFF 후보 — 예산 $0은 자동 적용하지 않음"})
+            continue
         try:
             meta_lib.update_adset_budget(token, adset_id, new_budget)
+            verified = meta_lib.ensure_adset_active(token, adset_id)
+            if verified.get("status") != "ACTIVE":
+                raise meta_lib.MetaApiError(
+                    f"예산 변경 후 ACTIVE 재확인 실패 (status={verified.get('status')}, effective_status={verified.get('effective_status')})"
+                )
             sub["ok"], sub["error"] = True, None
+            sub["verifiedActive"] = True
             entry_items.append(sub)
-            results.append({"adset_id": adset_id, "ok": True})
+            results.append({"adset_id": adset_id, "ok": True, "verified_active": True})
         except meta_lib.MetaApiError as e:
             sub["ok"], sub["error"] = False, str(e)
             entry_items.append(sub)
@@ -1010,10 +2430,27 @@ def shopify_search():
                 "statusLabel": shopify_lib.STATUS_LABELS.get(p["status"], p["status"]),
                 "tags": p.get("tags") or [], "template": p.get("templateSuffix") or "",
                 "thumbnail": (p.get("featuredImage") or {}).get("url"),
+                "url": p.get("onlineStorePreviewUrl") or f"https://{shop}/products/{p['handle']}",
             }
             for p in products
         ],
     }
+
+
+@app.route("/shopify_media_search")
+def shopify_media_search():
+    """Searches Shopify Files by filename/alt for the media-operation inputs."""
+    shop, token = _shopify_env()
+    if not shop or not token:
+        return {"ok": False, "error": "SHOPIFY_SHOP / SHOPIFY_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."}, 400
+    query = request.args.get("q", "").strip()
+    if not query:
+        return {"ok": True, "files": []}
+    try:
+        files = shopify_lib.search_files(shop, token, query)[:8]
+    except shopify_lib.ShopifyApiError as e:
+        return {"ok": False, "error": str(e)}, 400
+    return {"ok": True, "files": files}
 
 
 @app.route("/shopify_preview", methods=["POST"])
@@ -1037,8 +2474,13 @@ def shopify_preview():
 
     results = []
     for p in products:
-        plan = shopify_lib.evaluate_modifications(p, mods)
-        results.append({"id": p["id"], "title": p["title"], "handle": p["handle"], **plan})
+        plan = shopify_lib.evaluate_modifications(p, mods, shop, token)
+        results.append({
+            "id": p["id"], "title": p["title"], "handle": p["handle"],
+            "thumbnail": (p.get("featuredImage") or {}).get("url"),
+            "url": p.get("onlineStorePreviewUrl") or f"https://{shop}/products/{p['handle']}",
+            **plan,
+        })
     return {"ok": True, "results": results}
 
 
@@ -1070,7 +2512,132 @@ def shopify_apply():
             plan = {"overall": "error", "error": str(e), "parts": [], "detail": {}}
         except Exception as e:  # noqa: BLE001
             plan = {"overall": "error", "error": f"예상치 못한 오류: {e}", "parts": [], "detail": {}}
-        results.append({"id": p["id"], "title": p["title"], "handle": p["handle"], **plan})
+        results.append({
+            "id": p["id"], "title": p["title"], "handle": p["handle"],
+            "thumbnail": (p.get("featuredImage") or {}).get("url"),
+            "url": p.get("onlineStorePreviewUrl") or f"https://{shop}/products/{p['handle']}",
+            **plan,
+        })
+
+    applied = sum(1 for r in results if r["overall"] == "apply")
+    skipped = sum(1 for r in results if r["overall"] == "skip")
+    errored = sum(1 for r in results if r["overall"] == "error")
+    overall_status = "error" if errored and applied == 0 else ("incomplete" if errored else "done")
+
+    entry = new_entry(
+        type="shopify", status=overall_status,
+        conditionsSummary=conditions_summary,
+        summary=f"적용 {applied}건 · 건너뜀 {skipped}건 · 오류 {errored}건 (총 {len(results)}건)",
+        results=results,
+    )
+    upsert(entry)
+
+    return {"ok": True, "results": results, "applied": applied, "skipped": skipped, "errored": errored}
+
+
+@app.route("/shopify_page_search", methods=["POST"])
+def shopify_page_search():
+    """Page 편집기의 1단계 조건 검색 — 조회만 하고 아무것도 바꾸지 않는다.
+    상품과 달리 상태/템플릿 조건은 없고, 대신 픽셀 이벤트용 상품명으로 찾는다."""
+    shop, token = _shopify_env()
+    if not shop or not token:
+        return {"ok": False, "error": "SHOPIFY_SHOP / SHOPIFY_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."}, 400
+
+    payload = request.get_json(silent=True) or {}
+    conditions = {
+        "title": payload.get("title", ""),
+        "tag": payload.get("tag", ""),
+        "pixel_content_name": payload.get("pixel_content_name", ""),
+        "handles": [h.strip() for h in re.split(r"[,\n]", payload.get("handles", "")) if h.strip()],
+    }
+    if not any(conditions.values()):
+        return {"ok": False, "error": "조건을 하나 이상 입력해주세요."}, 400
+
+    try:
+        pages = shopify_lib.search_pages(shop, token, conditions)
+    except shopify_lib.ShopifyApiError as e:
+        return {"ok": False, "error": str(e)}, 400
+    except Exception as e:  # noqa: BLE001
+        return {"ok": False, "error": f"예상치 못한 오류: {e}"}, 400
+
+    return {
+        "ok": True,
+        "count": len(pages),
+        "pages": [
+            {
+                "id": p["id"], "title": p["title"], "handle": p["handle"],
+                "isPublished": p["isPublished"], "tag": p.get("tag") or "",
+                "pixelContentName": p.get("pixel_content_name") or "",
+                "url": f"https://{shop}/pages/{p['handle']}",
+            }
+            for p in pages
+        ],
+    }
+
+
+@app.route("/shopify_page_preview", methods=["POST"])
+def shopify_page_preview():
+    """Page 편집기의 3단계 최종 확인 — 실제 API 상태를 다시 읽어 무엇이
+    적용/건너뜀/오류가 될지 계산만 하고, 아무것도 쓰지 않는다."""
+    shop, token = _shopify_env()
+    if not shop or not token:
+        return {"ok": False, "error": "SHOPIFY_SHOP / SHOPIFY_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."}, 400
+
+    payload = request.get_json(silent=True) or {}
+    ids = payload.get("ids") or []
+    mods = payload.get("modifications") or {}
+    if not ids:
+        return {"ok": False, "error": "선택된 페이지가 없습니다."}, 400
+
+    try:
+        pages = shopify_lib.fetch_pages_by_ids(shop, token, ids)
+    except shopify_lib.ShopifyApiError as e:
+        return {"ok": False, "error": str(e)}, 400
+
+    results = []
+    for p in pages:
+        plan = shopify_lib.evaluate_page_modifications(p, mods, shop, token)
+        results.append({
+            "id": p["id"], "title": p["title"], "handle": p["handle"],
+            "url": f"https://{shop}/pages/{p['handle']}",
+            **plan,
+        })
+    return {"ok": True, "results": results}
+
+
+@app.route("/shopify_page_apply", methods=["POST"])
+def shopify_page_apply():
+    """실제로 스토어에 반영한다 — 반드시 /shopify_page_preview로 미리 확인한
+    뒤, 사용자가 "최종 확인 · 적용 실행"을 눌렀을 때만 호출된다."""
+    shop, token = _shopify_env()
+    if not shop or not token:
+        return {"ok": False, "error": "SHOPIFY_SHOP / SHOPIFY_ACCESS_TOKEN 환경변수가 설정되어 있지 않습니다."}, 400
+
+    payload = request.get_json(silent=True) or {}
+    ids = payload.get("ids") or []
+    mods = payload.get("modifications") or {}
+    conditions_summary = payload.get("conditions_summary") or ""
+    if not ids:
+        return {"ok": False, "error": "선택된 페이지가 없습니다."}, 400
+
+    try:
+        pages = shopify_lib.fetch_pages_by_ids(shop, token, ids)
+    except shopify_lib.ShopifyApiError as e:
+        return {"ok": False, "error": str(e)}, 400
+
+    results = []
+    for p in pages:
+        try:
+            plan = shopify_lib.apply_page_modifications(shop, token, p, mods)
+        except shopify_lib.ShopifyApiError as e:
+            plan = {"overall": "error", "error": str(e), "parts": [], "detail": {}}
+        except Exception as e:  # noqa: BLE001
+            plan = {"overall": "error", "error": f"예상치 못한 오류: {e}", "parts": [], "detail": {}}
+        results.append({
+            "id": p["id"], "title": p["title"], "handle": p["handle"],
+            "url": f"https://{shop}/pages/{p['handle']}",
+            **plan,
+        })
 
     applied = sum(1 for r in results if r["overall"] == "apply")
     skipped = sum(1 for r in results if r["overall"] == "skip")

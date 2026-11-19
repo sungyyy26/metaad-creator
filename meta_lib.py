@@ -1,10 +1,20 @@
 """Shared Meta Marketing API helpers used by both the CLI script (duplicate_ad.py)
 and the local web dashboard (webapp/app.py)."""
+import html
 import json
 import os
+import re
 import time
+from datetime import datetime
 
 import requests
+
+# A bare `requests.request(...)` call opens a brand-new TCP+TLS connection
+# every time. A bulk batch can make dozens of these back-to-back to the same
+# host, so reusing one Session (which pools/keeps-alive the connection)
+# shaves the handshake off every call after the first — pure latency win,
+# no behavior change.
+_SESSION = requests.Session()
 
 GRAPH = "https://graph.facebook.com/v21.0"
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".avi", ".m4v", ".webm", ".mkv"}
@@ -38,8 +48,8 @@ def api(method, path, token, **params):
     for attempt, delay in enumerate(delays):
         if delay:
             time.sleep(delay)
-        r = requests.request(method, f"{GRAPH}/{path}", params=params if method == "GET" else None,
-                              data=None if method == "GET" else params)
+        r = _SESSION.request(method, f"{GRAPH}/{path}", params=params if method == "GET" else None,
+                             data=None if method == "GET" else params)
         data = r.json()
         if "error" not in data:
             return data
@@ -128,35 +138,250 @@ def list_campaigns(token, account_id, cache=None):
     adjustment tab to search by keyword, unlike resolve_campaign_and_account's
     exact-name lookup."""
     return _cached(cache, f"all_campaigns:{account_id}", lambda: _paginate(
-        token, f"act_{account_id}/campaigns", fields="id,name", limit=200))
+        token, f"act_{account_id}/campaigns", fields="id,name", limit=500))
 
 
-def find_matching_campaigns(token, account_ids, keywords, cache=None):
-    """Every campaign across account_ids whose name contains ALL of `keywords`
-    (case-insensitive substring match) — e.g. a channel token like "Amazon"
-    plus a free-text product-group phrase."""
-    needles = [k.strip().lower() for k in keywords if k and k.strip()]
+def find_matching_budget_campaigns(token, account_ids, channel_terms, channel_exclusions,
+                                   product_group, campaign_types, cache=None):
+    """Match the budget page's structured campaign-name conditions.
+
+    Channel includes/excludes use case-insensitive substring matching. Product
+    and CV/TF use exact underscore-delimited campaign-name tokens so `v-srm`
+    cannot accidentally match `v-srm&crm`.
+    """
+    includes = [value.strip().casefold() for value in channel_terms if value.strip()]
+    excludes = [value.strip().casefold() for value in channel_exclusions if value.strip()]
+    product_token = f"_{product_group.strip().strip('_').casefold()}_"
+    type_tokens = {f"_{value.strip().strip('_').casefold()}_" for value in campaign_types if value.strip()}
     matches = []
     for account_id in account_ids:
-        for c in list_campaigns(token, account_id, cache=cache):
-            name_lower = c["name"].lower()
-            if all(k in name_lower for k in needles):
-                matches.append({"id": c["id"], "name": c["name"], "account_id": account_id})
+        for campaign in list_campaigns(token, account_id, cache=cache):
+            name_lower = campaign["name"].casefold()
+            if not all(value in name_lower for value in includes):
+                continue
+            if any(value in name_lower for value in excludes):
+                continue
+            if product_token not in name_lower:
+                continue
+            if not any(value in name_lower for value in type_tokens):
+                continue
+            matches.append({"id": campaign["id"], "name": campaign["name"], "account_id": account_id})
     return matches
 
 
-def list_campaign_ads(token, campaign_id, cache=None):
-    """Every ad in a campaign, with its ad set's id/name/daily_budget and the
-    ad's own creative name, so a spreadsheet's 소재명 column can be matched
-    against either the ad name or the creative name."""
-    return _cached(cache, f"campaign_ads:{campaign_id}", lambda: _paginate(
-        token, f"{campaign_id}/ads", limit=200,
-        fields="id,name,adset{id,name,daily_budget},creative{name}"))
+def list_recent_ad_copies(token, account_ids, since, limit_per_account=500):
+    """Fetch recent Meta ad names and creative copy for the local copy DB.
+
+    Only requests the creative sub-fields _creative_texts() actually reads
+    (not the full object_story_spec/asset_feed_spec, which can be huge for
+    dynamic/Advantage+ creative and trip Meta's "reduce the amount of data
+    you're asking for" error) and filters server-side by updated_time so a
+    large account doesn't pull months of ads just to keep the last 30 days."""
+    since_epoch = int(datetime.strptime(since, "%Y-%m-%d").timestamp())
+    filtering = json.dumps([{"field": "updated_time", "operator": "GREATER_THAN", "value": since_epoch}])
+    collected = []
+    for account_id in account_ids:
+        rows = api(
+            "GET", f"act_{account_id}/ads", token,
+            fields="name,created_time,updated_time,"
+                   "creative{"
+                   "object_story_spec{link_data{name,message},video_data{title,message}},"
+                   "asset_feed_spec{titles{text},bodies{text}}"
+                   "}",
+            filtering=filtering,
+            limit=limit_per_account,
+        ).get("data", [])
+        for row in rows:
+            stamp = str(row.get("updated_time") or row.get("created_time") or "")[:10]
+            if stamp and stamp >= since:
+                collected.append(row)
+    collected.sort(
+        key=lambda row: row.get("updated_time") or row.get("created_time") or "",
+        reverse=True,
+    )
+    return collected
+
+
+def list_account_active_ads(token, account_id, campaign_ids, cache=None):
+    """Fetch ads that belong to active ad sets once per account.
+
+    PAUSED ads are included so an ACTIVE ad set is not omitted merely because
+    its individual ads are currently paused. The caller separately identifies
+    the actually ACTIVE ads when it needs active creative names.
+    """
+    wanted = {str(value) for value in campaign_ids}
+    campaign_key = ",".join(sorted(wanted))
+    rows = _cached(cache, f"active_ads_account:{account_id}:{campaign_key}", lambda: _paginate(
+        token, f"act_{account_id}/ads", limit=1000,
+        fields="id,name,status,effective_status,created_time,campaign_id,"
+               "adset{id,name,status,effective_status,daily_budget,created_time,campaign_id}",
+        filtering=json.dumps([
+            {"field": "campaign.id", "operator": "IN", "value": sorted(wanted)},
+            {"field": "effective_status", "operator": "IN", "value": ["ACTIVE", "PAUSED"]},
+        ]),
+    ))
+    return [row for row in rows if str(row.get("campaign_id")) in wanted]
+
+
+def _insight_metrics(row):
+    if not row:
+        return {"spend": 0.0, "cpm": None, "cpa": None}
+    spend = float(row.get("spend") or 0)
+    cpm = float(row["cpm"]) if row.get("cpm") not in (None, "") else None
+    checkout_types = (
+        "omni_initiated_checkout", "initiate_checkout",
+        "offsite_conversion.fb_pixel_initiate_checkout",
+    )
+    costs = {item.get("action_type"): item.get("value") for item in row.get("cost_per_action_type") or []}
+    cpa = next((float(costs[action]) for action in checkout_types if costs.get(action) not in (None, "")), None)
+    if cpa is None:
+        actions = {item.get("action_type"): float(item.get("value") or 0) for item in row.get("actions") or []}
+        checkouts = next((actions[action] for action in checkout_types if actions.get(action)), 0)
+        cpa = spend / checkouts if checkouts else None
+    return {"spend": spend, "cpm": cpm, "cpa": cpa}
+
+
+def get_account_adset_insights(token, account_id, adset_ids, since, until):
+    """One targeted account-level D-3 request instead of one per ad set."""
+    rows = _paginate(
+        token, f"act_{account_id}/insights", limit=1000,
+        fields="adset_id,spend,cpm,actions,cost_per_action_type",
+        time_range=json.dumps({"since": since, "until": until}),
+        filtering=json.dumps([{
+            "field": "adset.id", "operator": "IN", "value": [str(x) for x in adset_ids],
+        }]),
+        level="adset",
+    )
+    return {str(row.get("adset_id")): _insight_metrics(row) for row in rows if row.get("adset_id")}
+
+
+def get_account_daily_ad_spend(token, account_id, ad_ids, since, until):
+    """One account-level daily spend request limited to current active ads."""
+    rows = _paginate(
+        token, f"act_{account_id}/insights", limit=1000,
+        fields="adset_id,ad_id,ad_name,spend,date_start",
+        time_range=json.dumps({"since": since, "until": until}),
+        filtering=json.dumps([{
+            "field": "ad.id", "operator": "IN", "value": [str(x) for x in ad_ids],
+        }]),
+        time_increment=1,
+        level="ad",
+    )
+    grouped = {}
+    for row in rows:
+        adset_id = str(row.get("adset_id") or "")
+        if not adset_id or not row.get("ad_name") or not row.get("date_start"):
+            continue
+        grouped.setdefault(adset_id, []).append({
+            "date": row["date_start"], "ad_name": row["ad_name"],
+            "spend": float(row.get("spend") or 0),
+        })
+    return grouped
+
+
+_FB_PREVIEW_SRC = re.compile(r'src="(https://www\.facebook\.com/[^"]+)"')
+
+
+def _chunks(seq, size):
+    for i in range(0, len(seq), size):
+        yield seq[i:i + size]
+
+
+def get_ad_creatives(token, ad_ids):
+    """What to show for each ad's creative, keyed by ad id. kind is "video",
+    "image", or "other" (carousel/dynamic etc. — only Meta's ad preview can
+    render those). thumb is a ~480px still for every kind; image is the
+    full-size picture for image ads (image hashes resolved via adimages)."""
+    ads = {}
+    for chunk in _chunks(list(ad_ids), 50):
+        ads.update(api("GET", "", token, ids=",".join(chunk), fields="name,account_id,creative{id}"))
+    creative_ids = sorted({(a.get("creative") or {}).get("id") for a in ads.values()} - {None})
+    creatives = {}
+    for chunk in _chunks(creative_ids, 50):
+        creatives.update(api(
+            "GET", "", token, ids=",".join(chunk),
+            fields="thumbnail_url,image_url,image_hash,video_id,object_story_spec,asset_feed_spec",
+            thumbnail_width=480, thumbnail_height=480,
+        ))
+
+    picks, hashes_by_account = {}, {}
+    for ad_id, ad in ads.items():
+        c = creatives.get((ad.get("creative") or {}).get("id"), {})
+        spec = c.get("object_story_spec") or {}
+        link, photo, video = spec.get("link_data") or {}, spec.get("photo_data") or {}, spec.get("video_data") or {}
+        feed = c.get("asset_feed_spec") or {}
+        video_id = (c.get("video_id") or video.get("video_id")
+                    or next((v["video_id"] for v in feed.get("videos", []) if v.get("video_id")), None))
+        image = c.get("image_url") or link.get("picture") or photo.get("url")
+        image_hash = None
+        if not video_id and not image:
+            image_hash = (c.get("image_hash") or link.get("image_hash") or photo.get("image_hash")
+                          or next((i["hash"] for i in feed.get("images", []) if i.get("hash")), None))
+            if image_hash and ad.get("account_id"):
+                hashes_by_account.setdefault(str(ad["account_id"]), set()).add(image_hash)
+        picks[ad_id] = (ad, c, video_id, image, image_hash)
+
+    hash_urls = {}
+    for account_id, hashes in hashes_by_account.items():
+        rows = api("GET", f"act_{account_id}/adimages", token,
+                   hashes=json.dumps(sorted(hashes)), fields="hash,url").get("data", [])
+        hash_urls.update({r["hash"]: r.get("url") for r in rows if r.get("hash")})
+
+    result = {}
+    for ad_id, (ad, c, video_id, image, image_hash) in picks.items():
+        image = image or hash_urls.get(image_hash)
+        result[ad_id] = {
+            "ad_id": ad_id, "name": ad.get("name", ""), "account_id": str(ad.get("account_id") or ""),
+            "kind": "video" if video_id else "image" if image else "other",
+            "thumb": c.get("thumbnail_url") or image, "image": image, "video_id": video_id,
+        }
+    return result
+
+
+def get_ad_media(token, ad_id, video_id=None):
+    """Full playable content for one ad, fetched on demand because video source
+    URLs expire. Tries the video's own mp4, then Meta's rendered ad preview
+    (covers page-owned videos we can't read directly, carousels, dynamic ads)."""
+    if video_id:
+        try:
+            v = api("GET", str(video_id), token, fields="source,picture")
+            if v.get("source"):
+                return {"kind": "video", "src": v["source"], "poster": v.get("picture")}
+        except MetaApiError:
+            pass
+    previews = api("GET", f"{ad_id}/previews", token, ad_format="MOBILE_FEED_STANDARD").get("data", [])
+    match = _FB_PREVIEW_SRC.search(previews[0].get("body", "")) if previews else None
+    if match:
+        return {"kind": "preview", "src": html.unescape(match.group(1))}
+    return {"kind": "none"}
+
+
+def ensure_adset_active(token, adset_id):
+    """Re-activate after a budget write if Meta changed delivery state."""
+    state = api("GET", adset_id, token, fields="id,status,effective_status")
+    if state.get("status") != "ACTIVE":
+        api("POST", adset_id, token, status="ACTIVE")
+    verified = api("GET", adset_id, token, fields="id,status,effective_status")
+    return verified
 
 
 def update_adset_budget(token, adset_id, daily_budget):
     """Sets an ad set's daily budget (major currency units -> Meta's cents)."""
     api("POST", adset_id, token, daily_budget=int(daily_budget) * 100)
+
+
+def delete_ad(token, ad_id):
+    """Deletes an ad — Marketing API's documented way to remove an ad/ad set/
+    campaign is to flip its status to DELETED, the same mechanism
+    ensure_adset_active uses the other way. Used to roll back a row whose
+    Meta ad was created but something else in the same row then failed."""
+    api("POST", ad_id, token, status="DELETED")
+
+
+def delete_adset(token, adset_id):
+    """Deletes an ad set — only safe to call for one created fresh for a
+    single row (never a shared/ads-only ad set other ads also live in)."""
+    api("POST", adset_id, token, status="DELETED")
 
 
 def find_adset_by_name(token, campaign_id, name, cache=None):
@@ -182,6 +407,33 @@ def find_template_ad(token, adset_id, cache=None):
             raise MetaApiError(f"광고 세트 {adset_id} 안에 템플릿으로 쓸 광고가 없습니다.")
         return ads[0]
     return _cached(cache, f"template_ad:{adset_id}", fetch)
+
+
+def find_existing_ad_copy(token, campaign_id_or_name, candidate_account_ids, adset_name,
+                           account_override=None, cache=None):
+    """Looks for an ad that's already inside the named ad set and, if found,
+    returns its exact headline/primary text — lets the "ads-only" bulk-upload
+    path (adding another ad into an ad set that already has one) default to
+    reusing that ad's own copy instead of auto-generating new text. Returns
+    None (never raises) when the campaign/ad set/ad can't be found or the
+    ad's creative has no text to reuse — callers then fall back to their own
+    copy source."""
+    try:
+        account_id, campaign_id = resolve_campaign_and_account(
+            token, campaign_id_or_name, candidate_account_ids,
+            account_override=account_override, cache=cache)
+        adset = find_adset_by_name(token, campaign_id, adset_name, cache=cache)
+        template_ad = find_template_ad(token, adset["id"], cache=cache)
+    except MetaApiError:
+        return None
+
+    story_spec = template_ad.get("creative", {}).get("object_story_spec", {})
+    data = story_spec.get("link_data") or story_spec.get("video_data") or {}
+    headline = data.get("name") or data.get("title") or ""
+    primary_text = data.get("message") or ""
+    if not headline or not primary_text:
+        return None
+    return {"headline": headline, "primary_text": primary_text}
 
 
 def find_creative_asset(token, account_id, name_query, cache=None):
@@ -216,8 +468,10 @@ def duplicate_ad(token, *, campaign_id, candidate_account_ids, source_adset_name
       either one that already exists in Meta, or one an earlier row in the same
       bulk batch just created (tracked via `batch_adsets`, since the ad-set-list
       cache snapshot taken at the start of the batch won't see it). The target
-      ad set's daily_budget is force-overwritten to daily_budget afterwards,
-      matching the original artifact's rule for this path.
+      ad set's daily_budget is overwritten to daily_budget afterwards — unless
+      daily_budget is None, which leaves that shared ad set's current budget
+      untouched (for a row that's just adding another ad into a set whose
+      budget is already set the way it should be).
 
     Pass a shared `cache` dict across a batch to fetch each campaign/ad-set/
     creative-library lookup once instead of once per row.
@@ -300,10 +554,10 @@ def duplicate_ad(token, *, campaign_id, candidate_account_ids, source_adset_name
              creative=json.dumps({"creative_id": creative["id"]}),
              status=status)
 
-    if ads_only:
-        # Always overwrite the shared ad set's budget to what this request asked
-        # for, even if unchanged — matches the original artifact's rule for the
-        # ads-only path.
+    if ads_only and daily_budget is not None:
+        # Overwrite the shared ad set's budget to what this request asked for.
+        # Skipped entirely when daily_budget is None (the row left it
+        # blank/'-'), leaving the already-shared ad set's current budget as-is.
         api("POST", target_adset_id, token, daily_budget=daily_budget * 100)
 
     return {
@@ -332,10 +586,18 @@ def upload_creative(token, account_id, filename, file_obj):
     endpoint = "advideos" if is_video else "adimages"
     field = "source" if is_video else "filename"
 
-    r = requests.post(
+    upload_data = {"access_token": token}
+    if is_video:
+        # Meta supports an explicit name/title for videos.  Set both to the
+        # original local filename so the asset can be found later using the
+        # exact same 소재명.  Images take their library name from the filename
+        # in the multipart tuple below.
+        upload_data.update({"name": filename, "title": filename})
+
+    r = _SESSION.post(
         f"{GRAPH}/act_{account_id}/{endpoint}",
         files={field: (filename, file_obj)},
-        data={"access_token": token},
+        data=upload_data,
     )
     data = r.json()
     if "error" in data:

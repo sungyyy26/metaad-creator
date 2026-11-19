@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Meta Ad Desk · 계정 관리</title>
+<style>
+  :root{
+    color-scheme: light;
+    --primary:#a5ed6e; --on-primary:#111111; --bg:#ddf4ff; --surface:#ffffff;
+    --text:#3c3c3c; --text-muted:#777777; --accent:#1cb0f6; --danger:#ff4b4b;
+    --radius:12px;
+    --font-display:"NanumSquareRound","Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;
+    --font-body:"NanumSquareRound","Malgun Gothic","맑은 고딕","Apple SD Gothic Neo",sans-serif;
+    --shadow: 0 2px 18px rgba(60,60,60,.08);
+  }
+  *{box-sizing:border-box;}
+  input,textarea,select,button{font-family:inherit;}
+  ::placeholder{font-family:inherit;}
+  body{
+    margin:0; min-height:100vh; background:var(--bg); color:var(--text); padding:40px 20px;
+    font-family:var(--font-body);
+  }
+  :focus-visible{ outline:2px solid var(--accent); outline-offset:2px; border-radius:4px; }
+  .wrap{ max-width:580px; margin:0 auto; }
+  h1{ font-family:var(--font-display); font-weight:800; font-size:26px; margin:0 0 6px; color:var(--text); }
+  .sub{ font-size:14px; margin:0 0 30px; color:var(--text); word-break:keep-all; overflow-wrap:normal; }
+  .sub a{ color:var(--accent); font-weight:700; text-decoration:underline; }
+  .card{ background:var(--surface); border-radius:20px; box-shadow:var(--shadow); padding:24px; margin-bottom:20px; }
+  .card h2{ font-family:var(--font-display); font-weight:700; font-size:16px; margin:0 0 14px; color:var(--text); }
+  .admin-row{ display:flex; align-items:center; gap:10px; font-size:14px; color:var(--text); margin-bottom:12px; font-weight:600; }
+  .admin-row span{ background:var(--bg); border-radius:980px; padding:6px 14px; }
+  .field-label{ display:block; font-size:12px; font-weight:700; color:var(--text-muted); margin:0 0 6px; }
+  .field-hint{ font-size:12px; color:var(--text-muted); margin:8px 0 0; }
+  form.add-form{ display:flex; flex-direction:column; gap:14px; }
+  form.add-form .field{ display:flex; flex-direction:column; }
+  form.add-form button{ align-self:flex-start; }
+  input[type=email],input[type=text]{
+    width:100%; background:var(--bg); border:2px solid transparent; border-radius:var(--radius);
+    padding:12px 14px; font-size:14px; color:var(--text); font-family:var(--font-body); min-height:44px;
+    transition:border-color 300ms ease;
+  }
+  input[type=email]:focus,input[type=text]:focus{ outline:none; border-color:var(--accent); }
+  button{
+    font-family:var(--font-display); font-weight:700; font-size:14px; border:none; border-radius:var(--radius);
+    padding:12px 22px; min-height:44px; cursor:pointer; background:var(--primary); color:var(--on-primary);
+    white-space:nowrap; box-shadow:0 4px 0 0 #7fc94f; transition:filter 300ms ease, transform 300ms ease;
+  }
+  button:hover{ filter:brightness(1.04); }
+  button:active{ transform:translateY(3px); box-shadow:0 1px 0 0 #7fc94f; }
+  .list{ display:flex; flex-direction:column; gap:10px; }
+  .list-row{
+    display:flex; flex-direction:column; gap:10px;
+    background:var(--bg); border-radius:var(--radius); padding:12px 16px;
+  }
+  .list-row .email{ font-weight:700; font-size:14px; color:var(--text); }
+  .list-row .nickname{ font-weight:600; color:var(--text-muted); }
+  .list-row .meta{ font-size:12px; color:var(--text-muted); }
+  .row-actions{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .nickname-form{ display:flex; gap:6px; flex:1; min-width:0; margin:0 0 20px; }
+  /* 관리자 카드는 흰 배경이라 입력칸도 흰색이면 안 보인다 — 연한 파랑 배경 유지 */
+  .card > .nickname-form input[type=text]{ background:var(--bg); }
+  .row-actions .nickname-form{ margin:0; }
+  .nickname-form input[type=text]{
+    flex:1; width:auto; min-height:36px; min-width:100px; padding:8px 10px; font-size:13px; background:var(--surface);
+  }
+  .save-btn{
+    background:transparent; color:var(--accent); border:2px solid var(--accent); padding:8px 14px;
+    font-size:13px; min-height:36px; box-shadow:none;
+  }
+  .save-btn:hover{ background:var(--accent); color:#fff; filter:none; }
+  .save-btn:active{ transform:none; }
+  .del-btn{
+    background:transparent; color:var(--danger); border:2px solid var(--danger); padding:8px 16px;
+    font-size:13px; min-height:36px; box-shadow:none;
+  }
+  .del-btn:hover{ background:var(--danger); color:#fff; filter:none; }
+  .del-btn:active{ transform:none; }
+  .empty{ color:var(--text-muted); font-size:14px; text-align:center; padding:20px; }
+</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/innks/NanumSquareRound@master/nanumsquareround.min.css">
+</head>
+<body>
+  <div class="wrap">
+    <h1>계정 관리</h1>
+    <p class="sub">여기서 추가한 이메일만 Google 로그인으로 들어올 수 있습니다. <a href="/">← 대시보드로</a></p>
+
+    <div class="card">
+      <h2>관리자 (항상 허용)</h2>
+      <div class="admin-row"><span>{{ admin_email }}{% if admin_nickname %} · {{ admin_nickname }}{% endif %}</span></div>
+      <form method="post" action="/admin/users/{{ admin_email }}/nickname" class="nickname-form">
+        <input type="text" name="nickname" value="{{ admin_nickname or '' }}" placeholder="닉네임 (예: 예성)">
+        <button type="submit" class="save-btn">저장</button>
+      </form>
+      <h2>계정 추가</h2>
+      <form class="add-form" method="post" action="/admin/users/add">
+        <div class="field">
+          <label class="field-label" for="add-user-email">이메일</label>
+          <input type="email" id="add-user-email" name="email" placeholder="example@boosters.kr" required>
+        </div>
+        <div class="field">
+          <label class="field-label" for="add-user-nickname">닉네임 (선택)</label>
+          <input type="text" id="add-user-nickname" name="nickname" placeholder="예: 예성">
+          <p class="field-hint">로그인하면 "안녕하세요, {닉네임}님!"으로 인사해요 — "님"은 자동으로 붙으니 이름만 적어주세요.</p>
+        </div>
+        <button type="submit">추가</button>
+      </form>
+    </div>
+
+    <div class="card">
+      <h2>허용된 계정 ({{ allowed_users|length }}명)</h2>
+      {% if allowed_users %}
+      <div class="list">
+        {% for u in allowed_users %}
+        <div class="list-row">
+          <div>
+            <div class="email">{{ u.email }}{% if u.nickname %} <span class="nickname">· {{ u.nickname }}</span>{% endif %}</div>
+            <div class="meta">{{ u.submittedAt }} 추가</div>
+          </div>
+          <div class="row-actions">
+            <form method="post" action="/admin/users/{{ u.email }}/nickname" class="nickname-form">
+              <input type="text" name="nickname" value="{{ u.nickname or '' }}" placeholder="예: 예성">
+              <button type="submit" class="save-btn">저장</button>
+            </form>
+            <form method="post" action="/admin/users/{{ u.email }}/delete" onsubmit="return confirm('{{ u.email }} 계정을 삭제할까요?');">
+              <button type="submit" class="del-btn">삭제</button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty">관리자 외에 허용된 계정이 아직 없습니다.</div>
+      {% endif %}
+    </div>
+  </div>
+</body>
+</html>
